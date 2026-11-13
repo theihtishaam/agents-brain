@@ -68,4 +68,3 @@ The browser and project-local MCP tools can read the same workroom, report outco
 [Quickstart](QUICKSTART.md) · [Workspace guide](WORKSPACE.md) · [Features and limits](FEATURES_AND_LIMITS.md) · [Troubleshooting](TROUBLESHOOTING.md)
 
 
-[Watch or download the real documentation walkthrough as MP4](https://github.com/theihtishaam/agents-brain/raw/refs/heads/main/docs/assets/7.1.4-hub-public-docs.mp4). The video shows the same recorded application frames as the animated preview.

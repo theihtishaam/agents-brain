@@ -13,9 +13,9 @@
 
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
-[![Running Brain Hub with imported public documentation, measured MCP tool calls, and source inspection](docs/assets/7.1.4-hub-public-docs.gif)](docs/VISUAL_GUIDE_v7.1.4.md)
+![Running Brain Hub with imported public documentation, measured MCP tool calls, and source inspection](docs/assets/7.1.4-hub-public-docs.gif)
 
-[Watch or download the 10-second MP4](https://github.com/theihtishaam/agents-brain/raw/refs/heads/main/docs/assets/7.1.4-hub-public-docs.mp4) · [What works and its limits](docs/FEATURES_AND_LIMITS.md)
+[What works and its limits](docs/FEATURES_AND_LIMITS.md)
 
 The Brain Hub brings project memory, cited PDF pages, shared work, and recorded tool activity into one local workspace. The animation shows 74 excerpts from 18 public Agent Brain documents loaded into an isolated store. The activity journal records three actual local MCP calls from a scripted client. [Public documentation snapshot](https://github.com/theihtishaam/agents-brain/tree/2e26e7b349db4dd75bf0277b28caff8044190d16) · [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md)
 
