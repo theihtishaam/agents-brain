@@ -37,7 +37,7 @@ export function inspectClientIntegrations(options: { projectDir?: string; brain?
   let projectError: string | undefined;
   if (options.projectDir) {
     try { root = safeProject(options.projectDir); }
-    catch (error) { projectError = error instanceof Error ? error.message : 'Project inspection failed.'; }
+    catch { projectError = 'Project directory is unavailable or blocked. Check its path, permissions, and linked ancestors.'; }
   }
   const skills = listBundledSkills().map(skill => skill.name);
   const agents = CLIENT_CAPABILITIES.map(client => {

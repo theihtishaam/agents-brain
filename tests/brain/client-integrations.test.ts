@@ -97,6 +97,7 @@ describe('project-only client integration checks', () => {
       const deniedProject = inspectClientIntegrations({ projectDir });
       expect(deniedProject.checks.find(check => check.id === 'project')).toMatchObject({ status: 'error' });
       expect(deniedProject.diagnostics).not.toContain(projectDir);
+      expect(JSON.stringify(deniedProject)).not.toContain('denied synthetic fixture');
     } finally {
       projectError.mockImplementation(realLstat);
     }
