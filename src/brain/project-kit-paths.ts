@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { matchesFileIdentity } from './file-identity.js';
 
 export type ProjectKitErrorCode = 'PROJECT_KIT_UNSAFE_PATH' | 'PROJECT_KIT_CONFLICT' | 'PROJECT_KIT_STALE_PLAN' | 'PROJECT_KIT_WRITE_FAILED';
 
@@ -32,24 +33,36 @@ export function projectRoot(value: string): string {
     throw new TypeError('Select an existing project directory.');
   }
   const resolved = path.resolve(value);
-  const drive = path.parse(resolved).root;
-  const home = path.resolve(os.homedir());
-  const components = resolved.slice(drive.length).split(path.sep);
-  const names = components.map(part => part.toLowerCase());
-  const temp = path.resolve(os.tmpdir());
-  if (resolved === drive || drive.startsWith('\\\\') || resolved === temp || within(resolved, home) ||
-      names.some(name => PROTECTED.has(name)) || (names.includes('appdata') && !within(temp, resolved))) {
+  const inspectAncestors = (directory: string) => {
+    const drive = path.parse(directory).root;
+    const components = directory.slice(drive.length).split(path.sep);
+    if (!path.relative(drive, directory) || drive.startsWith('\\\\') || components.some(part => PROTECTED.has(part.toLowerCase()))) {
+      unsafe('Select a project outside filesystem, home, and protected configuration roots.');
+    }
+    let current = drive;
+    for (const component of components) {
+      if (UNSAFE_COMPONENT.test(component)) unsafe('Project directory contains an unsupported path component.');
+      current = path.join(current, component);
+      const stat = fs.lstatSync(current, { throwIfNoEntry: false });
+      if (!stat?.isDirectory() || stat.isSymbolicLink()) unsafe('Project directory and its ancestors must be real directories.');
+    }
+  };
+  inspectAncestors(resolved);
+  const original = fs.statSync(resolved, { bigint: true });
+  const canonical = fs.realpathSync.native(resolved);
+  inspectAncestors(canonical);
+  const home = fs.realpathSync.native(os.homedir());
+  const temp = fs.realpathSync.native(os.tmpdir());
+  const names = canonical.slice(path.parse(canonical).root.length).split(path.sep).map(part => part.toLowerCase());
+  if (!path.relative(canonical, temp) || within(canonical, home) || (names.includes('appdata') && !within(temp, canonical))) {
     unsafe('Select a project outside filesystem, home, and protected configuration roots.');
   }
-  let current = drive;
-  for (const component of components) {
-    if (UNSAFE_COMPONENT.test(component)) unsafe('Project directory contains an unsupported path component.');
-    current = path.join(current, component);
-    const stat = fs.lstatSync(current, { throwIfNoEntry: false });
-    if (!stat?.isDirectory() || stat.isSymbolicLink()) unsafe('Project directory and its ancestors must be real directories.');
+  const physical = fs.statSync(canonical, { bigint: true });
+  inspectAncestors(resolved);
+  const current = fs.statSync(resolved, { bigint: true });
+  if (original.dev !== physical.dev || original.ino !== physical.ino || current.dev !== original.dev || current.ino !== original.ino) {
+    unsafe('Project directory changed while its physical identity was checked.');
   }
-  const canonical = fs.realpathSync.native(resolved);
-  if (path.relative(resolved, canonical)) unsafe('Project directory resolved to a different location.');
   return canonical;
 }
 
@@ -101,7 +114,7 @@ export function readProjectFile(root: string, relativePath: string, limit: numbe
   const fd = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
-    if (opened.dev !== before.dev || opened.ino !== before.ino || !opened.isFile() || opened.nlink !== 1n || opened.size > BigInt(limit)) {
+    if (!matchesFileIdentity(filename, opened, before) || !opened.isFile() || opened.nlink !== 1n || opened.size > BigInt(limit)) {
       unsafe('Project file changed before it could be read.');
     }
     const buffer = Buffer.allocUnsafe(Number(opened.size) + 1);

@@ -15,6 +15,9 @@ import { inspectProject, planProjectSkill, applyProjectSkill, type ProjectSkillP
 import { requireProjectStore, addProjectKnowledge } from '../brain/project-memory.js';
 import { ProjectFeedbackStore } from '../brain/project-feedback.js';
 import type { AgentTool, BrainTimelineEvent, ScoredGlobalEntry } from '../types.js';
+import { WorkspaceRuntime } from './workspace-status.js';
+import { isProjectHubRoute, handleProjectHubRequest } from './project-hub-api.js';
+import type { ProjectHubService } from '../brain/project-hub.js';
 
 const INVENTORY_LIMIT = 2500;
 type Memory = BrainTimelineEvent | ScoredGlobalEntry;
@@ -27,7 +30,12 @@ export interface WorkspaceDependencies {
   journal?: ActivityJournal;
   demo?: boolean;
   localProject?: boolean;
+  runtime?: WorkspaceRuntime;
+  hub?: ProjectHubService;
+  prepareStorage?: () => Promise<string | null>;
 }
+
+const sharedRuntime = new WorkspaceRuntime('shared');
 
 function sources(entry: Memory): string[] {
   return normalizeMemorySources(entry.metadata, { limit: 8, maxChars: 500 });
@@ -107,6 +115,29 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
     const url = new URL(req.url ?? '/', 'http://localhost');
     const route = url.pathname.slice('/api/workspace/'.length);
     const method = req.method ?? 'GET';
+    const expectedProject = req.headers['x-shadow-brain-project'];
+    if (method === 'POST' && expectedProject !== undefined && expectedProject !== dependencies.runtime?.project?.id) {
+      return send({ error: 'This port now serves a different project. Reload the portal before making changes.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);
+    }
+    const storageError = await dependencies.prepareStorage?.();
+    if (route === 'status' && method === 'GET') return send((dependencies.runtime ?? sharedRuntime).status(dependencies.brain, !!dependencies.hub, storageError));
+    if (storageError) return send({ error: storageError, code: 'WORKSPACE_STORAGE_UNAVAILABLE' }, 503);
+    if (isProjectHubRoute(url.pathname)) {
+      const settings = dependencies.settings ?? getFeatureSettings();
+      const journal = dependencies.journal;
+      const correlationId = randomUUID();
+      const projectId = dependencies.runtime?.project?.id;
+      const tool = 'hub-' + (url.pathname.split('/')[4] || 'overview');
+      const record = async (kind: 'tool-start' | 'tool-end') => {
+        if (method !== 'POST' || !journal || !settings.get().features.activityRecording) return;
+        await journal.append({ kind, source: 'reported', transport: 'host', projectId, agent: 'portal', tool, correlationId,
+          ...(kind === 'tool-end' ? { outcome: res.statusCode < 400 ? 'success' as const : 'error' as const } : {}) }).catch(() => {});
+      };
+      await record('tool-start');
+      try { await handleProjectHubRequest(req, res, dependencies.hub, url); }
+      finally { await record('tool-end'); }
+      return;
+    }
     const local = dependencies.localProject && dependencies.projectDir && dependencies.brain
       ? requireProjectStore(dependencies.projectDir, dependencies.brain) : undefined;
     const projectRoutes = ['project-profile', 'project-knowledge', 'project-skill-preview', 'project-skill-apply', 'project-feedback'];
@@ -301,7 +332,7 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
         quality, scope: { projectId: requestedProject ?? null, basis: 'recent-inventory' },
         inventoryLimit: INVENTORY_LIMIT });
     }
-    const projectId = query(qs, 'project');
+    const projectId = requestedProject;
     const category = query(qs, 'category');
     const agentTool = query(qs, 'agent') as AgentTool | undefined;
     const search = query(qs, 'q');

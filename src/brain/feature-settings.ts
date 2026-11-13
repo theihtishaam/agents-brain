@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { matchesFileIdentity } from './file-identity.js';
 
 export const FEATURE_DEFINITIONS = [
   {
@@ -217,7 +218,7 @@ export class FeatureSettingsStore {
         try {
           fs.closeSync(fd);
           const current = fs.lstatSync(lock, { bigint: true, throwIfNoEntry: false });
-          if (current?.dev !== owner.dev || current.ino !== owner.ino) {
+          if (!matchesFileIdentity(lock, owner, current)) {
             throw new Error('Lock ownership changed.');
           }
           fs.unlinkSync(lock);

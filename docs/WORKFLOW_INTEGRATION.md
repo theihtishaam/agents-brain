@@ -2,9 +2,27 @@
 
 Agent Shadow Brain 7.1.0 bundles practical guidance for coding agents. It helps the host select an appropriate workflow, avoid unnecessary extra work, and check the requested result. It does not call a model or run the task on its own. Your host agent supplies the reasoning, tools, permissions, and execution.
 
+## Share project work through the Hub
+
+From the project directory, launch `shadow-brain project workspace . --port 62595` and open `/hub`. Generate the client’s project-local recipe with `shadow-brain project config . --target codex` or the appropriate target. This routes the browser and host to the same project store.
+
+Compatible project-local MCP clients can use `hub_overview`, `hub_room_read`, `hub_room_create`, `hub_room_action`, and `hub_lesson_propose`. Approved PDF passages are available through normal memory and context tools. Confirm the tools the host actually exposes with its tool list. Room actions record the author and accept an operation key for safe retries. Host claims and artifact proposals carry revisions. The operator reviews evidence and controls lesson promotion and rollback. The service handles local state and tool responses. The host decides when to invoke a tool.
+
+```mermaid
+flowchart LR
+  Operator[Browser operator] --> Store[Project-local Hub store]
+  Host[Configured MCP host] --> Store
+  Store --> Work[Rooms, claims, and artifacts]
+  Store --> Records[PDF citations and lessons]
+  Host --> Journal[Local activity journal]
+  Journal --> Operator
+```
+
+[Workspace guide](WORKSPACE.md) · [Client recipes](INTEGRATIONS.md)
+
 ## Choose a client and install
 
-Use Node 22.12+ within 22.x, Node 24.x, or Node 26+. Install the package, move to the project root, and preview the files:
+Use Node 22.13+ within 22.x, Node 24.x, or Node 26+. Install the package, move to the project root, and preview the files:
 
 ```bash
 npm install -g @theihtisham/agent-shadow-brain

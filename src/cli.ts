@@ -635,8 +635,8 @@ const doctorCmd = new Command('doctor')
 
     const nodeVersion = process.version;
     const [major, minor] = nodeVersion.slice(1).split('.').map(Number);
-    const nodeSupported = (major === 22 && minor >= 12) || major === 24 || major >= 26;
-    checks.push({ name: 'Node.js', status: nodeSupported ? 'ok' : 'warn', detail: `${nodeVersion} ${nodeSupported ? '(supported)' : '(requires Node 22.12+, 24.x, or 26+)'}` });
+    const nodeSupported = (major === 22 && minor >= 13) || major === 24 || major >= 26;
+    checks.push({ name: 'Node.js', status: nodeSupported ? 'ok' : 'warn', detail: `${nodeVersion} ${nodeSupported ? '(supported)' : '(requires Node 22.13+, 24.x, or 26+)'}` });
 
     const projectDir = getConfig().get('projectDir') as string || process.cwd();
     try {
@@ -5249,7 +5249,8 @@ demoCmd.enablePositionalOptions().command('workspace').description('Open an isol
     const port = demoCmd.getOptionValueSource('port') === 'cli' ? demoCmd.opts().port : opts.port;
     const demo = await startDemoWorkspace({ port: Number(port), activity: opts.activity });
     console.log('Agent Shadow Brain ' + VERSION + ' · SYNTHETIC DEMO');
-    console.log('Workspace: ' + demo.url + '/workspace');
+    console.log('Brain Hub: ' + demo.url + '/hub');
+    console.log('Memory workspace: ' + demo.url + '/workspace');
     console.log('Live view: ' + demo.url + '/live');
     console.log('Scripted local MCP calls, not connected coding-agent work. Press Ctrl+C to stop and remove this temporary demo.');
     const stop = () => { void demo.close().then(() => process.exit(0), () => { console.error('Demo stopped; temporary cleanup failed.'); process.exit(1); }); };

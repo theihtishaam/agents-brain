@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import { matchesFileIdentity } from './file-identity.js';
 import { randomUUID } from 'node:crypto';
 import { GlobalBrain } from './global-brain.js';
 import { adaptiveQueryKeywords } from './context-retrieval.js';
@@ -233,7 +234,7 @@ export class ProjectFeedbackStore {
     } finally {
       fs.closeSync(fd);
       const current = fs.lstatSync(lock, { throwIfNoEntry: false, bigint: true });
-      if (current?.dev === owner.dev && current.ino === owner.ino) fs.unlinkSync(lock);
+      if (matchesFileIdentity(lock, owner, current)) fs.unlinkSync(lock);
     }
   }
 

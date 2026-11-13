@@ -17,6 +17,8 @@ import { WORKSPACE_HTML } from './workspace-html.js';
 import { LIVE_WORKSPACE_HTML } from './live-workspace-html.js';
 import { handleWorkspaceRequest } from './workspace-api.js';
 import { getFeatureSettings } from '../brain/feature-settings.js';
+import { BRAIN_HUB_HTML } from './brain-hub-html.js';
+import { WorkspaceRuntime } from './workspace-status.js';
 
 export interface DashboardOptions {
   port?: number;
@@ -410,6 +412,7 @@ connect();
 
 // ── Dashboard Server ──────────────────────────────────────────────────────────
 export class DashboardServer {
+  private readonly workspaceRuntime = new WorkspaceRuntime('shared');
   private server: http.Server;
   private wss: WebSocketServer;
   private clients: Set<WebSocket> = new Set();
@@ -551,14 +554,17 @@ export class DashboardServer {
       res.end(JSON.stringify(data, null, 2));
     };
 
-    if (url === '/' || url === '/index.html' || url === '/workspace') {
+    if (url === '/' || url === '/index.html' || url === '/hub') {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end(BRAIN_HUB_HTML);
+    } else if (url === '/workspace' || url === '/memory-workspace') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(WORKSPACE_HTML);
     } else if (url === '/live' || url.startsWith('/live?')) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
       res.end(LIVE_WORKSPACE_HTML);
     } else if (url.startsWith('/api/workspace/')) {
-      void handleWorkspaceRequest(req, res, { projectDir: this.orchestrator.getStatus().projectDir });
+      void handleWorkspaceRequest(req, res, { projectDir: this.orchestrator.getStatus().projectDir, runtime: this.workspaceRuntime });
     } else if (url === '/advanced' || url === '/hive' || url === '/v6' || url === '/hive.html') {
       // Existing advanced tools remain available with their original routes.
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });

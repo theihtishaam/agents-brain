@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { matchesFileIdentity } from './file-identity.js';
 
 const SKILL_NAMES = [
   'shadow-workflow', 'shadow-implement', 'shadow-debug', 'shadow-review', 'shadow-research', 'shadow-release',
@@ -181,7 +182,7 @@ function readState(root: string, relative: string): FileState | null {
   const fd = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   try {
     const actual = fs.fstatSync(fd, { bigint: true });
-    if (actual.dev !== stat.dev || actual.ino !== stat.ino || actual.nlink !== 1n) {
+    if (!matchesFileIdentity(filename, actual, stat)) {
       throw new UnsafePathError('Destination changed while it was being inspected.');
     }
     const bytes = fs.readFileSync(fd);
@@ -447,7 +448,7 @@ function openInstallLock(root: string, createdDirs: string[]): () => void {
   return () => {
     fs.closeSync(fd);
     const current = fs.lstatSync(filename, { bigint: true, throwIfNoEntry: false });
-    if (current?.ino === owned.ino && current.dev === owned.dev) fs.unlinkSync(filename);
+    if (matchesFileIdentity(filename, owned, current)) fs.unlinkSync(filename);
   };
 }
 

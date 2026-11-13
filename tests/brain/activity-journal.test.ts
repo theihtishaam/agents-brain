@@ -238,10 +238,15 @@ describe('durable local activity journal', () => {
   });
 
   it('persists exact event identities and contiguous sequences across separate writer processes', async () => {
-    const source = fs.readFileSync(new URL('../../src/brain/activity-journal.ts', import.meta.url), 'utf8');
-    const compiled = path.join(dir, 'activity-journal.mjs');
-    const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } });
-    fs.writeFileSync(compiled, outputText);
+    const compiledDir = path.join(dir, 'compiled');
+    fs.mkdirSync(compiledDir);
+    fs.writeFileSync(path.join(compiledDir, 'package.json'), '{"type":"module"}');
+    for (const filename of ['activity-journal', 'file-identity']) {
+      const source = fs.readFileSync(new URL(`../../src/brain/${filename}.ts`, import.meta.url), 'utf8');
+      const { outputText } = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } });
+      fs.writeFileSync(path.join(compiledDir, filename + '.js'), outputText);
+    }
+    const compiled = path.join(compiledDir, 'activity-journal.js');
     const workerPath = fileURLToPath(new URL('../fixtures/activity-journal-writer.mjs', import.meta.url));
     const workers: ChildProcess[] = [];
     try {

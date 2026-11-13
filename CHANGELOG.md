@@ -1,6 +1,13 @@
 # Changelog
 
-## [7.1.4] - 2026-11-12 - Project knowledge, explained context, and outcome learning
+## [7.1.4] - 2026-11-13 - Brain Hub, shared work, and reviewed learning
+
+- Made the dense Brain Hub the default portal, with an interactive memory graph, recorded-event animation, context comparison, knowledge intake, collaboration rooms, learning controls, and setup. The memory workspace and advanced interfaces remain available.
+- Added bounded PDF text extraction with page citations, explicit approval into local memory, and a needs-OCR state for scanned pages.
+- Added transactional project rooms with scoped MCP participation, task leases, typed messages, versioned artifact handoffs, acknowledgement, and recorded outcomes.
+- Added evidence-linked lesson candidates with operator-reported evaluation, explicit promotion, idempotent memory commits and rollback. These controls do not train model weights or autonomously execute agents.
+- Added independent server health and storage diagnostics, same-port reconnect, and stale-project mutation protection. Fixed local search/graph scope and Windows canonical-path and file-identity compatibility.
+- Raised the Node 22 minimum to 22.13 for PDF.js and built-in SQLite. Node 24.x and 26+ remain supported.
 
 - Added a provider-free project portal with persistent local knowledge, bounded project inspection, and task-specific skill previews. Generated skills remain inside the selected project and preserve edited or unowned files.
 - Added a revisioned project feedback store and local learning controls. User and agent reports remain distinguishable; small task-relevant adjustments affect existing adaptive matches only and can be removed or disabled.

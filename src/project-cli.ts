@@ -19,8 +19,10 @@ export function registerProjectCommands(program: Command): void {
       console.log('Agent Shadow Brain 7.1.4 · PROJECT WORKSPACE');
       console.log('Project: ' + workspace.root);
       console.log('Memory: ' + workspace.storagePath);
-      console.log('Workspace: ' + workspace.url + '/workspace');
+      console.log('Brain Hub: ' + workspace.url + '/hub');
+      console.log('Memory workspace: ' + workspace.url + '/workspace');
       console.log('Live view: ' + workspace.url + '/live');
+      console.log('Restart from this project: shadow-brain project workspace . --port ' + new URL(workspace.url).port);
       console.log('Knowledge and skills stay in this project. Press Ctrl+C to stop; saved files are retained.');
       const stop = () => { void workspace.close().then(() => process.exit(0), () => { console.error('Project shutdown failed; saved files were retained.'); process.exit(1); }); };
       process.once('SIGINT', stop); process.once('SIGTERM', stop);

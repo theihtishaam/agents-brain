@@ -3,6 +3,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { matchesFileIdentity } from './file-identity.js';
 
 export const MEMORY_ANNOTATIONS_FILENAME = 'memory-annotations.json';
 export const MEMORY_ANNOTATION_LIMITS = Object.freeze({
@@ -394,7 +395,7 @@ export class MemoryAnnotationsStore {
   private unlinkOwnedLock(lock: string, owner: fs.BigIntStats): void {
     try {
       const current = fs.lstatSync(lock, { bigint: true, throwIfNoEntry: false });
-      if (current?.dev !== owner.dev || current.ino !== owner.ino) throw new Error('Lock ownership changed.');
+      if (!matchesFileIdentity(lock, owner, current)) throw new Error('Lock ownership changed.');
       fs.unlinkSync(lock);
     } catch {
       throw new MemoryAnnotationsError('ANNOTATIONS_LOCK_FAILED', 'Could not release the memory annotation lock.');

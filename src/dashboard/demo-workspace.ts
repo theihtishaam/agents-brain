@@ -10,6 +10,8 @@ import { MCPServer } from '../brain/mcp-server.js';
 import { handleWorkspaceRequest } from './workspace-api.js';
 import { WORKSPACE_HTML } from './workspace-html.js';
 import { LIVE_WORKSPACE_HTML } from './live-workspace-html.js';
+import { BRAIN_HUB_HTML } from './brain-hub-html.js';
+import { WorkspaceRuntime } from './workspace-status.js';
 import type { AgentTool } from '../types.js';
 
 export interface DemoWorkspaceOptions { port?: number; activity?: boolean }
@@ -52,6 +54,7 @@ export async function startDemoWorkspace(options: DemoWorkspaceOptions = {}) {
   const settings = new FeatureSettingsStore({ filePath: path.join(directory, 'feature-settings.json') });
   const journal = new ActivityJournal({ filePath: path.join(directory, 'activity-journal.json') });
   const servers: MCPServer[] = [];
+  const runtime = new WorkspaceRuntime('demo');
   let listener: http.Server | undefined;
   let timer: NodeJS.Timeout | undefined;
   let task: Promise<void> | undefined;
@@ -116,14 +119,14 @@ export async function startDemoWorkspace(options: DemoWorkspaceOptions = {}) {
         res.writeHead(403); res.end('Unsupported host.'); return;
       }
       if (req.url?.startsWith('/api/workspace/')) {
-        void handleWorkspaceRequest(req, res, { brain, settings, annotations, journal, demo: true }); return;
+        void handleWorkspaceRequest(req, res, { brain, settings, annotations, journal, demo: true, runtime }); return;
       }
       if (req.method !== 'GET') { res.writeHead(405); res.end('Method not allowed.'); return; }
       let pathname: string;
       try { pathname = new URL(req.url ?? '/', 'http://localhost').pathname; }
       catch { res.writeHead(400); res.end('Invalid request URL.'); return; }
       if (pathname === '/favicon.ico') { res.writeHead(204); res.end(); return; }
-      const html = pathname === '/' || pathname === '/workspace' ? WORKSPACE_HTML : pathname === '/live' ? LIVE_WORKSPACE_HTML : null;
+      const html = pathname === '/' || pathname === '/hub' ? BRAIN_HUB_HTML : pathname === '/workspace' || pathname === '/memory-workspace' ? WORKSPACE_HTML : pathname === '/live' ? LIVE_WORKSPACE_HTML : null;
       if (!html) { res.writeHead(404); res.end('This demo serves /workspace and /live.'); return; }
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' });
       res.end(html.replace('<html ', '<html data-demo="true" '));

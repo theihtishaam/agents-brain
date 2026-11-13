@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { inspectProject, type ProjectProfile } from './project-kit-inspection.js';
 import { ensureProjectDirectory, projectLocalPath, projectRoot, ProjectKitError, readProjectFile } from './project-kit-paths.js';
 import { WORKFLOW_TARGETS, type WorkflowTarget } from './workflow-skills.js';
+import { matchesFileIdentity } from './file-identity.js';
 
 export { inspectProject, type ProjectProfile } from './project-kit-inspection.js';
 export { ensureProjectDirectory, projectLocalPath, projectRoot, ProjectKitError } from './project-kit-paths.js';
@@ -272,6 +273,6 @@ export async function applyProjectSkill(root: string, params: ProjectSkillParams
   } finally {
     fs.closeSync(fd);
     const current = fs.lstatSync(lock, { throwIfNoEntry: false, bigint: true });
-    if (current?.dev === owner.dev && current.ino === owner.ino) fs.unlinkSync(lock);
+    if (matchesFileIdentity(lock, owner, current)) fs.unlinkSync(lock);
   }
 }

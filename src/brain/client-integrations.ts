@@ -1,9 +1,9 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import * as os from 'node:os';
 import { WORKFLOW_TARGETS, listBundledSkills, type WorkflowTarget } from './workflow-skills.js';
 import type { GlobalBrain } from './global-brain.js';
 import { buildClientConfig } from './client-config.js';
+import { projectRoot } from './project-kit-paths.js';
 
 export const CLIENT_CAPABILITIES = Object.freeze([
   { id: 'codex', label: 'Codex', target: 'codex', docs: 'https://developers.openai.com/codex/mcp/' },
@@ -15,23 +15,7 @@ export const CLIENT_CAPABILITIES = Object.freeze([
 
 /** Inspect only explicitly selected project skill files, never client profiles or credentials. */
 function safeProject(projectDir: string): string {
-  const resolved = path.resolve(projectDir);
-  const root = path.parse(resolved).root;
-  const home = path.resolve(os.homedir());
-  const relative = path.relative(home, resolved);
-  const first = relative.split(path.sep)[0].toLowerCase();
-  if (resolved === root || !relative || ['.codex', '.claude', '.opencode', '.dsh', '.config', '.agents', '.ssh', '.shadow-brain'].includes(first)) {
-    throw new Error('Select a project directory outside home and global configuration roots.');
-  }
-  let current = root;
-  for (const part of resolved.slice(root.length).split(path.sep)) {
-    current = path.join(current, part);
-    let stat: fs.Stats | undefined;
-    try { stat = fs.lstatSync(current, { throwIfNoEntry: false }); }
-    catch { throw new Error('The selected project cannot be inspected. Check directory access.'); }
-    if (!stat?.isDirectory() || stat.isSymbolicLink()) throw new Error('The selected project must exist without linked ancestors.');
-  }
-  return resolved;
+  return projectRoot(projectDir);
 }
 
 function inspectSkill(root: string, relativePath: string): 'present' | 'missing' | 'blocked' {
@@ -74,7 +58,7 @@ export function inspectClientIntegrations(options: { projectDir?: string; brain?
     };
   });
   const [major, minor] = process.versions.node.split('.').map(Number);
-  const supported = (major === 22 && minor >= 12) || major === 24 || major >= 26;
+  const supported = (major === 22 && minor >= 13) || major === 24 || major >= 26;
   const health = options.brain?.getStorageHealth();
   const checks = [
     { id: 'node', label: 'Node.js runtime', status: supported ? 'pass' : 'error', detail: process.versions.node },

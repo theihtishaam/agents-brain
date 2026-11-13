@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import * as crypto from 'crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   AgentTool,
@@ -15,6 +16,7 @@ import {
 } from '../types.js';
 import { getBrainBus } from './brain-bus.js';
 import { contextSearchMemory, type ContextSearchMemory } from './context-retrieval.js';
+import { matchesFileIdentity } from './file-identity.js';
 
 const DEFAULT_DB_PATH = path.join(os.homedir(), '.shadow-brain', 'global.json');
 const LOCK_TIMEOUT_MS = 5000;
@@ -310,9 +312,17 @@ export class GlobalBrain {
   }
 
   /** Stage an entry for later sync and return its ID immediately. */
-  writeSync(entry: EntryInput): string {
+  writeSync(entry: EntryInput, id?: string): string {
     this.requireWritable();
-    const stored = this.prepareEntry(entry);
+    if (id !== undefined && (typeof id !== 'string' || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/u.test(id))) {
+      throw new TypeError('An explicit memory ID must be a UUID.');
+    }
+    const stored = this.prepareEntry(entry, id);
+    const existing = this.entries.get(stored.id);
+    if (existing) {
+      this.requireSameExplicitEntry(existing, stored);
+      return stored.id;
+    }
     this.pendingOperations.push({ kind: 'add', entry: stored, queued: false });
     this.entries.set(stored.id, hydrateEntry(structuredClone(stored)));
     return stored.id;
@@ -323,18 +333,27 @@ export class GlobalBrain {
     if (this.shuttingDown) throw new Error('GlobalBrain is shutting down');
   }
 
-  private prepareEntry(entry: EntryInput): StoredEntry {
+  private prepareEntry(entry: EntryInput, id: string = crypto.randomUUID()): StoredEntry {
     const now = new Date();
     // Snapshot caller input now so later mutations or serialization errors cannot block a commit.
     try {
       const data: unknown = JSON.parse(JSON.stringify({
-        ...entry, id: crypto.randomUUID(), createdAt: now, lastAccessed: now, accessCount: 0,
+        ...entry, id, createdAt: now, lastAccessed: now, accessCount: 0,
       }));
       if (hasUniqueKeys([data], 'id', ['projectId', 'projectName', 'agentTool', 'category', 'content'])) {
         return data as StoredEntry;
       }
     } catch { /* Report an invalid input without exposing its contents. */ }
     throw new StorageError('STORE_INVALID_ENTRY', 'The memory entry cannot be stored as JSON.');
+  }
+
+  private requireSameExplicitEntry(previous: GlobalEntry | StoredEntry, next: StoredEntry): void {
+    const stable = ({ createdAt, lastAccessed, accessCount, ...entry }: GlobalEntry | StoredEntry) => ({
+      ...entry, importance: boundedSignal(entry.importance), metadata: isRecord(entry.metadata) ? entry.metadata : {},
+    });
+    if (!isDeepStrictEqual(stable(previous), stable(next))) {
+      throw new StorageError('STORE_INVALID_ENTRY', 'This memory ID is already assigned to a different record.');
+    }
   }
 
   private publishWrite(entry: StoredEntry): void {
@@ -687,7 +706,9 @@ export class GlobalBrain {
     for (const operation of operations) {
       switch (operation.kind) {
         case 'add': {
-          if (!entries.has(operation.entry.id)) entries.set(operation.entry.id, operation.entry);
+          const previous = entries.get(operation.entry.id);
+          if (previous) this.requireSameExplicitEntry(previous, operation.entry);
+          else entries.set(operation.entry.id, operation.entry);
           break;
         }
         case 'touch': {
@@ -776,7 +797,7 @@ export class GlobalBrain {
         // A failed token write can leave partial bytes. Check the exclusive file's identity.
         try {
           const current = fs.lstatSync(lockPath, { bigint: true });
-          if (identity && current.dev === identity.dev && current.ino === identity.ino) fs.unlinkSync(lockPath);
+          if (identity && matchesFileIdentity(lockPath, identity, current)) fs.unlinkSync(lockPath);
         } catch { /* report the lock initialization error */ }
         throw new StorageError('STORE_LOCK_FAILED', 'Could not initialize the global brain store lock.');
       }

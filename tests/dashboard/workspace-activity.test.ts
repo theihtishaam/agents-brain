@@ -31,7 +31,9 @@ it('uses the real activity flag for socket delivery, backlog, and legacy feed', 
   dashboard = new DashboardServer(orchestrator as any, { host: '127.0.0.1', port: 0 });
   const url = await dashboard.start();
   expect(new URL(url).port).not.toBe('0');
-  const workspace = await (await fetch(url + '/')).text();
+  const hub = await (await fetch(url + '/')).text();
+  expect(hub).toContain('brain-canvas');
+  const workspace = await (await fetch(url + '/workspace')).text();
   expect(workspace).toContain('id="page-context"');
   const advanced = await (await fetch(url + '/advanced')).text();
   expect(advanced).toContain('Open feature controls');

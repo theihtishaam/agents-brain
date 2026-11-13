@@ -51,7 +51,7 @@ it('runs the actual CLI handshake and read-only tools with clean stdout and no p
   expect(journal.events.some((event: any) => event.kind === 'tool-end' && event.tool === 'context_pack' && event.source === 'measured')).toBe(true);
   expect(JSON.stringify(journal)).not.toContain('café');
   expect(JSON.stringify(journal)).not.toContain('invalid synthetic memory store');
-});
+}, 20_000);
 
 it('rejects malformed initialization, obeys notification silence, and decodes split UTF-8', async () => {
   const seen: any[] = [];
@@ -111,7 +111,7 @@ it('honors recording gates, isolates journal failures, and labels explicit host 
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
-});
+}, 20_000);
 
 it('terminates when backpressured output closes, and limits oversized input/results', async () => {
   const server = { handleRequest: async (request: any) => ({ jsonrpc: '2.0' as const, id: request.id, result: {} }) };

@@ -38,7 +38,8 @@ assert(pack.files.some(file => file.path === 'dist/brain/global-brain.js'));
 for (const file of ['activity-cli', 'curation-cli', 'project-cli', 'brain/activity-journal', 'brain/memory-annotations', 'brain/mcp-stdio',
   'brain/context-retrieval', 'brain/context-request', 'brain/client-config', 'brain/memory-inspection', 'brain/memory-mcp-content',
   'brain/project-kit', 'brain/project-kit-paths', 'brain/project-kit-inspection', 'brain/project-memory', 'brain/project-feedback',
-  'dashboard/project-workspace', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
+  'brain/project-hub', 'brain/project-hub-contract', 'brain/project-hub-store', 'brain/project-hub-pdf-worker', 'brain/project-hub-mcp', 'brain/file-identity',
+  'dashboard/project-workspace', 'dashboard/project-hub-api', 'dashboard/brain-hub-html', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.js'), 'missing packaged module ' + file);
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.d.ts'), 'missing packaged declaration ' + file);
 }
@@ -331,7 +332,7 @@ const projectInput = [
 ].map(value => JSON.stringify(value)).join('\n') + '\n';
 const projectReplies = runNode(launch.args, 0, projectInput, guardConfig).trim().split(/\r?\n/).map(line => JSON.parse(line));
 assert(projectReplies.every(reply => !reply.error && !reply.result?.isError), JSON.stringify(projectReplies));
-assert.equal(projectReplies[1].result.tools.length, 17);
+assert(projectReplies[1].result.tools.some(tool => tool.name === 'hub_overview'));
 assert.equal(projectReplies[2].result.structuredContent.entries[0].id, known.memoryId);
 assert.equal(projectReplies[3].result.structuredContent.projectId, observed.projectId);
 assert.equal(projectReplies[4].result.resources.length, 2);
@@ -341,6 +342,18 @@ runNode([cli, 'project', 'feedback', 'set', 'off', '--project', localProject]);
 const disabledContext = JSON.parse(runNode([cli, 'context-pack', 'checkout retry idempotency', '--project', localProject, '--db', localDb, '--profile', 'adaptive', '--json']));
 assert(!disabledContext.retrieval.candidates[0].signals.some(signal => signal.label === 'Project task feedback'));
 const portalProbe = path.join(consumer, 'portal-probe.mjs');
+const fixturePhrase = 'The packed recovery threshold is seven transitions.';
+const fixtureStream = 'BT /F1 14 Tf 72 730 Td (' + fixturePhrase + ') Tj ET';
+const fixtureObjects = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+  '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+  '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', `<< /Length ${fixtureStream.length} >>\nstream\n${fixtureStream}\nendstream`];
+let fixturePdf = '%PDF-1.4\n';
+const fixtureOffsets = fixtureObjects.map((object, index) => {
+  const offset = fixturePdf.length;
+  fixturePdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  return offset;
+});
+fixturePdf += `xref\n0 6\n0000000000 65535 f \n${fixtureOffsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${fixturePdf.length}\n%%EOF\n`;
 fs.writeFileSync(portalProbe, `import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { startProjectWorkspace, startDemoWorkspace, ProjectFeedbackStore, inspectProject, GlobalBrain } from '@theihtisham/agent-shadow-brain';
@@ -350,6 +363,25 @@ try {
   assert.equal(overview.projectKit.projectId, ${JSON.stringify(observed.projectId)});
   assert.equal(overview.totals.memories, 1);
   assert((await (await fetch(portal.url + '/workspace')).text()).includes('data-project-local="true"'));
+  assert((await (await fetch(portal.url + '/hub')).text()).includes('brain-canvas'));
+  const status = await (await fetch(portal.url + '/api/workspace/status')).json();
+  assert.equal(status.capabilities.hub, true);
+  assert.equal(status.storage.status, 'ready');
+  const room = await fetch(portal.url + '/api/workspace/hub/rooms', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Shadow-Brain-Project': status.project.id }, body: JSON.stringify({ goal: 'Verify the packed project hub persists a shared room.', key: 'packed-room-operation' }) });
+  assert.equal(room.status, 200);
+  const roomResult = await room.json();
+  assert.equal(roomResult.room.goal, 'Verify the packed project hub persists a shared room.');
+  const uploaded = await fetch(portal.url + '/api/workspace/hub/documents?name=packed.pdf', { method: 'POST', headers: { 'Content-Type': 'application/pdf', 'X-Shadow-Brain-Project': status.project.id }, body: ${JSON.stringify(fixturePdf)} });
+  assert.equal(uploaded.status, 200);
+  const source = await uploaded.json();
+  assert.equal(source.document.status, 'ready', source.document.error);
+  assert.equal(source.pages[0].text, ${JSON.stringify(fixturePhrase)});
+  const approved = await fetch(portal.url + '/api/workspace/hub/documents/' + source.document.id + '/review', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Shadow-Brain-Project': status.project.id }, body: JSON.stringify({ page: 1, decision: 'approve', key: 'packed-page-approval' }) });
+  assert.equal(approved.status, 200);
+  const page = (await approved.json()).pages[0];
+  assert.equal(page.status, 'approved');
+  const scoped = await (await fetch(portal.url + '/api/workspace/memories?project=' + status.project.id)).json();
+  assert(JSON.stringify(scoped).includes(page.memoryId));
 } finally { await portal.close(); }
 assert(fs.existsSync(${JSON.stringify(localDb)}));
 const demo = await startDemoWorkspace({ activity: false });
@@ -372,10 +404,11 @@ for (const [modulePath, name, marker] of [
 }
 const readme = fs.readFileSync(path.join(installed, 'README.md'), 'utf8');
 const packedPaths = new Set(pack.files.map(file => file.path));
-for (const [, target] of readme.matchAll(/!\[[^\]]*]\((docs\/assets\/[^)]+\.png)\)/g)) {
+for (const [, target] of readme.matchAll(/!\[[^\]]*]\((docs\/assets\/[^)]+\.(?:png|gif))\)/g)) {
   assert(packedPaths.has(target), 'README image is missing from tarball: ' + target);
   const png = fs.readFileSync(path.join(installed, target));
-  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  if (target.endsWith('.png')) assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  else assert.match(png.subarray(0, 6).toString(), /^GIF8[79]a$/);
 }
 assert(!fs.existsSync(path.join(sandbox, 'config')), 'isolated memory, workflow, activity and workspace probes must avoid provider configuration');
 console.log(JSON.stringify({
@@ -388,5 +421,5 @@ console.log(JSON.stringify({
     'curation CLI and context suppression', 'activity CLI and cursor', 'stdio handshake and tool permissions',
     'measured and reported metadata without tool arguments', 'served live workspace and telemetry', 'workspace scripts and README artwork',
     'project inspection without script execution', 'local knowledge and protected skill apply', 'reversible task feedback and reporter attribution',
-    'fresh MCP project recipe, resources and prompts', 'persistent project portal and isolated demo teardown', 'demo CLI invalid-port validation'],
+    'fresh MCP project recipe, resources and prompts', 'persistent project portal and isolated demo teardown', 'packed PDF extraction and approval', 'demo CLI invalid-port validation'],
 }, null, 2));

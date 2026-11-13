@@ -338,7 +338,7 @@ describe('GlobalBrain storage', () => {
     const compiledDir = path.join(dir, 'compiled');
     fs.mkdirSync(compiledDir);
     fs.writeFileSync(path.join(compiledDir, 'package.json'), '{"type":"module"}');
-    for (const filename of ['global-brain', 'brain-bus', 'context-retrieval', 'memory-sources', 'task-workflow']) {
+    for (const filename of ['global-brain', 'brain-bus', 'context-retrieval', 'memory-sources', 'task-workflow', 'file-identity']) {
       const source = fs.readFileSync(new URL(`../../src/brain/${filename}.ts`, import.meta.url), 'utf8');
       const { outputText } = ts.transpileModule(source, {
         compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext },

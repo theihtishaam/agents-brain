@@ -17,6 +17,9 @@ import { MEMORY_RESOURCES, MEMORY_RESOURCE_TEMPLATES, MEMORY_PROMPTS, MemoryReso
 import { inspectProject, planProjectSkill, applyProjectSkill, type ProjectSkillParams } from './project-kit.js';
 import { requireProjectStore, addProjectKnowledge } from './project-memory.js';
 import { ProjectFeedbackStore } from './project-feedback.js';
+import { HUB_MCP_DEFINITIONS, HUB_MCP_TOOLS, isHubMcpTool, type HubMcpTool } from './project-hub-mcp.js';
+import type { ProjectHubService } from './project-hub.js';
+import { ProjectHubError } from './project-hub-contract.js';
 
 export interface MCPMemoryDependencies {
   brain?: GlobalBrain;
@@ -51,6 +54,9 @@ export class MCPServer {
   private telemetryAgent = 'mcp-client';
   private telemetryInitialized = false;
   private telemetryWarning = false;
+  private hub?: Promise<ProjectHubService>;
+  private hubClosing = false;
+  private readonly hubRequests = new Set<Promise<MCPResponse>>();
 
   constructor(orchestrator: any, options?: MCPServerOptions, private readonly dependencies: MCPMemoryDependencies = {}) {
     this.orchestrator = orchestrator;
@@ -98,6 +104,7 @@ export class MCPServer {
       project_skill_preview: params => this.handleProjectKit('preview', params),
       project_skill_apply: params => this.handleProjectKit('apply', params),
       project_feedback: params => this.handleProjectKit('feedback', params),
+      ...Object.fromEntries(HUB_MCP_DEFINITIONS.map(tool => [tool.name, (params: Record<string, unknown>) => this.handleProjectHub(tool.name as HubMcpTool, params)])),
       feature_flags: this.handleFeatureFlags.bind(this),
       activity_report: this.handleActivityReport.bind(this),
       attach_status: this.handleAttachStatus.bind(this),
@@ -773,13 +780,16 @@ export class MCPServer {
           }
 
           const handler = this.toolHandlers[toolName];
+          const hubTool = isHubMcpTool(toolName);
           if (!Object.hasOwn(this.toolHandlers, toolName) || !handler ||
               (PROJECT_TOOLS.has(toolName) && !this.dependencies.localProject) ||
-              (this.options.toolProfile === 'memory' && !MEMORY_TOOLS.has(toolName) && !PROJECT_TOOLS.has(toolName))) {
+              (hubTool && !this.hubAvailable()) ||
+              (this.options.toolProfile === 'memory' && !hubTool && !MEMORY_TOOLS.has(toolName) && !PROJECT_TOOLS.has(toolName))) {
             return this.makeError(request.id, -32601, `Unknown tool: ${toolName}`);
           }
+          if (hubTool && this.hubClosing) return this.makeError(request.id, -32002, 'This project hub session is closing.');
 
-          try {
+          const perform = async () => { try {
             if (this.dependencies.localProject && ['global_recall', 'global_recall_scored', 'global_timeline', 'context_pack', 'memory_inspect', 'memory_health', 'activity_report'].includes(toolName)) {
               const projectId = await this.telemetryProject();
               if ((toolArgs.projectId !== undefined && toolArgs.projectId !== projectId) ||
@@ -807,10 +817,22 @@ export class MCPServer {
             return this.makeResult(request.id, { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
               ...(result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result } : {}) });
           } catch (error) {
+            if (hubTool && error instanceof ProjectHubError) {
+              if (error.status === 400) return this.makeError(request.id, -32602, error.message);
+              return this.makeResult(request.id, { content: [{ type: 'text', text: error.message }], structuredContent: { code: error.code }, isError: true });
+            }
+            if (hubTool && !(error instanceof TypeError || error instanceof RangeError)) {
+              return this.makeResult(request.id, { content: [{ type: 'text', text: 'Project hub operation could not be completed. Retry with the same operation key.' }], isError: true });
+            }
             const message = error instanceof Error ? error.message : 'Tool execution failed.';
             if (error instanceof TypeError || error instanceof RangeError) return this.makeError(request.id, -32602, message);
             return this.makeResult(request.id, { content: [{ type: 'text', text: message }], isError: true });
-          }
+          } };
+          if (!hubTool) return perform();
+          const operation = perform();
+          this.hubRequests.add(operation);
+          try { return await operation; }
+          finally { this.hubRequests.delete(operation); }
         }
 
         default:
@@ -846,6 +868,17 @@ export class MCPServer {
     return applyProjectSkill(store.root, input as unknown as ProjectSkillParams, expectedPlanHash as string);
   }
 
+  private hubAvailable(): boolean { return this.options.toolProfile === 'memory' && this.dependencies.localProject === true; }
+
+  private async handleProjectHub(name: HubMcpTool, params: Record<string, unknown>): Promise<unknown> {
+    const { projectDir, brain } = this.dependencies;
+    if (!this.hubAvailable() || !projectDir || !brain) throw new TypeError('Use a project-local MCP recipe to open Brain Hub tools.');
+    if (!this.telemetryInitialized) throw new TypeError('Initialize this MCP session before calling Brain Hub tools.');
+    this.hub ??= import('./project-hub.js').then(({ ProjectHubService }) => new ProjectHubService(projectDir, brain));
+    const hub = await this.hub;
+    return HUB_MCP_TOOLS[name].run(hub, params, { id: this.telemetryAgent + ':' + this.telemetrySession, kind: 'agent' });
+  }
+
   private async telemetryProject(): Promise<string> {
     if (this.dependencies.projectId) return this.dependencies.projectId;
     const { GlobalBrain } = await import('./global-brain.js');
@@ -872,6 +905,13 @@ export class MCPServer {
   }
 
   async finishMemorySession(): Promise<void> {
+    this.hubClosing = true;
+    await Promise.allSettled([...this.hubRequests]);
+    if (this.hub) {
+      const hub = await this.hub.catch(() => undefined);
+      this.hub = undefined;
+      hub?.close();
+    }
     if (this.telemetryInitialized) {
       this.telemetryInitialized = false;
       await this.recordMeasured({ kind: 'session-end' });
@@ -1676,8 +1716,9 @@ export class MCPServer {
     ];
     const available = definitions.filter(tool => !PROJECT_TOOLS.has(tool.name) || this.dependencies.localProject);
     return this.options.toolProfile === 'memory'
-      ? available.filter(tool => MEMORY_TOOLS.has(tool.name) || PROJECT_TOOLS.has(tool.name)).map(tool => ({ ...tool, annotations: {
-          readOnlyHint: !['activity_report', 'project_knowledge', 'project_skill_apply', 'project_feedback'].includes(tool.name), destructiveHint: false, openWorldHint: false } }))
+      ? [...available.filter(tool => MEMORY_TOOLS.has(tool.name) || PROJECT_TOOLS.has(tool.name)).map(tool => ({ ...tool, annotations: {
+          readOnlyHint: !['activity_report', 'project_knowledge', 'project_skill_apply', 'project_feedback'].includes(tool.name), destructiveHint: false, openWorldHint: false } })),
+        ...(this.hubAvailable() ? HUB_MCP_DEFINITIONS : [])]
       : available;
   }
 
