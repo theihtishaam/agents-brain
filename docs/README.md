@@ -11,6 +11,7 @@ Agent Shadow Brain 7.1.4 provides a local workspace, CLI, and standalone MCP ser
 | [Context Lab](CONTEXT_LAB.md) | Assemble, inspect, compare, and copy a task brief. |
 | [Reported outcomes](LEARNING.md) | Record an observed result and inspect, pause, or remove its bounded influence on later retrieval. |
 | [Workspace guide](WORKSPACE.md) | Review memory, work with typed links, check project health, and follow recorded activity. |
+| [Features and limits](FEATURES_AND_LIMITS.md) | Distinguish implemented behavior from host prerequisites, estimates and unavailable metrics. |
 | [Client integrations](INTEGRATIONS.md) | Configure MCP stdio, inspect project skill files, and understand which surfaces the client exposes. |
 | [Workflow skills](WORKFLOW_INTEGRATION.md) | Preview or install the six focused project skills. |
 | [Showcase](SHOWCASE.md) | See Project Kit, Context Lab, memory review, outcome feedback, and Live replay with synthetic data. |
@@ -27,6 +28,6 @@ Agent Shadow Brain 7.1.4 provides a local workspace, CLI, and standalone MCP ser
 - [7.1.4 release notes](launch/RELEASE_NOTES_v7.1.4.md) cover compatibility, the demo, commands, and MCP access.
 - [Changelog](../CHANGELOG.md) · [Historical versions](versions/README.md) · [7.0 migration notes](launch/RELEASE_NOTES_v7.0.0.md)
 - [Troubleshooting](TROUBLESHOOTING.md) covers installation, storage, context, and local activity checks.
-- [Open an issue](https://github.com/ihtishaam-dev/agent-shadow-brain/issues) with the version, reproduction steps, and relevant diagnostics.
+- [Open an issue](https://github.com/theihtishaam/agents-brain/issues) with the version, reproduction steps, and relevant diagnostics.
 
 [Project README](../README.md)

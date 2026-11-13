@@ -13,9 +13,11 @@
 
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
-[![Running Brain Hub with recorded activity, route focus, and a replay slider](docs/assets/7.1.4-hub-walkthrough.gif)](docs/VISUAL_GUIDE_v7.1.4.md)
+[![Running Brain Hub with imported public documentation, measured MCP tool calls, and source inspection](docs/assets/7.1.4-hub-public-docs.gif)](docs/VISUAL_GUIDE_v7.1.4.md)
 
-The Brain Hub brings project memory, cited PDF pages, shared work, and recorded tool activity into one local workspace. The animation captures the running application on an isolated fixture, with saved records and real local MCP calls. [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md)
+[Watch or download the 10-second MP4](https://github.com/theihtishaam/agents-brain/raw/refs/heads/main/docs/assets/7.1.4-hub-public-docs.mp4) · [What works and its limits](docs/FEATURES_AND_LIMITS.md)
+
+The Brain Hub brings project memory, cited PDF pages, shared work, and recorded tool activity into one local workspace. The animation shows 74 excerpts from 18 public Agent Brain documents loaded into an isolated store. The activity journal records three actual local MCP calls from a scripted client. [Public documentation snapshot](https://github.com/theihtishaam/agents-brain/tree/2e26e7b349db4dd75bf0277b28caff8044190d16) · [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md)
 
 ## Try it
 
@@ -34,11 +36,11 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 
 ## Inside the Brain Hub
 
-![Brain Hub with a project memory graph, context estimates, and recorded OpenCode activity](docs/assets/7.1.4-hub-control-room.png)
+![Brain Hub with stored public documentation, linked references, context estimates, and a measured MCP receipt](docs/assets/7.1.4-hub-public-docs.png)
 
 | View | What you can do |
 | --- | --- |
-| **Brain overview** | Follow stored memory relationships, open a node or its keyboard-accessible list entry, and seek through recorded activity. The fine lattice illustrates the topology. The displayed counts describe stored nodes and relationships. |
+| **Brain overview** | Follow stored memory relationships, open a node or its keyboard-accessible list entry, and seek through recorded activity. An empty store has zero graph nodes and edges. |
 | **Knowledge** | Upload a PDF, review extracted text page by page, approve a cited page into project memory, or save supplied knowledge. Preview and apply a host-specific project skill. |
 | **Collaboration** | Open a project room, post a proposal or critique, claim a task, attach a project file, accept evidence, and record the outcome. |
 | **Context** | Assemble a scoped pack, inspect selected passages and sources, compare retrieval profiles, and copy the rendered Markdown. |
@@ -108,13 +110,13 @@ Preview the skill installation before adding `--apply`. Merge the printed recipe
 | DeepSeek Harness | `shadow-brain project config . --target deepseek-harness` |
 | Other compatible host | `shadow-brain project config . --target portable` |
 
-The Setup page distinguishes installed skill files and generated configuration from recorded activity. Host identities in the capture are fixture labels. Their model identities and usage are not inferred.
+The Setup page distinguishes installed skill files and generated configuration from recorded activity. The public documentation capture used a scripted MCP client. Native host connectivity, model identity, and provider usage remain unavailable in that capture.
 
 ![Actual Setup view with persisted feature switches and client recipes](docs/assets/7.1.4-hub-setup.png)
 
 ## Documentation
 
-- [Quickstart](docs/QUICKSTART.md) · [Workspace guide](docs/WORKSPACE.md) · [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md)
+- [Quickstart](docs/QUICKSTART.md) · [Workspace guide](docs/WORKSPACE.md) · [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md) · [Features and limits](docs/FEATURES_AND_LIMITS.md)
 - [Project Kit](docs/PROJECT_KIT.md) · [Context Lab](docs/CONTEXT_LAB.md) · [Workflow skills](docs/WORKFLOW_INTEGRATION.md)
 - [Integrations](docs/INTEGRATIONS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.1.4.md)
 

@@ -14,7 +14,7 @@ Open [the project Hub](http://127.0.0.1:62595/hub). Keep the process running and
 
 Select a project, agent, or memory node. For keyboard navigation, open **Node list**. The inspector shows record content, recorded source references, and explicit links. **Trace** shows the retained journal. Seek an event to inspect it and copy the event receipt. **Latest** returns to incoming records. **Pause motion** and reduced-motion settings suppress moving packets.
 
-The graph’s fine lattice is illustrative. Bright selectable nodes and graph counts come from saved records. Cyan moving routes indicate measured tool exchanges. Amber indicates explicit reports. The local workspace status, client file presence, observed tool activity, and model data each have independent evidence.
+Every graph node and relationship comes from the stored project, memory and author records. Cyan moving highlights mark fresh measured events and amber marks fresh reports when both recorded endpoints are present. Events without matching graph endpoints remain in the journal. The local workspace status, client file presence, observed tool activity, and model data each have independent evidence.
 
 ## Review and use knowledge
 
@@ -30,7 +30,7 @@ In **Learning**, propose a lesson from a recorded outcome. Record the baseline, 
 
 ## Change runtime controls
 
-In **Setup**, manage context packs, cross-project context, session briefings, activity display, and activity recording. The project portal stays pinned to its project. Feature changes are revisioned and persist when the local process restarts. Disabling the activity display hides journal records in the Hub. Disabling recording stops new optional telemetry. Work-room records remain available.
+In **Setup**, manage context packs, activity display, and activity recording. The project portal stays pinned to its project, so cross-project context is unavailable here. Automatic briefing requires a legacy analysis session. Feature changes are revisioned and persist when the local process restarts. Disabling the activity display hides journal records in the Hub. Disabling recording stops new optional telemetry. Work-room records remain available.
 
 Setup can print native client recipes and diagnostic text. Recipes point to the selected local installation and store. To confirm the host actually uses the same project, call one of its project tools and inspect the journal. [Integrations](INTEGRATIONS.md)
 

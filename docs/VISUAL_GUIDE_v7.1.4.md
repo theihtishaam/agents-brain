@@ -1,25 +1,27 @@
 # A visual guide to Agent Shadow Brain
 
-These captures show the running app on an isolated project with synthetic fixture content. The workspace persisted the records and processed local MCP calls. The model field remains unavailable.
+The control room captures use an isolated store containing 74 excerpts from 18 public Agent Brain documents, with 54 links backed by Markdown references in the excerpts. The journal records three measured calls from a scripted local MCP client. The workflow screenshots farther down use separate synthetic fixtures and carry an on-screen label. [Public documentation snapshot](https://github.com/theihtishaam/agents-brain/tree/2e26e7b349db4dd75bf0277b28caff8044190d16)
 
 ## Open the control room
 
-![Animated Brain Hub with recorded activity, focused memory, and replay](assets/7.1.4-hub-walkthrough.gif)
+![Animated Brain Hub with public documentation, focused memory, and measured MCP activity](assets/7.1.4-hub-public-docs.gif)
 
 Start `shadow-brain project workspace . --port 62595` and open `/hub`. The header confirms whether the local workspace responded. A reachable workspace can have no host activity. When the process stops, the page retains its loaded snapshot and retries. Restarting the same project on the same port restores the route.
 
-![The control room with stored graph relationships, a selected replay event, and context estimates](assets/7.1.4-hub-control-room.png)
+![The control room with actual documentation references and a measured context tool receipt](assets/7.1.4-hub-public-docs.png)
 
 | Visual | Evidence |
 | --- | --- |
 | Cyan graph links | A memory belongs to a project. |
 | Pink graph links | A memory was recorded by an agent or operator. |
-| Amber graph links | A persisted typed relationship, or a reported event when its route is highlighted. |
-| Moving packet | A newly received journal record. Measured MCP events use cyan; explicit host reports use amber. |
-| Fine blue lattice | Illustrative surface. The record and relationship counts come from the graph API. |
+| Amber graph links | A persisted typed relationship. |
+| Moving highlight | A fresh journal record whose project and author are both present in the graph. Measured events use cyan and explicit reports use amber. The arc locates an event in the graph. |
+| Faint outer outline | A placement guide for the stored nodes. |
 | Inspector | Stored record, source references, links, or a selected journal event. |
 
 Choose a node with the pointer or open **Node list** and select it with the keyboard. **Clear focus** restores the surrounding relationships. **Trace** lists retained journal events. Seek with the slider or select a timeline row. **Latest** follows new events. **Pause motion** and the system reduced-motion preference stop animation.
+
+![Focused public documentation excerpt with its actual repository-relative source path](assets/7.1.4-hub-public-docs-source.png)
 
 ![A reachable empty project with zero real graph records](assets/7.1.4-hub-empty.png)
 
@@ -63,4 +65,7 @@ The browser and project-local MCP tools can read the same workroom, report outco
 
 <img src="assets/7.1.4-hub-mobile.png" width="390" alt="Brain Hub on a 390 pixel mobile viewport">
 
-[Quickstart](QUICKSTART.md) · [Workspace guide](WORKSPACE.md) · [Troubleshooting](TROUBLESHOOTING.md)
+[Quickstart](QUICKSTART.md) · [Workspace guide](WORKSPACE.md) · [Features and limits](FEATURES_AND_LIMITS.md) · [Troubleshooting](TROUBLESHOOTING.md)
+
+
+[Watch or download the real documentation walkthrough as MP4](https://github.com/theihtishaam/agents-brain/raw/refs/heads/main/docs/assets/7.1.4-hub-public-docs.mp4). The video shows the same recorded application frames as the animated preview.
