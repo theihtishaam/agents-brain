@@ -156,6 +156,36 @@ describe('Brain Hub project runtime', () => {
     expect(local.entries).toEqual([]);
   });
 
+  it('reports an unreadable existing hub database and recovers its rooms after repair without a server restart', async () => {
+    const first = await launch();
+    const created = await (await post(first, 'hub/rooms', { goal: 'Preserve this room through storage repair', key: randomUUID() })).json();
+    await first.close();
+    const databasePath = path.join(first.root, '.shadow-brain/project-hub.sqlite');
+    const valid = fs.readFileSync(databasePath);
+    const invalid = Buffer.from('invalid-synthetic-sqlite-database');
+    fs.writeFileSync(databasePath, invalid);
+
+    const portal = await launch(first.root);
+    const response = await read(portal, 'status');
+    expect(response.status).toBe(200);
+    const status = await response.json();
+    expect(status).toMatchObject({ storage: { status: 'error' }, capabilities: { hub: false, pdf: false } });
+    expect((await fetch(portal.url + '/hub')).status).toBe(200);
+    const unavailable = await read(portal, 'hub');
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toMatchObject({ code: 'WORKSPACE_STORAGE_UNAVAILABLE' });
+    const rejected = await post(portal, 'hub/rooms', { goal: 'Do not replace the broken store', key: randomUUID() });
+    expect(rejected.status).toBe(503);
+    expect(fs.readFileSync(databasePath)).toEqual(invalid);
+
+    fs.writeFileSync(databasePath, valid);
+    const recovered = await (await read(portal, 'status')).json();
+    expect(recovered.serverInstanceId).toBe(status.serverInstanceId);
+    expect(recovered).toMatchObject({ storage: { status: 'ready' }, capabilities: { hub: true, pdf: true } });
+    const hub = await (await read(portal, 'hub')).json();
+    expect(hub.rooms.map((room: { id: string }) => room.id)).toEqual([created.room.id]);
+  });
+
   it('does not replace a running listener and rejects cross-origin hub changes without committing work', async () => {
     const portal = await launch();
     const before = await (await read(portal, 'status')).json();

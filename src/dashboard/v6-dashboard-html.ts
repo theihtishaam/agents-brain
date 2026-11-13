@@ -1130,9 +1130,9 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         Activity
       </button>
-      <button class="nav-item" data-tab="agents" data-title="Connected Tools" title="See which AI coding tools (Claude, Cursor, Codex…) are connected to your brain.">
+      <button class="nav-item" data-tab="agents" data-title="Client setup" title="Inspect coding-client configuration and recorded tool identities.">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        Connected Tools<span class="badge-count" id="badge-agents">0</span>
+        Client setup<span class="badge-count" id="badge-agents">0</span>
       </button>
       <button class="nav-item" data-tab="livebrain" data-title="Brain Health" title="A health check of your brain's memory quality, with tips to improve it.">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -1150,9 +1150,9 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5"/><path d="M4 6h9l1 2h6v8h-9l-1-2H4"/></svg>
         Project Memory<span class="badge-count" id="badge-ww2br">0</span>
       </button>
-      <button class="nav-item" data-tab="graph" data-title="Live Network" title="A live animation of your tools talking to the brain.">
+      <button class="nav-item" data-tab="graph" data-title="Recorded network" title="Configured clients and newly observed recorded events.">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/></svg>
-        Live Network
+        Recorded network
       </button>
       <button class="nav-item" data-tab="seeder" data-title="Add Knowledge" title="Research a topic and save it as verified, source-backed knowledge.">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M5 9c0-3 2-5 7-7 5 2 7 4 7 7 0 5-4 8-7 8s-7-3-7-8z"/><path d="M8 12h8"/></svg>
@@ -1280,7 +1280,7 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
 
       <div class="grid cols-4">
         <div class="card stat-card accent">
-          <div class="label">Tools Connected</div>
+          <div class="label">Recorded tools</div>
           <div class="value accent" id="ov-agents">—</div>
           <div class="trend">AI tools linked to your brain</div>
         </div>
@@ -1942,7 +1942,7 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
       </div>
       <div class="grid cols-2 mt">
         <div class="card stat-card"><div class="label">Monthly Projection</div><div class="value" id="tok-proj">$—</div><div class="trend">from last 7 days</div></div>
-        <div class="card stat-card"><div class="label">Savings Available</div><div class="value" style="color:var(--success)" id="tok-save">$—</div><div class="trend up">via smart routing</div></div>
+        <div class="card stat-card"><div class="label">Estimated opportunity</div><div class="value" style="color:var(--success)" id="tok-save">$—</div><div class="trend up">manual ledger · pricing estimates</div></div>
       </div>
       <div class="warning-banner mt" id="tok-runtime-note"><strong>Accuracy</strong><span>Token records are historical. Current agent and model spend are shown separately.</span></div>
       <div class="grid cols-2 mt-lg">
@@ -2214,10 +2214,10 @@ const FEATURES = [
   ['memory','Memories','Browse and search saved knowledge'],
   ['chat','Ask the Brain','Ask questions in plain language'],
   ['activity','Activity','Live feed of what the brain is doing'],
-  ['agents','Connected Tools','Which AI tools are linked to the brain'],
+  ['agents','Client setup','Client configuration and recorded tools'],
   ['livebrain','Brain Health','Memory quality with tips to improve'],
   ['ww2br','Project Memory','Memory and status for one project'],
-  ['graph','Live Network','Live animation of tools talking to the brain'],
+  ['graph','Recorded network','Configured clients and newly observed recorded events'],
   ['seeder','Add Knowledge','Research a topic and save it as verified knowledge'],
   ['garden','Memory Garden','Watch your memories grow over time'],
   ['sabb','Sub-Agents','Share the right context with helper agents'],
@@ -2413,10 +2413,10 @@ async function refresh() {
   state.hive = hive;
   state.lastRefreshAt = Date.now();
 
-  animateNum('stat-agents', hive.totalAgentsConnected ?? 0);
+  animateNum('stat-agents', hive.totalRecordedAgents ?? hive.totalAgentsConnected ?? 0);
   animateNum('stat-memories', hive.totalMemoriesStored ?? 0);
   animateNum('stat-dreams', hive.modules.dream?.totalDreams ?? 0);
-  animateNum('stat-tools', hive.totalAgentsConnected ?? 0);
+  animateNum('stat-tools', hive.totalRecordedAgents ?? hive.totalAgentsConnected ?? 0);
   document.getElementById('badge-sabb').textContent = hive.modules.sabb?.totalSpawns ?? 0;
   document.getElementById('badge-causal').textContent = hive.modules.causal?.totalLinks ?? 0;
   document.getElementById('badge-collision').textContent = hive.modules.collision?.collisionsDetected ?? 0;
@@ -2429,7 +2429,7 @@ async function refresh() {
 async function refreshOverview() {
   const hive = state.hive || await api('/api/v6/hive-status');
   if (!hive) return;
-  animateNum('ov-agents', hive.totalAgentsConnected ?? 0);
+  animateNum('ov-agents', hive.totalRecordedAgents ?? hive.totalAgentsConnected ?? 0);
   animateNum('ov-memories', hive.totalMemoriesStored ?? 0);
   animateNum('ov-subagents', hive.modules.sabb?.totalSpawns ?? 0);
   document.getElementById('ov-subagents-sub').textContent = \`grad: \${hive.modules.sabb?.graduated ?? 0} · quar: \${hive.modules.sabb?.quarantined ?? 0}\`;
@@ -2456,7 +2456,7 @@ async function refreshOverview() {
     ['Air-gap', hive.modules.airGap?.enabled ? 'ENABLED' : 'disabled', hive.modules.airGap?.enabled ? 'good' : ''],
     ['Version', hive.version, ''],
     ['Monthly cost', '$' + (hive.modules.tokenEconomy?.monthlyProjectionUsd?.toFixed?.(2) ?? '0.00'), 'warn'],
-    ['Cost saved/mo', '$' + (hive.modules.tokenEconomy?.savingsOpportunitiesUsd?.toFixed?.(2) ?? '0.00'), 'good'],
+    ['Estimated savings opportunity', '$' + (hive.modules.tokenEconomy?.savingsOpportunitiesUsd?.toFixed?.(2) ?? '0.00'), 'good'],
   ];
   document.getElementById('ov-health').innerHTML = health.map(([k, v, cls]) => \`<div class="row"><span class="k">\${k}</span><span class="v \${cls}">\${v}</span></div>\`).join('');
 
@@ -3299,7 +3299,7 @@ async function refreshConfig() {
   document.getElementById('config-state').innerHTML = \`
     <div class="row"><span class="k">Version</span><span class="v">\${hive.version}</span></div>
     <div class="row"><span class="k">Local-first</span><span class="v \${hive.localFirst ? 'good' : 'warn'}">\${hive.localFirst ? 'YES' : 'no'}</span></div>
-    <div class="row"><span class="k">Agents connected</span><span class="v">\${hive.totalAgentsConnected}</span></div>
+    <div class="row"><span class="k">Recorded tools</span><span class="v">\${hive.totalAgentsConnected}</span></div>
     <div class="row"><span class="k">Memories stored</span><span class="v">\${hive.totalMemoriesStored}</span></div>
     <div class="row"><span class="k">Modules active</span><span class="v good">\${Object.keys(hive.modules || {}).length}</span></div>\`;
 }
@@ -3615,14 +3615,7 @@ function ingestActivity(raw, fresh) {
   if (!activityPaused) {
     appendLog(e.source, e.type, e.detail);
     if (fresh) {
-      try {
-        if (typeof graphTimer !== 'undefined' && graphTimer) {
-          const col = signalColors[e.type] || '#18ffff';
-          const srcExists = graphNodes.find(n => n.id === e.source);
-          graphSignals.push({ fromId: srcExists ? e.source : 'brain', toId: 'brain', type: e.type, color: col, progress: 0, spawnedAt: Date.now() });
-          if (graphSignals.length > 100) graphSignals = graphSignals.slice(-100);
-        }
-      } catch (err) {}
+      // Graph animation consumes the deduplicated stored-event stream in pullTopology.
       lastIngestFresh = true;
     }
   }
@@ -3708,6 +3701,7 @@ async function refreshActivity() {
 }
 
 // ──── Live Graph ───────────────────────────────────────────────────────
+let graphObservedEvents = new Set(), graphObserved = false;
 let graphFrame = 0, graphNodes = [], graphEdges = [], graphSignals = [], graphTimer = null, graphPullTimer = null;
 const signalColors = { 'memory-write':'#10e68c','subagent-spawn':'#18ffff','dream':'#a855f7','revisit':'#a855f7','counterfactual':'#a855f7','consolidation':'#a855f7','contradiction':'#ff5864','pattern-discovery':'#10e68c','collision':'#ff5864','quarantine':'#ec4899','firewall-block':'#ffb53f' };
 async function startGraph() { await pullTopology(); if (graphTimer) cancelAnimationFrame(graphTimer); graphLoop(); if (graphPullTimer) clearInterval(graphPullTimer); graphPullTimer = setInterval(pullTopology, 3000); }
@@ -3719,10 +3713,10 @@ async function pullTopology() {
   const W = canvas.width, H = canvas.height, cx = W/2, cy = H/2;
   const prev = new Map(graphNodes.map(n => [n.id, { x: n.x, y: n.y }]));
   graphNodes = [{ id:'brain', label:'HIVE MIND', x: cx, y: cy, r: 50, type:'brain', color:'#a855f7' }];
-  (topo.agents || []).forEach((a, i, arr) => {
+  (topo.agents || []).filter(a => a.configurationDetected).forEach((a, i, arr) => {
     const ang = (i / arr.length) * Math.PI * 2 - Math.PI / 2, r = 240;
     const p = prev.get(a.id);
-    graphNodes.push({ id: a.id, label: a.displayName, x: p?.x ?? cx + Math.cos(ang) * r, y: p?.y ?? cy + Math.sin(ang) * r, targetX: cx + Math.cos(ang) * r, targetY: cy + Math.sin(ang) * r, r: a.connected ? 24 : 16, type:'agent', connected: a.connected, color: a.connected ? '#18ffff' : '#556080' });
+    graphNodes.push({ id: a.id, label: a.displayName, x: p?.x ?? cx + Math.cos(ang) * r, y: p?.y ?? cy + Math.sin(ang) * r, targetX: cx + Math.cos(ang) * r, targetY: cy + Math.sin(ang) * r, r: 20, type:'agent', connected: false, color: '#8695aa' });
   });
   (topo.subAgents || []).forEach((s, i, arr) => {
     const parent = graphNodes.find(n => n.id === s.parent), ang = (i / Math.max(arr.length,1)) * Math.PI * 2, r = 130;
@@ -3731,19 +3725,25 @@ async function pullTopology() {
   });
   graphEdges = [];
   for (const n of graphNodes) {
-    if (n.type === 'agent') graphEdges.push({ from:'brain', to: n.id, active: n.connected });
-    if (n.type === 'subagent') graphEdges.push({ from: n.parent ?? 'brain', to: n.id, active: true });
+    if (n.type === 'agent') graphEdges.push({ from:'brain', to: n.id, active: false });
+    if (n.type === 'subagent') graphEdges.push({ from: n.parent ?? 'brain', to: n.id, active: false });
   }
   const now = Date.now();
   for (const e of (topo.events || [])) {
+    const eventKey = e.id || JSON.stringify([e.type,e.source,e.target,e.timestamp]);
+    if (graphObservedEvents.has(eventKey)) continue;
+    graphObservedEvents.add(eventKey);
+    if (!graphObserved) continue;
     const src = e.source ?? 'brain';
-    const srcN = graphNodes.find(n => n.id === src) ?? graphNodes[0];
+    const srcN = graphNodes.find(n => n.id === src);
     const dstN = e.type === 'subagent-spawn' ? graphNodes.find(n => n.id === e.target) : graphNodes.find(n => n.id === 'brain');
     if (!srcN || !dstN) continue;
     graphSignals.push({ fromId: srcN.id, toId: dstN.id, type: e.type, color: signalColors[e.type] || '#18ffff', progress: 0, spawnedAt: now });
   }
+  graphObserved = true;
+  if (graphObservedEvents.size > 500) graphObservedEvents = new Set([...graphObservedEvents].slice(-500));
   if (graphSignals.length > 100) graphSignals = graphSignals.slice(-100);
-  document.getElementById('graph-meta').textContent = \`\${(topo.agents || []).length} agents · \${(topo.subAgents || []).length} sub-agents · \${graphSignals.length} signals\`;
+  document.getElementById('graph-meta').textContent = \`\${(topo.agents || []).filter(a => a.configurationDetected).length} configured/detected clients · \${(topo.subAgents || []).length} recorded sub-agents · \${graphSignals.length} new event signals\`;
 }
 function graphLoop() {
   const c = document.getElementById('graph-canvas');

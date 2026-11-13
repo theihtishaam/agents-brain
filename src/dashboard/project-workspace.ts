@@ -29,6 +29,7 @@ export async function startProjectWorkspace(directory: string, options: { port?:
       brain.refresh();
       if (brain.getStorageHealth().lastError) return 'Project memory could not be read. Repair the project store, then retry.';
       hub ??= new ProjectHubService(store.root, brain);
+      hub.checkStorage();
       return null;
     } catch { return 'Project storage could not be opened. Check its files and permissions, then retry.'; }
   };

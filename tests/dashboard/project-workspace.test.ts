@@ -11,7 +11,7 @@ import { getBrainBus } from '../../src/brain/brain-bus.js';
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 function fixture() {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-project-portal-')); roots.push(root);
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'sb-project-portal-'))); roots.push(root);
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'checkout-fixture', scripts: { test: 'DO_NOT_EXECUTE_THIS_FIXTURE' }, devDependencies: { vitest: 'SYNTHETIC_VALUE' } }));
   return root;
 }

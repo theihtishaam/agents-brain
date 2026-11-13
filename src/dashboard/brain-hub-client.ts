@@ -8,6 +8,8 @@ const time = value => value && Number.isFinite(new Date(value).getTime()) ? cloc
 const isoTime = value => value && Number.isFinite(new Date(value).getTime()) ? new Date(value).toLocaleString() : 'Unavailable';
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const local = document.documentElement.dataset.projectLocal === 'true';
+const projectFeatureLimits={crossProjectContext:'Project memory stays scoped to this project.',automaticBriefing:'Automatic briefing requires a legacy analysis session.'};
+const featureLimit = id => local ? projectFeatureLimits[id] : undefined;
 const nav = {overview:'Brain overview',knowledge:'Knowledge',room:'Collaboration',context:'Context',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
 const labels = {codex:'Codex','claude-code':'Claude Code',opencode:'OpenCode','deepseek-harness':'DeepSeek Harness',user:'Operator'};
 const hostName = value => labels[value] ?? value ?? 'Unknown host';
@@ -125,8 +127,13 @@ function installTelemetry(page){
   state.cursor=page.cursor;
   state.journalId=page.journalId;
   if(state.replayId&&!unique.has(state.replayId))state.replayId=null;
-  if(hasHistory&&!page.gap&&!page.reset&&!state.replayId&&!state.motionPaused&&added.length){
-    state.pulseIds=added.slice(-4).map(event=>event.id);state.motionStarted=performance.now();
+  if(hasHistory&&!page.gap&&!page.reset&&!page.hasMore&&state.view==='overview'&&state.graphMode==='graph'&&!state.focus&&!state.replayId&&!state.motionPaused&&!reduced.matches){
+    const now=Date.now();
+    const fresh=added.filter(event=>{
+      const age=now-Date.parse(event.timestamp);
+      return age>=0&&age<=6500;
+    });
+    if(fresh.length){state.pulseIds=fresh.slice(-4).map(event=>event.id);state.motionStarted=performance.now();}
   }
 }
 async function refresh(manual=false){
@@ -221,7 +228,7 @@ async function loadView(){
 }
 function openView(next){
   if(!Object.hasOwn(nav,next))return;
-  state.view=next;state.message='';state.messageError=false;
+  state.view=next;state.message='';state.messageError=false;state.pulseIds=[];
   render();window.scrollTo(0,0);$('title')?.focus({preventScroll:true});void loadView();
 }
 function render(restore=false){
@@ -252,7 +259,7 @@ function render(restore=false){
 async function chooseMemory(id){
   const item=arr(state.graph?.nodes).find(node=>node.id===id);
   if(!item)return;
-  state.picked=id;state.memory=null;state.focus=true;state.inspector='record';
+  state.picked=id;state.memory=null;state.focus=true;state.inspector='record';state.pulseIds=[];
   renderInspector();drawGraph();
   if(item.kind!=='memory')return;
   const epoch=state.dataEpoch;

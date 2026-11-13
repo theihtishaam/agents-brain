@@ -407,6 +407,8 @@ export class MCPServer {
       },
       localFirst: true,
       totalAgentsConnected: brain.getStats().totalAgents,
+      totalRecordedAgents: brain.getStats().totalAgents,
+      agentCountEvidence: 'Historical tools recorded in memory; not current connections.',
       totalMemoriesStored: brain.getStats().totalEntries,
       generatedAt: new Date(),
     };

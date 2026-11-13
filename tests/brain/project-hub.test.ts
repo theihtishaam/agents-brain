@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -54,6 +54,29 @@ function fixturePdf(lines: Array<string | null>, encrypted = false) {
 }
 
 describe('project hub', () => {
+  it('checks storage without creating a database and reopens the existing store after repair', () => {
+    const { hub, root } = workspace();
+    const directory = join(root, '.shadow-brain');
+    const filename = join(directory, 'project-hub.sqlite');
+    hub.checkStorage();
+    expect(existsSync(directory)).toBe(false);
+
+    const room = hub.createRoom({ goal: 'Persist this room during recovery', ...key() }, HUB_OPERATOR).room;
+    hub.close();
+    const healthy = readFileSync(filename);
+    hub.checkStorage();
+    expect(readFileSync(filename)).toEqual(healthy);
+
+    const corrupt = Buffer.from('Malformed synthetic Hub fixture');
+    writeFileSync(filename, corrupt);
+    expect(() => hub.checkStorage()).toThrow(/Project Hub storage could not be read/u);
+    expect(readFileSync(filename)).toEqual(corrupt);
+
+    writeFileSync(filename, healthy);
+    hub.checkStorage();
+    expect(hub.room(room.id).room).toEqual(room);
+  });
+
   it('persists a text PDF with immutable page citations, deduplicates bytes, and indexes approved text once', async () => {
     const { hub, brain, store, connect } = workspace();
     const data = fixturePdf(['Checkout requests reuse their original idempotency key.', 'The retry budget is three attempts.', null]);

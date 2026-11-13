@@ -30,6 +30,8 @@ export class ProjectHubService {
 
   close(): void { this.db.close(); }
 
+  checkStorage(): void { this.db.checkStorage(); }
+
   private time(): string { return new Date(this.now()).toISOString(); }
   private row<T>(kind: Parameters<HubStore['get']>[0], id: string, scope?: string): T {
     return this.db.get<T>(kind, id, scope) ?? missing(kind === 'acknowledgements' ? 'Acknowledgement' : kind.slice(0, -1));

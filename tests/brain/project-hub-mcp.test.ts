@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -13,6 +13,54 @@ import { projectStorage } from '../../src/brain/project-memory.js';
 
 const cli = resolve('dist/cli.js');
 const key = () => ({ key: randomUUID() });
+const init = { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', clientInfo: { name: 'fixture-mcp', version: '1' }, capabilities: {} } };
+const discovery = [init, { jsonrpc: '2.0', method: 'notifications/initialized' }, { jsonrpc: '2.0', id: 2, method: 'tools/list' }]
+  .map(value => JSON.stringify(value)).join('\n') + '\n';
+
+function discover(project: string, db: string) {
+  return spawnSync(process.execPath, [cli, 'mcp', project, '--stdio', '--db', db], { cwd: project, input: discovery, encoding: 'utf8', timeout: 20_000, windowsHide: true });
+}
+
+it.skipIf(process.platform !== 'win32')('recognizes mixed short and long Windows project spellings before the database exists', context => {
+  const created = mkdtempSync(join(tmpdir(), 'asb-mcp-long-project-fixture-'));
+  const root = realpathSync.native(created);
+  try {
+    const query = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("%ASB_ALIAS_FIXTURE%") do @echo %~sI'], {
+      env: { ...process.env, ASB_ALIAS_FIXTURE: root }, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true, timeout: 5000,
+    });
+    expect(query.status, query.stderr).toBe(0);
+    const alias = query.stdout.trim();
+    if (alias.toLowerCase() === root.toLowerCase()) context.skip('The fixture volume does not provide an 8.3 short path.');
+    expect(realpathSync.native(alias)).toBe(root);
+    const local = projectStorage(root);
+    expect(existsSync(local.storagePath)).toBe(false);
+    for (const [project, database] of [[alias, local.storagePath], [root, join(alias, '.shadow-brain', 'project-memory.json')]]) {
+      const response = discover(project, database);
+      expect(response.status, response.stderr).toBe(0);
+      const catalog = response.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
+      expect(catalog.result.tools.some((tool: { name: string }) => tool.name === 'hub_overview')).toBe(true);
+    }
+    expect(existsSync(local.storagePath)).toBe(false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+}, 30_000);
+
+it('rejects a project store from a different project or through a directory link', () => {
+  const root = mkdtempSync(join(tmpdir(), 'hub-mcp-root-'));
+  const other = mkdtempSync(join(tmpdir(), 'hub-mcp-other-'));
+  const alias = join(root, 'alias');
+  try {
+    const foreign = discover(root, projectStorage(other).storagePath);
+    expect(foreign.status).toBe(1);
+    expect(foreign.stderr).toContain('must use the selected project store');
+    symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+    const linked = discover(root, join(alias, '.shadow-brain', 'project-memory.json'));
+    expect(linked.status).toBe(1);
+    expect(linked.stderr).toContain('ancestors must be real directories');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(other, { recursive: true, force: true });
+  }
+}, 30_000);
 
 class FixtureClient {
   private child: ChildProcessWithoutNullStreams;

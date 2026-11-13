@@ -394,6 +394,7 @@ runNode([portalProbe]);
 for (const [modulePath, name, marker] of [
   ['workspace-html', 'WORKSPACE_HTML', 'Memory relationships'],
   ['live-workspace-html', 'LIVE_WORKSPACE_HTML', 'Live operations'],
+  ['v6-dashboard-html', 'V6_DASHBOARD_HTML', 'Recorded network'],
 ]) {
   const loaded = await import(pathToFileURL(path.join(installed, 'dist/dashboard', modulePath + '.js')).href);
   const html = loaded[name];

@@ -24,10 +24,10 @@ function trace(values){
 function telemetryStrip(){
   const measured=state.events.filter(event=>event.source==='measured'&&event.kind==='tool-end');
   const durations=measured.map(event=>event.durationMs).filter(Number.isFinite);
-  const observed=new Set(state.events.map(event=>event.agent).filter(Boolean));
+  const observed=new Set(state.events.filter(event=>event.agent&&event.agent!=='user'&&event.agent!=='portal').map(event=>event.agent));
   const memories=state.graph?.totalMemories??state.overview?.quality?.total;
   const pack=state.context?.budget;
-  return '<dl class="strip"><div class="metric"><dt>Stored memories in scope</dt><dd class="mono cyan">'+fmt(memories)+'</dd><small>'+esc(scopeName())+'</small></div><div class="metric">'+trace(durations.slice(-16))+'<dt>Measured tool returns</dt><dd class="mono">'+(state.live?fmt(measured.length):'Unavailable')+'</dd><small>'+esc(state.errors.telemetry?'Activity unavailable':state.live?fmt(observed.size)+' hosts in retained activity':'Activity display off')+'</small></div><div class="metric"><dt>Model input and output</dt><dd class="mono">Unavailable</dd><small>Model usage receipts are unavailable</small></div><div class="metric"><dt>Latest context pack estimate</dt><dd class="mono pink">'+(pack?fmt(pack.estimatedTokens)+' / '+fmt(pack.tokenBudget):'No pack built')+'</dd><small>'+esc(pack?arr(state.context.entries).length+' selected memories':'Assemble a scoped pack in Context')+'</small></div></dl>';
+  return '<dl class="strip"><div class="metric"><dt>Stored memories in scope</dt><dd class="mono cyan">'+fmt(memories)+'</dd><small>'+esc(scopeName())+'</small></div><div class="metric">'+trace(durations.slice(-16))+'<dt>Measured tool returns</dt><dd class="mono">'+(state.live?fmt(measured.length):'Unavailable')+'</dd><small>'+esc(state.errors.telemetry?'Activity unavailable':state.live?fmt(observed.size)+' client labels in retained activity':'Activity display off')+'</small></div><div class="metric"><dt>Model input and output</dt><dd class="mono">Unavailable</dd><small>Model usage receipts are unavailable</small></div><div class="metric"><dt>Latest context pack estimate</dt><dd class="mono pink">'+(pack?fmt(pack.estimatedTokens)+' / '+fmt(pack.tokenBudget):'No pack built')+'</dd><small>'+esc(pack?arr(state.context.entries).length+' selected memories':'Assemble a scoped pack in Context')+'</small></div></dl>';
 }
 function rail(){
   const graph=arr(state.graph?.nodes);
@@ -37,14 +37,15 @@ function rail(){
   return '<aside class="panel rail" aria-label="Projects and recent records"><div class="rail-title row"><h2>Projects</h2>'+chip(projects.length)+'</div>'+projectsMarkup+'<div class="rail-title row"><h2>Recent records</h2>'+chip(memories.length)+'</div>'+(memories.length?list(memories.map(node=>'<li><button type="button" class="rail-entry" data-node="'+esc(node.id)+'"><strong>'+esc(node.label)+'</strong><small>'+esc(node.category)+' · '+esc(hostName(node.agent))+'</small></button></li>').join('')):empty('No memory records','Add project knowledge or connect a host.',view('knowledge','Open knowledge')) )+'</aside>';
 }
 function graphMarkup(){
-  const nodes=arr(state.graph?.nodes),edges=arr(state.graph?.edges);
+  const nodes=arr(state.graph?.nodes),nodeIds=new Set(nodes.map(node=>node.id));
+  const edges=arr(state.graph?.edges).filter(edge=>nodeIds.has(edge.source)&&nodeIds.has(edge.target));
   const traceMode=state.graphMode==='trace';
   const listNodes=list(nodes.map(node=>'<li><button class="entry" type="button" data-node="'+esc(node.id)+'" aria-pressed="'+(state.focus&&state.picked===node.id)+'"><strong>'+esc(node.kind==='agent'?hostName(node.label):node.label)+'</strong><small class="muted">'+esc(node.kind+(node.category?' · '+node.category:''))+'</small></button></li>').join(''),'id="node-list" aria-label="Stored graph nodes" '+(state.listing&&!traceMode?'':'hidden'),'node-list');
-  return '<section class="panel graph-panel"><div class="panel-head"><div><h2>'+(traceMode?'Recorded trace':'Memory topology')+'</h2><span class="small mono muted">'+fmt(nodes.length)+' records / '+fmt(edges.length)+' relationships</span></div><div class="actions">'+action('clear-focus','Clear focus','quiet','id="clear-focus" '+(state.focus?'':'hidden'))+action('graph','Graph','','aria-pressed="'+!traceMode+'"')+action('trace','Trace','','aria-pressed="'+traceMode+'"')+action('node-list','Node list','','aria-expanded="'+state.listing+'" aria-controls="node-list" '+(traceMode||!nodes.length?'hidden':''))+'</div></div>'+
-    '<div class="graph-stage" id="brain-stage"><canvas id="brain-canvas" aria-hidden="true" '+(traceMode?'hidden':'')+'></canvas><div class="graph-meta" aria-hidden="true"><span>PROJECT MEMORY</span><span>HOST EVIDENCE</span></div>'+
+  return '<section class="panel graph-panel"><div class="panel-head"><div><h2>'+(traceMode?'Recorded trace':'Memory graph')+'</h2><span class="small mono muted">'+fmt(nodes.length)+' records / '+fmt(edges.length)+' relationships'+(state.graph?.truncated?' · limited view':'')+'</span></div><div class="actions">'+action('clear-focus','Clear focus','quiet','id="clear-focus" '+(state.focus?'':'hidden'))+action('graph','Graph','','aria-pressed="'+!traceMode+'"')+action('trace','Trace','','aria-pressed="'+traceMode+'"')+action('node-list','Node list','','aria-expanded="'+state.listing+'" aria-controls="node-list" '+(traceMode||!nodes.length?'hidden':''))+'</div></div>'+
+    '<div class="graph-stage" id="brain-stage"><canvas id="brain-canvas" aria-hidden="true" '+(traceMode?'hidden':'')+'></canvas><div class="graph-meta" aria-hidden="true"><span>PROJECT MEMORY</span><span>RECORDED AUTHORS</span></div>'+
     (!nodes.length&&!traceMode?'<div class="graph-empty"><strong>'+esc(state.errors.graph?'Memory graph unavailable':state.graph?'No stored graph records':'Loading memory graph')+'</strong><p class="small muted">'+esc(state.errors.graph??(state.graph?'Save knowledge or use a connected host to create your first record.':'Reading the selected workspace.'))+'</p><div class="actions">'+(state.errors.graph?action('refresh','Retry'):view('knowledge','Open knowledge')+view('setup','Connect a host'))+'</div></div>':'')+
     listNodes+'<div id="trace-list" class="trace-list" '+(traceMode?'':'hidden')+'>'+(traceMode?timelineMarkup(true):'')+'</div><div id="node-caption" class="focus-label" hidden></div></div>'+
-    '<div class="graph-foot"><div class="legend"><span class="cyan"><i></i> Project relation</span><span class="pink"><i></i> Recorded by</span><span class="amber"><i></i> Typed link / reported event</span></div><span class="mono" id="graph-event"></span><span class="mono">Illustrative lattice</span></div></section>';
+    '<div class="graph-foot"><div class="legend"><span class="cyan"><i></i> Project relation</span><span class="pink"><i></i> Recorded by</span><span class="amber"><i></i> Typed relation</span></div><span class="mono" id="graph-event"></span></div></section>';
 }
 function inspectorBody(){
   const item=arr(state.graph?.nodes).find(node=>node.id===state.picked);
@@ -121,11 +122,11 @@ function contextPage(){
 }
 function modelsPage(){
   const hosts=arr(state.integrations?.agents);
-  const body=hosts.length?'<div class="table-wrap"><table><thead><tr><th>Host</th><th>Project files</th><th>Observed activity</th><th>Model</th><th>Usage</th></tr></thead><tbody>'+hosts.map(host=>{
+  const body=hosts.length?'<div class="table-wrap"><table><thead><tr><th>Client recipe</th><th>Project skill files</th><th>Retained activity</th><th>Model</th><th>Usage</th></tr></thead><tbody>'+hosts.map(host=>{
     const events=state.events.filter(event=>event.agent===host.id),latest=events.at(-1);
-    return '<tr><td><strong>'+esc(host.label)+'</strong></td><td>'+esc(host.installation)+'</td><td>'+esc(latest?'Recorded '+eventLabel(latest)+' · '+isoTime(latest.timestamp):'No activity observed')+'</td><td>Unavailable</td><td>Unavailable</td></tr>';
-  }).join('')+'</tbody></table></div>':error('integrations','host checks')||empty('Reading integration evidence','Host status appears when project file checks finish.');
-  return heading('Connections and models','Inspect project file presence and observed exchanges for each host.',view('setup','Configure hosts'))+panel('Host evidence',body);
+    return '<tr><td><strong>'+esc(host.label)+'</strong></td><td>'+esc(host.installation)+'</td><td>'+esc(latest?evidence(latest)+' · '+eventLabel(latest)+' · '+isoTime(latest.timestamp):state.live?'No retained records for this client':'Activity display is off')+'</td><td>Unavailable</td><td>Unavailable</td></tr>';
+  }).join('')+'</tbody></table></div><p class="panel-body small muted">Recipe availability and file presence do not verify client configuration. The journal records exchanges and reports. Current client connectivity is unavailable.</p>':error('integrations','client checks')||empty('Reading integration evidence','Client skill-file checks are loading.');
+  return heading('Connections and models','Review available client recipes and retained activity separately.',view('setup','Configure hosts'))+panel('Client evidence',body);
 }
 function usagePage(){
   const measured=state.events.filter(event=>event.source==='measured'&&event.kind==='tool-end');
@@ -136,7 +137,10 @@ function usagePage(){
 }
 function setupPage(){
   const features=state.features;
-  const flags=features?list(arr(features.definitions).map(item=>'<li class="item"><div class="row"><strong>'+esc(item.label)+'</strong>'+btn(features.features[item.id]?'On':'Off','data-feature="'+esc(item.id)+'" role="switch" aria-checked="'+!!features.features[item.id]+'" aria-label="'+esc(item.label)+'" '+(state.pending?'disabled':''))+'</div><p class="small muted">'+esc(item.description)+'</p></li>').join('')):error('features','feature settings')||empty('Loading feature settings','The server supplies the current switches and their descriptions.');
+  const flags=features?list(arr(features.definitions).map(item=>{
+    const reason=featureLimit(item.id),on=!reason&&features.features[item.id];
+    return '<li class="item"><div class="row"><strong>'+esc(item.label)+'</strong>'+btn(reason?'Unavailable':on?'On':'Off','data-feature="'+esc(item.id)+'" role="switch" aria-checked="'+!!on+'" aria-label="'+esc(item.label)+'" '+(state.pending||reason?'disabled':''))+'</div><p class="small muted">'+esc(reason??item.description)+'</p></li>';
+  }).join('')):error('features','feature settings')||empty('Loading feature settings','The server supplies the current switches and their descriptions.');
   const hosts=arr(state.integrations?.agents);
   const recipes=hosts.length?list(hosts.map(host=>'<li class="item"><div class="row"><h3>'+esc(host.label)+'</h3>'+chip(host.installation)+'</div><p class="small muted">'+esc(host.detail)+'</p><details><summary>Connection recipe</summary><div class="stack"><pre>'+esc(host.config?.content)+'</pre>'+arr(host.config?.notes).map(note=>'<p class="small muted">'+esc(note)+'</p>').join('')+'<div class="actions">'+action('copy-host','Copy configuration','','data-host="'+esc(host.id)+'"')+action('copy-command','Copy skill command','','data-host="'+esc(host.id)+'"')+'</div></div></details></li>').join('')):error('integrations','host recipes')||empty('Loading host recipes','Configuration recipes are generated locally.');
   const checks=arr(state.integrations?.checks);

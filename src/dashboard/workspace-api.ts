@@ -120,7 +120,7 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
       return send({ error: 'This port now serves a different project. Reload the portal before making changes.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);
     }
     const storageError = await dependencies.prepareStorage?.();
-    if (route === 'status' && method === 'GET') return send((dependencies.runtime ?? sharedRuntime).status(dependencies.brain, !!dependencies.hub, storageError));
+    if (route === 'status' && method === 'GET') return send((dependencies.runtime ?? sharedRuntime).status(dependencies.brain, !!dependencies.hub && !storageError, storageError));
     if (storageError) return send({ error: storageError, code: 'WORKSPACE_STORAGE_UNAVAILABLE' }, 503);
     if (isProjectHubRoute(url.pathname)) {
       const settings = dependencies.settings ?? getFeatureSettings();

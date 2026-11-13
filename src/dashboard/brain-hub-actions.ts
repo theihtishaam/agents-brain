@@ -29,7 +29,7 @@ function handleClick(event){
   if(data.page){state.docPage=Number(data.page);render();return;}
   if(data.room){void mutation(()=>loadRoom(data.room),button,'Room opened.');return;}
   if(data.feature){
-    if(!state.features)return;
+    if(!state.features||featureLimit(data.feature))return;
     const feature=data.feature;
     void mutation(async()=>{
       state.features=await api('features',json({patch:{[feature]:!state.features.features[feature]},expectedRevision:state.features.revision}));
@@ -64,7 +64,7 @@ function handleClick(event){
     case 'refresh':void refresh(true);break;
     case 'refresh-room':void mutation(async()=>{await refreshHub();if(state.room)await loadRoom(state.room.room.id);},button,'Room refreshed.');break;
     case 'graph':case 'trace':
-      state.graphMode=data.action;state.listing=false;render();$('main').querySelector('[data-action="'+data.action+'"]')?.focus();break;
+      state.graphMode=data.action;state.listing=false;state.pulseIds=[];render();$('main').querySelector('[data-action="'+data.action+'"]')?.focus();break;
     case 'node-list':{
       state.listing=!state.listing;button.setAttribute('aria-expanded',String(state.listing));
       const target=$('node-list');target.hidden=!state.listing;syncGraphControls();if(state.listing)target.querySelector('button')?.focus();break;

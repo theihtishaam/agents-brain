@@ -29,17 +29,57 @@ export class HubStore {
 
   constructor(private readonly root: string, private readonly projectId: string) {}
 
-  private db(): DatabaseSync {
-    ensureProjectDirectory(this.root, '.shadow-brain');
+  private checkedPath(): { filename: string; exists: boolean } {
+    const filename = projectLocalPath(this.root, relative);
+    let exists = false;
     for (const suffix of ['', '-journal', '-wal', '-shm']) {
-      const file = projectLocalPath(this.root, relative + suffix);
+      const file = suffix ? projectLocalPath(this.root, relative + suffix) : filename;
       const info = lstatSync(file, { throwIfNoEntry: false });
       if (info && (!info.isFile() || info.nlink !== 1)) {
         throw new ProjectHubError('HUB_UNSAFE_STORE', 'The project hub database requires ordinary, unlinked files.', 409);
       }
+      if (!suffix) exists = !!info;
     }
+    return { filename, exists };
+  }
+
+  private checkProject(db: DatabaseSync): void {
+    const metadata = db.prepare('SELECT project_id,version FROM hub_metadata LIMIT 2').all();
+    if (metadata.length !== 1 || metadata[0].project_id !== this.projectId || metadata[0].version !== 1) {
+      throw new ProjectHubError('HUB_STORE_SCOPE', 'This hub database belongs to another project or schema version.', 409);
+    }
+  }
+
+  /** Probe an existing database without initializing or changing its contents. */
+  checkStorage(): void {
+    try {
+      const { filename, exists } = this.checkedPath();
+      if (!exists) { this.close(); return; }
+      const db = new DatabaseSync(filename, { readOnly: true, allowExtension: false });
+      try {
+        db.exec('PRAGMA busy_timeout=300; PRAGMA trusted_schema=OFF; BEGIN;');
+        this.checkProject(db);
+        const rows = db.prepare('SELECT singleton,revision FROM hub_revision LIMIT 2').all();
+        if (rows.length !== 1 || rows[0].singleton !== 1 || !Number.isSafeInteger(rows[0].revision) || Number(rows[0].revision) < 0) {
+          throw new Error('Invalid hub revision.');
+        }
+        db.prepare('SELECT kind,id,scope,data FROM hub_rows LIMIT 0').all();
+        db.prepare('SELECT cursor,room_id,data FROM hub_events LIMIT 0').all();
+        db.prepare('SELECT operation_id,hash,data FROM hub_operations LIMIT 0').all();
+        db.prepare('SELECT id,data FROM hub_blobs LIMIT 0').all();
+        db.exec('COMMIT;');
+      } finally { db.close(); }
+    } catch {
+      this.close();
+      throw new ProjectHubError('HUB_STORAGE_UNAVAILABLE', 'Project Hub storage could not be read. Repair the project store, then retry.', 503);
+    }
+  }
+
+  private db(): DatabaseSync {
+    ensureProjectDirectory(this.root, '.shadow-brain');
+    const { filename } = this.checkedPath();
     if (this.database) return this.database;
-    const db = new DatabaseSync(projectLocalPath(this.root, relative), { allowExtension: false });
+    const db = new DatabaseSync(filename, { allowExtension: false });
     try {
       db.exec('PRAGMA busy_timeout=3000; PRAGMA trusted_schema=OFF; PRAGMA synchronous=FULL;');
       db.exec(`CREATE TABLE IF NOT EXISTS hub_metadata (project_id TEXT PRIMARY KEY, version INTEGER NOT NULL) STRICT;
@@ -53,10 +93,7 @@ export class HubStore {
         CREATE TABLE IF NOT EXISTS hub_blobs (id TEXT PRIMARY KEY, data BLOB NOT NULL) STRICT;`);
       const insert = db.prepare('INSERT INTO hub_metadata SELECT ?, 1 WHERE NOT EXISTS (SELECT 1 FROM hub_metadata)');
       insert.run(this.projectId);
-      const metadata = db.prepare('SELECT project_id,version FROM hub_metadata').all();
-      if (metadata.length !== 1 || metadata[0].project_id !== this.projectId || metadata[0].version !== 1) {
-        throw new ProjectHubError('HUB_STORE_SCOPE', 'This hub database belongs to another project or schema version.', 409);
-      }
+      this.checkProject(db);
       this.database = db;
       return db;
     } catch (error) {

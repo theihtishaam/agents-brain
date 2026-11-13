@@ -13,7 +13,7 @@ vi.mock('node:fs', async importOriginal => {
 let fixture: string;
 let projectDir: string;
 beforeEach(() => {
-  fixture = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'sb-client-catalog-'));
+  fixture = fs.mkdtempSync(path.join(fs.realpathSync.native(os.tmpdir()), 'sb-client-catalog-'));
   projectDir = path.join(fixture, 'project');
   fs.mkdirSync(projectDir);
   vi.mocked(fs.readFileSync).mockClear();

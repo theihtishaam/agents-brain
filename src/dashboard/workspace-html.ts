@@ -1748,7 +1748,7 @@ async function loadGraph(project, force = false, memory = '') {
 function renderContextControls() {
   const input = $('context-cross');
   const toggle = state.features?.features;
-  const canCross = toggle?.contextAssembly === true && toggle?.crossProjectContext === true;
+  const canCross = document.documentElement.dataset.projectLocal !== 'true' && toggle?.contextAssembly === true && toggle?.crossProjectContext === true;
   $('context-cross-row').hidden = !canCross;
   if (!canCross) input.checked = false;
   $('context-submit').disabled = !toggle?.contextAssembly || !state.projects.length || state.context.pending;
@@ -2090,6 +2090,11 @@ async function copyIntegrationText(value, message, button) {
   }
 }
 
+function projectFeatureLimit(id) {
+  if (document.documentElement.dataset.projectLocal !== 'true') return undefined;
+  return { crossProjectContext: 'Project memory stays scoped to this project.', automaticBriefing: 'Automatic briefing requires a legacy analysis session.' }[id];
+}
+
 function renderFeatures() {
   const target = $('feature-list');
   if (!state.features) return;
@@ -2098,11 +2103,12 @@ function renderFeatures() {
   const icons = { contextAssembly: 'context', crossProjectContext: 'graph', automaticBriefing: 'agent', liveActivity: 'activity', activityRecording: 'memory' };
   target.innerHTML = '<ul class="list">' + definitions.map((definition) => {
     const display = overrides.get(definition.id) || definition;
-    const on = current[definition.id] === true;
+    const reason = projectFeatureLimit(definition.id);
+    const on = !reason && current[definition.id] === true;
     return '<li class="setting"><div class="settings-description"><span class="tile-icon">' + icon(icons[definition.id], true) + '</span><div><h3 id="label-' + definition.id + '">' + esc(display.label) + '</h3><p class="muted small" id="desc-' +
-      definition.id + '">' + esc(display.description) + '</p></div></div><button type="button" class="button switch" role="switch" aria-checked="' +
+      definition.id + '">' + esc(reason || display.description) + '</p></div></div><button type="button" class="button switch" role="switch" aria-checked="' +
       on + '" aria-labelledby="label-' + definition.id + '" aria-describedby="desc-' + definition.id + '" data-feature="' + definition.id + '"' +
-      (state.featureSaving ? ' disabled' : '') + '><span aria-hidden="true">' + (on ? 'On' : 'Off') + '</span><span class="switch-track" aria-hidden="true"></span></button></li>';
+      (state.featureSaving || reason ? ' disabled' : '') + '><span aria-hidden="true">' + (reason ? 'Unavailable' : on ? 'On' : 'Off') + '</span><span class="switch-track" aria-hidden="true"></span></button></li>';
   }).join('') + '</ul>';
 }
 
@@ -2160,7 +2166,7 @@ async function loadFeatures(force = false) {
 }
 
 async function toggleFeature(key) {
-  if (state.featureSaving || !state.features || !definitions.some((definition) => definition.id === key)) return;
+  if (state.featureSaving || !state.features || projectFeatureLimit(key) || !definitions.some((definition) => definition.id === key)) return;
   state.featureSaving = true;
   $('feature-list').querySelectorAll('[data-feature]').forEach((button) => { button.disabled = true; });
   featureStatus('Saving…');

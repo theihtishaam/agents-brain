@@ -643,6 +643,8 @@ export class DashboardServer {
           localFirst: true,
           runtime,
           totalAgentsConnected: brain.getStats().totalAgents,
+          totalRecordedAgents: brain.getStats().totalAgents,
+          agentCountEvidence: 'Historical tools recorded in memory; not current connections.',
           totalMemoriesStored: brain.getStats().totalEntries,
           modules: {
             sabb: sabb.getStats(),
@@ -1317,7 +1319,9 @@ export class DashboardServer {
         const agents = knownAgents.map(name => ({
           id: name,
           displayName: displayNames[name] ?? name,
-          connected: !!hooks.find((h: any) => h.agent === name) || !!detected.find((d: any) => d.name === name),
+          connected: false,
+          configurationDetected: !!hooks.find((h: any) => h.agent === name) || !!detected.find((d: any) => d.name === name),
+          connectionStatus: 'not-verified',
         }));
 
         // Sub-agents — pull from recent SABB spawn log
