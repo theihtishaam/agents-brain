@@ -1,4 +1,6 @@
 <h1 align="center">Agent Shadow Brain</h1>
+
+[![Follow Ihtisham on GitHub](https://img.shields.io/badge/Follow-Ihtisham%20on%20GitHub-181717?logo=github&logoColor=white)](https://github.com/theihtishaam)
 <p align="center"><strong>A shared brain for the tools you build with.</strong></p>
 <p align="center">Keep project knowledge, understand context, and follow the work between your AI tools.</p>
 
