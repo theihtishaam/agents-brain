@@ -1,13 +1,13 @@
 # Package and repository statistics
 
-Last successful refresh: **2026-11-11T18:57:19.845Z**. Counts are snapshots from public npm and GitHub APIs.
+Last successful refresh: **2026-11-13T09:26:49.109Z**. Counts are snapshots from public npm and GitHub APIs.
 
 | Metric | Count | Coverage |
 | --- | ---: | --- |
-| npm total downloads | **5,316** | 2026-04-10 through 2026-11-10, inclusive |
-| npm latest day | 2 | 2026-11-10 through 2026-11-10 |
-| npm last 7 days | 14 | 2026-11-04 through 2026-11-10 |
-| npm last 30 days | 205 | 2026-10-12 through 2026-11-10 |
+| npm total downloads | **5,951** | 2026-04-10 through 2026-11-11, inclusive |
+| npm latest day | 635 | 2026-11-11 through 2026-11-11 |
+| npm last 7 days | 648 | 2026-11-05 through 2026-11-11 |
+| npm last 30 days | 825 | 2026-10-13 through 2026-11-11 |
 | GitHub stars | 0 | At refresh |
 | GitHub forks | 0 | At refresh |
 | GitHub watchers | 0 | At refresh |
@@ -16,6 +16,6 @@ The package was created on 2026-04-10. The total sums non-overlapping ranges of 
 
 The dedicated **README metrics** workflow refreshes this page and the total-download badge daily. A failed request preserves the last successful snapshot. Weekly and monthly README badges use Shields' live npm endpoints and may refresh at different times.
 
-[Raw snapshot and coverage](npm-metrics.json) · [npm download API documentation](https://github.com/npm/registry/blob/main/docs/download-counts.md) · [Package](https://www.npmjs.com/package/@theihtisham/agent-shadow-brain) · [Repository](https://github.com/ihtishaam-dev/agent-shadow-brain)
+[Raw snapshot and coverage](npm-metrics.json) · [npm download API documentation](https://github.com/npm/registry/blob/main/docs/download-counts.md) · [Package](https://www.npmjs.com/package/@theihtisham/agent-shadow-brain) · [Repository](https://github.com/theihtishaam/agents-brain)
 
 Historical snapshots in [stats-history.json](stats-history.json) come from the previous monitoring implementation and are not used to calculate this total.

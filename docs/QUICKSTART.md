@@ -2,14 +2,20 @@
 
 Agent Shadow Brain 7.1.4 supports Node.js 22.12 or later in the 22.x line, 24.x, or 26 and later.
 
+**Development guide.** Version 7.1.4 is not published. The steps below use the development checkout and its existing memory workspace. The dense shared-brain portal is a [design preview](VISUAL_GUIDE_v7.1.4.md), with backend work still planned. For the published package, use `npm install -g @theihtisham/agent-shadow-brain@latest` and its versioned documentation.
+
 ## Install and open the workspace
 
 ```bash
-npm install -g @theihtisham/agent-shadow-brain@7.1.4
+git clone https://github.com/theihtishaam/agents-brain.git
+cd agents-brain
+npm ci
+npm run build
+npm link
 shadow-brain --version
 ```
 
-You can also install the [GitHub release tarball](https://github.com/ihtishaam-dev/agent-shadow-brain/releases/download/v7.1.4/theihtisham-agent-shadow-brain-7.1.4.tgz). Pin the exact version because an older publication named 7.2.0 sorts above 7.1.4.
+`npm link` makes the development checkout the global `shadow-brain` command. If you want to keep the existing global binding, omit it and replace `shadow-brain` with `node /absolute/path/to/agents-brain/dist/cli.js` in the examples. Quote paths that contain spaces. There is no 7.1.4 release tarball to download yet. A Windows project-path CI failure remains unresolved.
 
 ## Try the isolated visual tour
 
@@ -59,11 +65,11 @@ The JSON includes selected memories, recorded references, exclusion reasons, and
 
 ## Save a first memory in a scratch project
 
-Create an empty scratch directory, enter it, and install the library for this example.
+From the built source checkout, run `npm pack` to create a local development tarball. This does not publish it. Create an empty scratch directory, enter it, and install that local file for this example.
 
 ```bash
 npm init -y
-npm install @theihtisham/agent-shadow-brain@7.1.4
+npm install /path/to/agents-brain/theihtisham-agent-shadow-brain-7.1.4.tgz
 ```
 
 Create `retry-notes.md` with this decision. Retried imports should reuse the same request ID so a timeout cannot create a duplicate import.

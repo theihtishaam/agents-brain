@@ -118,10 +118,10 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ihtishaam-dev/agent-shadow-brain.git"
+    "url": "git+https://github.com/theihtishaam/agents-brain.git"
   },
   "bugs": {
-    "url": "https://github.com/ihtishaam-dev/agent-shadow-brain/issues"
+    "url": "https://github.com/theihtishaam/agents-brain/issues"
   },
-  "homepage": "https://github.com/ihtishaam-dev/agent-shadow-brain#readme"
+  "homepage": "https://github.com/theihtishaam/agents-brain#readme"
 }

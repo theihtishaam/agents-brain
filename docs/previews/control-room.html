@@ -1,0 +1,642 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Shadow Brain · Control room design preview</title>
+<style>
+  :root{color-scheme:dark;--ground:#080e19;--surface:#0d1726;--raised:#121f31;--line:#24364a;--line-hi:#385167;--ink:#e8f3fc;--muted:#a4b6ca;--soft:#839bb4;--cyan:#72e7df;--blue:#9cbaff;--pink:#e9abfa;--amber:#f0cb86;--rose:#ff9eaf;--mint:#9ce0b7;--sans:Inter,"Segoe UI",system-ui,sans-serif;--mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;font:14px/1.5 var(--sans)}
+  *,*::before,*::after{box-sizing:border-box}body{margin:0;background:var(--ground);color:var(--ink)}[hidden]{display:none!important}h1,h2,h3,p,ul,ol,dl,dd{margin:0}h1,h2,h3{line-height:1.22;letter-spacing:-.022em;text-wrap:balance}h1{font-size:2rem;font-weight:675}h2{font-size:1rem;font-weight:675}h3{font-size:.94rem;font-weight:650}p{max-width:68ch;overflow-wrap:anywhere}a{color:var(--cyan)}button,select,textarea,input{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.55}button,select{min-height:34px}button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}strong{font-weight:650}.muted{color:var(--muted)}.small{font-size:.86rem}.tiny{font-size:.76rem}.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}.cyan{color:var(--cyan)}.pink{color:var(--pink)}.amber{color:var(--amber)}.blue{color:var(--blue)}.rose{color:var(--rose)}.mint{color:var(--mint)}.skip{position:fixed;top:8px;left:8px;transform:translateY(-150%);z-index:4}.skip:focus{transform:none}
+  .frame{max-width:1670px;margin:auto;padding:0 22px 22px}.top{min-height:58px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:10px;white-space:nowrap;font-size:1rem;font-weight:710}.brand-icon{width:30px;height:30px;color:var(--cyan)}.top-actions,.actions,.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.mode-note{color:var(--amber);padding:5px 8px;background:#2b241b;border-radius:5px;font-size:.77rem;font-weight:650}.btn,select{background:var(--raised);border:1px solid var(--line-hi);color:var(--ink);border-radius:5px;padding:5px 9px;font-size:.84rem;font-weight:630}.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;line-height:1.2;transition:background .16s ease,border-color .16s ease;color:var(--ink);text-decoration:none}.btn:hover,.btn[aria-pressed=true]{background:#1a3441;border-color:#528288}.btn.primary{background:var(--cyan);border-color:var(--cyan);color:#092728}.btn.primary:hover{background:#a6f6ec}.btn.quiet{background:transparent;border-color:transparent;color:var(--cyan)}.btn.quiet:hover{background:var(--raised)}.nav{min-height:43px;display:flex;align-items:stretch;gap:3px;overflow:auto;border-bottom:1px solid var(--line);margin-bottom:16px}.nav button{white-space:nowrap;background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);padding:7px 12px;font-size:.89rem;font-weight:590}.nav button:hover{color:var(--ink);background:var(--surface)}.nav button[aria-current=page]{color:var(--cyan);border-bottom-color:var(--cyan)}.page-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:13px}.page-head p{margin-top:4px}.page-head .actions{padding-top:4px}.chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;border-radius:4px;padding:3px 6px;font-size:.75rem;font-weight:630;line-height:1.2;background:#18283a;color:var(--muted);overflow-wrap:anywhere}.chip.cyan{background:#143238;color:var(--cyan)}.chip.pink{background:#322340;color:var(--pink)}.chip.amber{background:#342a21;color:var(--amber)}.chip.mint{background:#173329;color:var(--mint)}.chip.rose{background:#382634;color:var(--rose)}.chip.blue{background:#202b4b;color:var(--blue)}.dot{width:6px;height:6px;flex:none;border-radius:50%;background:currentColor}.label{font-size:.8rem;font-weight:630;color:var(--muted);display:grid;gap:4px;min-width:0}.control-strip{display:grid;grid-template-columns:1fr 1.12fr 1.06fr 1fr;border:1px solid var(--line);background:var(--surface);border-radius:8px;margin-bottom:12px;overflow:hidden}.readout{padding:10px 13px;min-width:0}.readout+.readout{border-left:1px solid var(--line)}.readout dt{color:var(--muted);font-size:.75rem;font-weight:630}.readout dd{font-size:1.18rem;font-weight:665;line-height:1.24;margin:3px 0}.readout .small{font-size:.79rem}.panel{min-width:0;border:1px solid var(--line);background:var(--surface);border-radius:8px;overflow:hidden}.panel-head{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 12px;min-height:44px;border-bottom:1px solid var(--line);background:#101b2c}.panel-body{padding:12px;min-width:0}.stack{display:grid;gap:9px;min-width:0}.columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}.room-layout{grid-template-columns:minmax(165px,.65fr) minmax(0,1.7fr) minmax(240px,1fr)}.control-grid{display:grid;grid-template-columns:214px minmax(0,1fr) 306px;gap:11px;align-items:stretch;margin-bottom:11px}.list{list-style:none;padding:0}.list>li+li{border-top:1px solid var(--line)}.work-row,.source-row{width:100%;text-align:left;padding:9px 10px;background:none;border:0;color:var(--ink);display:grid;gap:3px}.work-row:hover,.source-row:hover,.work-row[aria-pressed=true]{background:#152939}.work-row[aria-pressed=true]{box-shadow:inset 0 0 0 1px #3e6773}.work-row strong,.source-row strong{overflow-wrap:anywhere}.row-line{display:flex;justify-content:space-between;align-items:start;gap:6px}.source-row .row-line>span:first-child{min-width:0}.rail-section+.rail-section{border-top:1px solid var(--line)}.rail-label{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:9px 10px 6px}.rail-link{padding:5px 7px 10px}.graph-panel{background:#091321;border-color:#324c64}.graph-panel .panel-head{background:#0f1a2b}.graph-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;border-top:1px solid var(--line);font-size:.76rem;color:var(--muted)}.legend{display:flex;align-items:center;gap:7px 11px;flex-wrap:wrap}.legend span{display:inline-flex;align-items:center;gap:4px}.swatch{width:13px;border-top:2px solid currentColor;display:inline-block}.swatch.report{border-top-style:dashed}.tabbar{display:flex;gap:4px;flex-wrap:wrap;padding:7px 8px;border-bottom:1px solid var(--line)}.tabbar .btn{min-height:29px}.inspector{display:grid;gap:10px;padding:11px 12px}.inspect-title{font-size:1.06rem}.facts{display:grid;gap:0}.facts>div{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:.83rem}.facts dt{color:var(--muted)}.facts dd{text-align:right;overflow-wrap:anywhere}.receipt{display:grid;gap:5px;padding:8px 9px;border:1px solid var(--line);border-radius:6px;background:#101e30}.receipt .row-line{align-items:center}.receipt p{font-size:.82rem}.lower{display:grid;grid-template-columns:minmax(245px,.85fr) minmax(0,1.9fr);gap:11px}.meter-pair{display:grid;grid-template-columns:1fr 1fr;gap:9px}.meter-pair strong{display:block;font:650 1.13rem var(--mono);color:var(--ink)}.meter{height:5px;background:#233247;overflow:hidden;border-radius:4px;margin:5px 0}.meter i{display:block;height:100%;background:var(--cyan);border-radius:inherit}.meter.pink i{background:var(--pink)}.timeline{max-height:143px;overflow:auto}.event{width:100%;display:grid;grid-template-columns:76px 1fr auto;gap:7px;text-align:left;border:0;background:none;color:var(--ink);padding:5px 10px;font-size:.8rem;min-height:31px}.event:hover,.event[aria-pressed=true]{background:#162a3b}.event time{color:var(--muted)}.event .chip{justify-self:end}.replay{padding:7px 9px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}.replay input{min-width:60px;flex:1;accent-color:var(--cyan)}.trace-grid{list-style:none;padding:12px;display:grid;gap:7px}.trace-row{display:grid;grid-template-columns:82px 1fr auto;gap:7px;align-items:center;padding:8px;border-radius:5px;background:#13233a}.trace-row[aria-current=true]{outline:1px solid var(--cyan)}.trace-row button{justify-self:start;text-align:left}
+  .detail-grid{display:grid;grid-template-columns:minmax(220px,.8fr) minmax(0,1.5fr);gap:12px}.detail-grid.equal{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.item{padding:10px 12px;display:grid;gap:5px}.item .row-line{align-items:center}.doc-sheet{padding:16px;border:1px solid #574466;border-radius:7px;background:#1b1b32}.doc-sheet blockquote{margin:10px 0;font-size:.95rem;line-height:1.65;color:#eadcfa}.pipeline{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line);border-radius:5px;overflow:hidden}.pipeline div{min-width:0;padding:8px;background:#172338;font-size:.78rem}.pipeline strong{display:block;font-size:.85rem;overflow-wrap:anywhere}.pipeline .current{background:#372744;color:var(--pink)}.message{padding:11px 12px;display:grid;gap:5px}.message time{color:var(--muted)}.claims{list-style:none;padding:0}.claims li{display:grid;gap:4px;padding:8px 0}.claims li+li{border-top:1px solid var(--line)}.metrics-table{border-collapse:collapse;width:100%;font-size:.87rem}.metrics-table :is(th,td){padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.metrics-table th{color:var(--muted);font-weight:600}.metrics-table tr:last-child td{border-bottom:0}.usage-bar{min-height:12px;background:#263950;border-radius:3px;overflow:hidden}.usage-bar i{display:block;height:12px;background:var(--cyan)}.usage-bar.estimated i{background:var(--pink)}.setup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.setup-steps{list-style:none;padding:0;counter-reset:step}.setup-steps li{padding:9px 0;display:grid;grid-template-columns:22px minmax(0,1fr);gap:7px}.setup-steps li::before{counter-increment:step;content:counter(step);font:650 .78rem/1.8 var(--mono);color:var(--cyan);text-align:center;background:#193942;border-radius:4px;height:23px}.setup-steps li+li{border-top:1px solid var(--line)}pre{margin:0;max-height:260px;overflow:auto;padding:11px;background:#091321;border:1px solid var(--line);border-radius:5px;white-space:pre-wrap;overflow-wrap:anywhere;font:.84rem/1.5 var(--mono);color:#cbdcf1}.field{width:100%;min-width:0;background:#101c2b;border:1px solid var(--line-hi);border-radius:5px;color:var(--ink);padding:7px;resize:vertical}.notice{padding:8px 9px;background:#20233a;border-radius:5px;color:#cdd7fb}.status-line:empty{display:none}.empty{padding:14px 12px;display:grid;gap:4px}.footer{padding-top:13px;color:var(--muted);font-size:.76rem}
+  @media(max-width:1200px){.control-grid{grid-template-columns:190px minmax(0,1fr) 268px}.frame{padding-inline:14px}}@media(max-width:980px){.control-grid{grid-template-columns:180px minmax(0,1fr)}.inspector-panel{grid-column:1/-1}.inspector{grid-template-columns:repeat(2,minmax(0,1fr))}.room-layout{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}.room-layout>.panel:last-child{grid-column:1/-1}}@media(max-width:670px){.frame{padding-inline:10px}.top,.page-head{align-items:flex-start;flex-wrap:wrap}.top{padding-block:7px}.nav{margin-bottom:10px}.control-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.readout:nth-child(3){border-left:0}.readout:nth-child(n+3){border-top:1px solid var(--line)}.control-grid,.lower,.columns,.detail-grid,.detail-grid.equal,.setup-grid,.room-layout{grid-template-columns:minmax(0,1fr)}.graph-panel{grid-row:1}.inspector{grid-template-columns:minmax(0,1fr)}.metrics-table :is(th,td){padding-inline:5px}.pipeline{grid-template-columns:repeat(3,minmax(0,1fr))}h1{font-size:1.65rem}}@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+  .work-row .chip{justify-self:start}.work-row{padding-block:8px}.source-row{padding-block:7px}.graph-panel{display:flex;flex-direction:column}.graph-footer{margin-top:auto}
+  .top{min-height:53px}.nav{min-height:39px;margin-bottom:12px}
+  .preview-heading{margin-bottom:10px;align-items:center}.preview-heading .actions{padding:0}
+  .playback-state{display:inline-flex;align-items:center;gap:7px;color:var(--amber);font-size:.79rem;font-weight:640}
+  .playback-state .dot{box-shadow:0 0 7px #e5b86d70}
+  .network-strip{grid-template-columns:1fr 1.18fr 1.14fr 1.1fr;margin-bottom:10px}
+  .network-strip .readout{padding:8px 11px;position:relative;display:grid;align-content:center;min-height:72px}
+  .network-strip .readout dd{font-size:1.12rem;position:relative}.network-strip .readout p{position:relative}
+  .metric-trace{width:clamp(38px,22%,84px);height:29px;position:absolute;right:9px;bottom:10px;opacity:.72;pointer-events:none}
+  .network-strip .readout:has(.metric-trace) :is(dd,p){padding-right:25%}
+  .control-grid{grid-template-columns:187px minmax(0,1fr) 264px;gap:10px;margin-bottom:10px}
+  .graph-panel{background:#080f1e;border-color:#34465c;isolation:isolate}
+  .graph-panel .panel-head{min-height:43px;padding:5px 9px;background:#0d1828}
+  .graph-header{display:flex;align-items:center;gap:10px;min-width:0}.graph-header h2{white-space:nowrap}
+  .graph-count{font-size:.72rem;color:#a1b7ce;white-space:nowrap}
+  .graph-panel .actions{gap:4px}.graph-panel .actions .btn{min-height:29px;padding-inline:7px}
+  .graph-stage{position:relative;isolation:isolate;flex:1;min-height:377px;overflow:hidden;background:
+    radial-gradient(ellipse at 50% 49%,#172440 0%,#0d192d 35%,#080f1d 73%)}
+  .graph-stage::before{content:"";position:absolute;inset:0;background:radial-gradient(circle,#476184 0.5px,transparent .8px) 0 0/16px 16px;opacity:.29;pointer-events:none}
+  #network-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .graph-field-meta{position:absolute;left:13px;top:11px;right:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;pointer-events:none;color:#92adc9;font-size:.69rem;letter-spacing:.065em;text-transform:uppercase}
+  .graph-field-meta b{font-weight:650;color:#cdddf0}.graph-field-meta .heading-right{text-align:right}
+  .graph-node-list{display:grid;gap:8px;padding:0;list-style:none;position:absolute;top:50%;width:125px;transform:translateY(-50%);z-index:1}
+  .graph-node-list.ingress{left:12px}.graph-node-list.egress{right:12px}
+  .graph-node-btn{--node-color:var(--cyan);position:relative;display:grid;gap:2px;align-content:center;width:100%;min-height:47px;text-align:left;background:#0d192b;border:1px solid #364c65;border-radius:5px;color:var(--ink);padding:5px 7px 5px 16px;line-height:1.23}
+  .graph-node-btn::before{content:"";position:absolute;left:6px;top:12px;width:4px;height:4px;border-radius:50%;background:var(--node-color)}
+  .graph-node-btn strong{font-size:.79rem}.graph-node-btn small{font-size:.69rem;color:#a6bbd2;overflow-wrap:anywhere}
+  .graph-node-btn.pink{--node-color:var(--pink)}.graph-node-btn.amber{--node-color:var(--amber)}.graph-node-btn.mint{--node-color:var(--mint)}.graph-node-btn.blue{--node-color:var(--blue)}.graph-node-btn.muted{--node-color:#879cb3}
+  .graph-node-btn:hover,.graph-node-btn[aria-pressed=true]{border-color:var(--node-color);background:#14253b}.graph-node-btn.active::before{box-shadow:0 0 7px 2px color-mix(in srgb,var(--node-color) 68%,transparent)}
+  .graph-footer{background:#0c1625;min-height:31px;padding:5px 8px}.graph-footer .legend{font-size:.73rem}.graph-footer .focus-state{color:#b4c8dc;font-size:.72rem}
+  .telemetry-pair{display:grid;grid-template-columns:1fr 1fr;gap:7px}.telemetry-pair .meter{margin-bottom:2px}
+  .telemetry-row{display:flex;align-items:baseline;justify-content:space-between;gap:9px;padding-top:6px;margin-top:5px;border-top:1px solid var(--line);font-size:.76rem}
+  .telemetry-row strong{color:var(--cyan);text-align:right}
+  .lower{grid-template-columns:minmax(238px,.82fr) minmax(0,1.9fr);gap:10px}.lower .panel-head{min-height:37px;padding:6px 10px}.lower .panel-body{padding:8px 10px}
+  .replay{padding:3px 8px;min-height:33px;gap:9px}.replay input{margin:0;cursor:pointer}.replay output{min-width:8.2em;text-align:right;color:var(--muted)}
+  .timeline{max-height:87px;min-height:38px}.timeline .event{min-height:28px;padding-block:4px}.timeline .event[aria-pressed=true] time{color:var(--cyan)}
+  .event[data-future],.trace-row[data-future] .btn{color:#a8bbd0}
+  :is(.event,.trace-row)[data-future] .chip{background:#192638;color:#a8bbd0;white-space:nowrap}
+  :is(.event,.trace-row)[data-future] .chip::before{content:"Upcoming · "}
+  .control-grid>aside .work-row{padding-block:5px}.control-grid>aside .source-row{padding-block:5px}
+  .control-grid>aside :is(.work-row,.source-row) strong{font-size:.87rem;line-height:1.28}
+  .control-grid>aside .rail-label{padding-block:7px 4px}
+  :root[data-motion="stopped"] *, :root[data-motion="stopped"] *::before, :root[data-motion="stopped"] *::after{animation:none!important;transition:none!important}
+  @media(min-width:981px){.control-grid{grid-template-rows:451px}.control-grid>aside,.inspector-panel,.trace-grid{overflow:auto;min-height:0}.graph-stage{min-height:0}}
+  @media(max-width:1200px){.control-grid{grid-template-columns:157px minmax(0,1fr) 237px}.graph-node-list{width:107px}.graph-node-btn strong{font-size:.73rem}.graph-node-btn small{font-size:.65rem}}
+  @media(max-width:980px){.control-grid{grid-template-columns:156px minmax(0,1fr)}.inspector-panel{grid-column:1/-1}}
+  @media(max-width:670px){
+    .network-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.control-grid,.lower{grid-template-columns:minmax(0,1fr)}
+    .graph-panel{grid-row:1}.graph-stage{min-height:435px}.graph-field-meta{top:8px;font-size:.62rem}
+    .graph-count{font-size:.62rem}.graph-header{flex-wrap:wrap;gap:2px 8px}.graph-panel .actions{flex-wrap:nowrap}
+    .graph-node-list{top:auto;bottom:8px;transform:none;width:calc(50% - 16px);gap:3px}.graph-node-list.ingress{left:8px}.graph-node-list.egress{right:8px}
+    .graph-node-btn{min-height:31px;padding-block:3px}.graph-footer{gap:4px}
+    .graph-footer .legend{font-size:.65rem;gap:3px 7px}.lower .event{grid-template-columns:61px minmax(0,1fr);font-size:.75rem}.lower .event .chip{justify-self:start;grid-column:2}
+  }
+  @media(max-width:365px){.graph-count{display:none}.replay{gap:4px}.replay output{min-width:7em}}
+</style>
+</head>
+<body>
+<a class="btn skip" href="#main">Skip to content</a>
+<div class="frame">
+  <header class="top">
+    <div class="brand"><svg class="brand-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9Zm0 0v28M4 9l24 14M28 9 4 23" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="3.4" fill="currentColor"/></svg>Agent Shadow Brain</div>
+    <div class="top-actions"><span class="mode-note">Design preview · Example data</span><label for="project" class="small muted">Project</label><select id="project"><option value="checkout">Checkout API</option><option value="import">Data importer</option></select><button class="btn" data-view="setup" type="button">Connection setup</button></div>
+  </header>
+  <nav class="nav" id="nav" aria-label="Control room"></nav>
+  <main id="main" tabindex="-1"></main>
+  <footer class="footer">The runs, source pages, messages, model names, and usage values in this design preview are examples.</footer>
+</div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const escape=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+const fmt=value=>Number(value).toLocaleString('en-US');
+const chip=(text,tone='')=>'<span class="chip '+tone+'">'+escape(text)+'</span>';
+const button=(label,attrs='',kind='')=>'<button class="btn '+kind+'" type="button" '+attrs+'>'+escape(label)+'</button>';
+const title=(name,detail,actions='')=>'<div class="page-head"><div><h1 id="page-title" tabindex="-1">'+escape(name)+'</h1><p class="small muted">'+escape(detail)+'</p></div><div class="actions">'+actions+'</div></div>';
+const panel=(heading,content,meta='')=>'<section class="panel"><div class="panel-head"><h2>'+escape(heading)+'</h2>'+meta+'</div>'+content+'</section>';
+const viewNames={overview:'Brain overview',knowledge:'Knowledge',room:'Collaboration',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
+const runs={checkout:{id:'R-1843',project:'checkout',title:'Checkout retry guard',agent:'Codex',model:'GPT-6.1 SoL',state:'Outcome reported',tone:'mint',input:1842,output:362,cached:512,pack:812,baseline:962,limit:1600,doc:'Checkout API policy.pdf',page:12,receipt:'ack-16f3'},recovery:{id:'R-1842',project:'import',title:'Importer recovery',agent:'OpenCode',model:'Unavailable',state:'Context returned',tone:'cyan',input:null,output:null,cached:null,pack:624,baseline:768,limit:1200,doc:'Importer recovery.pdf',page:4,receipt:'Pending'},policy:{id:'R-1841',project:'checkout',title:'Dependency policy review',agent:'Claude Code',model:'Claude Sonnet example',state:'Awaiting review',tone:'amber',input:6578,output:1570,cached:null,pack:991,baseline:1180,limit:1800,doc:'Dependency policy.md',page:3,receipt:'ack-16cb'},payment:{id:'R-1840',project:'checkout',title:'Payment status test',agent:'OpenCode',model:'Unavailable',state:'Context returned',tone:'cyan',input:null,output:null,cached:null,pack:504,baseline:680,limit:1200,doc:'Checkout API policy.pdf',page:12,receipt:'Pending'}};
+const hosts=[{name:'Codex',mode:'Exchange observed',tone:'cyan',installed:'Files present',configured:'Project recipe selected',session:'Handshake observed',model:'GPT-6.1 SoL',usage:'Host-reported counts'}, {name:'OpenCode',mode:'Exchange observed',tone:'cyan',installed:'Files present',configured:'Project recipe selected',session:'Handshake observed',model:'Unavailable',usage:'Unavailable'}, {name:'Claude Code',mode:'Offline',tone:'amber',installed:'Files present',configured:'Project recipe selected',session:'Last observed 14:39',model:'Claude Sonnet example',usage:'Host-reported counts on a prior run'}, {name:'ChatGPT',mode:'Setup required',tone:'',installed:'Setup available',configured:'Unconfigured',session:'Unavailable',model:'Unavailable',usage:'Unavailable'}];
+const checkoutEvents=[{time:'14:42:08',title:'Approved policy page 12 selected',source:'Recorded source',tone:'pink',stage:'source'}, {time:'14:42:09',title:'Scoped context prepared · 812 estimated tokens',source:'Pack estimate',tone:'pink',stage:'context'}, {time:'14:42:10',title:'Context returned by MCP',source:'Measured exchange',tone:'cyan',stage:'context',route:'receipt'}, {time:'14:42:11',title:'Host acknowledged pack CP-1843',source:'Host report',tone:'amber',stage:'receipt'}, {time:'14:42:18',title:'Model usage received · 1,842 in / 362 out',source:'Host report',tone:'amber',stage:'usage'}, {time:'14:42:24',title:'Retry test linked to a useful outcome',source:'User report',tone:'mint',stage:'outcome'}];
+let events=checkoutEvents;
+const documents=[{project:'checkout',name:'Checkout API policy.pdf',pages:18,status:'Committed',tone:'mint',page:12}, {project:'import',name:'Importer recovery.pdf',pages:7,status:'Committed',tone:'mint',page:4}, {project:'checkout',name:'Dependency review.pdf',pages:5,status:'Needs OCR',tone:'amber',page:3}, {project:'checkout',name:'Checkout API revision.pdf',pages:18,status:'Needs review',tone:'amber',page:12}];
+const messages=[{role:'Astra · planner',kind:'Proposal',tone:'cyan',time:'14:35',text:'Keep the original idempotency key across transient retries. A fresh key can submit the same order twice.'}, {role:'Claude Code',kind:'Critique',tone:'amber',time:'14:38',text:'The timeout result alone is ambiguous. Check the existing payment status before deciding to retry.'}, {role:'GPT-6.1 SoL · worker',kind:'Evidence',tone:'pink',time:'14:40',text:'The fixture observes one checkout commit when the same key is reused across three attempts. Policy page 12 sets the retry boundary.'}, {role:'Operator',kind:'Accepted',tone:'mint',time:'14:42',text:'Use stable keys and a status check. Attach the regression result and hand off the scoped brief to Codex.'}];
+const state={view:'overview',run:'checkout',mode:'graph',inspect:'run',project:'checkout',cursor:2,playing:!matchMedia('(prefers-reduced-motion: reduce)').matches,phase:890,topologyTime:400,isolated:false,inspectAt:null,doc:0,page:12,reviewed:false,received:{},lesson:'candidate',setup:false,notes:[],feature:true};
+const current=()=>runs[state.run];
+const fact=(label,value)=>'<div><dt>'+escape(label)+'</dt><dd>'+escape(value??'Unavailable')+'</dd></div>';
+const scopedRuns=()=>Object.entries(runs).filter(([,run])=>run.project===state.project);
+function exampleEvents(run){
+  if(run.id==='R-1843')return checkoutEvents;
+  const trail=[{time:'14:39:04',title:'Approved source selected · '+run.doc+' · p. '+run.page,source:'Recorded source',tone:'pink',stage:'source'},
+    {time:'14:39:05',title:'Scoped context prepared · '+run.pack+' estimated tokens',source:'Pack estimate',tone:'pink',stage:'context'},
+    {time:'14:39:06',title:'Context returned by MCP',source:'Measured exchange',tone:'cyan',stage:'context',route:'receipt'}];
+  if(run.receipt!=='Pending')trail.push({time:'14:39:09',title:'Host acknowledged pack CP-'+run.id.slice(2),source:'Host report',tone:'amber',stage:'receipt'});
+  if(run.input!==null)trail.push({time:'14:39:15',title:'Model usage received · '+fmt(run.input)+' in / '+fmt(run.output)+' out',source:'Host report',tone:'amber',stage:'usage'});
+  return trail;
+}
+const goto=(view,focus=true)=>{if(!Object.hasOwn(viewNames,view))return;state.view=view;render();if(focus){window.scrollTo(0,0);$('page-title')?.focus({preventScroll:true});}};
+function renderNav(){ $('nav').innerHTML=Object.entries(viewNames).map(([id,label])=>'<button type="button" data-view="'+id+'" '+(id===state.view?'aria-current="page"':'')+'>'+label+'</button>').join('');$('project').value=state.project; }
+function workRows(){ return scopedRuns().map(([id,r])=>'<li><button class="work-row" type="button" data-run="'+id+'" aria-pressed="'+(state.run===id)+'"><div class="row-line"><strong>'+r.title+'</strong></div><span class="mono tiny muted">'+r.id+' · '+r.agent+'</span>'+chip(r.state,r.tone)+'</button></li>').join(''); }
+function sourceRows(){ return documents.map((doc,i)=>doc.project===state.project?'<li><button class="source-row" type="button" data-doc="'+i+'"><span class="row-line"><strong>'+doc.name+'</strong></span><span class="inline"><span class="tiny muted">'+doc.pages+' pages</span>'+chip(i===3&&state.reviewed?'Committed':doc.status,i===3&&state.reviewed?'mint':doc.tone)+'</span></button></li>':'').join(''); }
+const EVENT_MS = 1850;
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const graphPalette = ['159,201,255','173,179,255','116,229,236','255,207,132','228,165,250','153,231,194'];
+const graphAnchors = [
+  [-.72,-.46,.19],[-.5,-.04,.45],[-.68,.43,.20],[-.19,-.34,.40],
+  [.60,-.39,.28],[.71,.11,.18],[.51,.56,.23],[.13,.32,.58],
+  [.08,-.66,-.24],[-.17,.44,-.48],[.47,-.1,-.52],[-.52,-.24,-.41]
+];
+const graphRoutes = [
+  ['source',[0,3,1],4],['context',[1,3,7],4],['run',[2,7,5],2],
+  ['receipt',[4,3,7],3],['usage',[5,10,7],3],['outcome',[6,9,7],5]
+];
+function seededRandom(seed){
+  return ()=>{
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    return seed/4294967296;
+  };
+}
+function buildNetwork(){
+  const random=seededRandom(81079);
+  const points=graphAnchors.map(([x,y,z],i)=>({x,y,z,hub:i,tone:y>.3?3:i%3,size:1}));
+  const edges=[];
+  const golden=Math.PI*(3-Math.sqrt(5));
+  for(let side of [-1,1]){
+    for(let i=0;i<424;i++){
+      const y=1-2*(i+.5)/424;
+      const theta=i*golden+(random()-.5)*.28;
+      const equator=Math.sqrt(1-y*y);
+      const shell=.77+.23*Math.pow(random(),.55);
+      const radius=i%4===0?.30+.55*random():shell;
+      const fold=1+.07*Math.sin(6*theta+3*y)+.04*Math.cos(11*y-theta);
+      const x=side*(.345+.64*Math.cos(theta)*radius*fold)*equator+.055*y;
+      const py=(.98*y*radius-.04*side)+.06*Math.cos(theta)*equator;
+      const z=.76*equator*Math.sin(theta)*radius*fold;
+      let hub=0, nearest=Infinity;
+      for(let j=0;j<graphAnchors.length;j++){
+        const [hx,hy,hz]=graphAnchors[j];
+        const d=(x-hx)**2+(py-hy)**2+(z-hz)**2;
+        if(d<nearest){hub=j;nearest=d;}
+      }
+      const tone=py>.55&&random()<.78?3:py<-.25&&random()<.66?2:random()<.36?1:0;
+      points.push({x,y:py,z,hub,tone,size:.27+Math.pow(random(),3)*1.43});
+    }
+  }
+  const edgeKeys=new Set();
+  function connect(a,b){
+    const key=Math.min(a,b)*points.length+Math.max(a,b);
+    if(edgeKeys.has(key))return;
+    edgeKeys.add(key);
+    edges.push([a,b]);
+  }
+  for(let i=graphAnchors.length;i<points.length;i++){
+    const p=points[i];
+    const nearest=Array.from({length:4},()=>[-1,Infinity]);
+    for(let j=graphAnchors.length;j<points.length;j++){
+      if(i===j)continue;
+      const q=points[j], d=(p.x-q.x)**2+(p.y-q.y)**2+(p.z-q.z)**2;
+      if(d>=nearest[3][1])continue;
+      let k=3;
+      while(k>0&&d<nearest[k-1][1]){nearest[k]=nearest[k-1];k--;}
+      nearest[k]=[j,d];
+    }
+    for(const [j] of nearest)connect(i,j);
+    if(i%3===0)connect(i,p.hub);
+    if(i%4===0)connect(i,graphAnchors.length+Math.floor(random()*(points.length-graphAnchors.length)));
+  }
+  for(const [,hubs] of graphRoutes){
+    for(let i=1;i<hubs.length;i++)connect(hubs[i-1],hubs[i]);
+  }
+  const fibers=Array.from({length:38},(_,index)=>{
+    const side=index%2?1:-1;
+    const angle=index*golden;
+    return Array.from({length:35},(_,i)=>{
+      const t=i/34;
+      const y=.99*Math.cos(t*Math.PI);
+      const equator=Math.sin(t*Math.PI);
+      const theta=angle+Math.sin(t*4.8+index*.7)*.75+t*.72;
+      return {x:side*(.34+.60*Math.cos(theta))*equator+.055*y,y:y*.98-.04*side,z:.73*equator*Math.sin(theta),px:0,py:0,depth:0};
+    });
+  });
+  return {points,edges,fibers};
+}
+const network=buildNetwork();
+
+function graphNodes(){
+  const run=current();
+  return {
+    source:['PDF intake','Source · page '+run.page,'pink'],
+    context:['Reviewed memory','CP-'+run.id.slice(2)+' · '+fmt(run.pack)+' est.','pink'],
+    run:['Workstream',run.id+' · '+run.agent,'blue'],
+    receipt:[run.agent,run.receipt==='Pending'?'MCP tool return':'Host receipt','cyan'],
+    usage:['Model usage',run.input===null?'Usage unavailable':'Reported tokens','amber'],
+    outcome:['Outcome',events.some(event=>event.stage==='outcome')?'Regression evidence':'Awaiting report','mint']
+  };
+}
+function renderGraph(){
+  const nodes=graphNodes();
+  const node=id=>'<li><button type="button" id="graph-'+id+'" class="graph-node-btn '+nodes[id][2]+'" data-graph-pick="'+id+'" aria-pressed="'+(state.isolated&&state.inspect===id)+'"><strong>'+escape(nodes[id][0])+'</strong><small>'+escape(nodes[id][1])+'</small></button></li>';
+  return '<div class="graph-stage" id="network-stage"><canvas id="network-canvas" aria-hidden="true" data-nodes="'+network.points.length+'" data-edges="'+network.edges.length+'"></canvas>'+
+    '<div class="graph-field-meta mono" aria-hidden="true"><span>Source → Context</span><span class="heading-right">Host → Evidence</span></div>'+
+    '<ul class="graph-node-list ingress" aria-label="Source and work nodes">'+['source','context','run'].map(node).join('')+'</ul>'+
+    '<ul class="graph-node-list egress" aria-label="Host and evidence nodes">'+['receipt','usage','outcome'].map(node).join('')+'</ul></div>';
+}
+
+function mountNetwork(){
+  const canvas=$('network-canvas');
+  if(!canvas)return null;
+  const stage=$('network-stage'), ctx=canvas.getContext('2d');
+  if(!ctx)return null;
+  const points=network.points.map(point=>({...point,px:0,py:0,depth:0}));
+  const endpoints=graphRoutes.map(([id])=>$('graph-'+id));
+  const bins=Array.from({length:graphPalette.length*5},()=>[]);
+  const nodeBins=Array.from({length:graphPalette.length*4},()=>[]);
+  const traceParticles=seededRandom(41026);
+  const particles=Array.from({length:46},()=>({edge:Math.floor(traceParticles()*network.edges.length),phase:traceParticles(),speed:.25+traceParticles()*.55}));
+  let width=0,height=0,mobile=false,terminals=[];
+
+  function resize(){
+    const box=stage.getBoundingClientRect();
+    const dpr=Math.min(devicePixelRatio,1.75);
+    width=box.width;height=box.height;mobile=matchMedia('(max-width: 670px)').matches;
+    canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    terminals=endpoints.map((endpoint,i)=>{
+      const pos=endpoint.getBoundingClientRect();
+      return mobile?{x:pos.left-box.left+pos.width/2,y:pos.top-box.top}:
+        {x:(i<3?pos.right:pos.left)-box.left,y:pos.top-box.top+pos.height/2};
+    });
+    draw();
+  }
+
+  function stroke(color,alpha,lineWidth){
+    ctx.strokeStyle='rgba('+color+','+alpha+')';ctx.lineWidth=lineWidth;ctx.stroke();
+  }
+  function bead(x,y,r,color,alpha){
+    ctx.fillStyle='rgba('+color+','+alpha+')';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+  }
+  function drawGuides(cx,cy,rx,ry){
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,rx*1.02,ry*1.04,-.18,0,Math.PI*2);
+    ctx.ellipse(cx,cy,rx*1.11,ry*.42,.10,0,Math.PI*2);
+    ctx.ellipse(cx,cy,rx*.72,ry*1.08,.42,0,Math.PI*2);
+    ctx.setLineDash([2,5]);stroke('110,152,207',.27,.7);ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(cx-rx-17,cy);ctx.lineTo(cx+rx+17,cy);
+    ctx.moveTo(cx,cy-ry-15);ctx.lineTo(cx,cy+ry+15);stroke('108,142,191',.12,.6);
+    ctx.beginPath();
+    for(const [x,y] of [[cx-rx-17,cy],[cx+rx+17,cy],[cx,cy-ry-15],[cx,cy+ry+15]]){
+      ctx.moveTo(x-3,y);ctx.lineTo(x+3,y);ctx.moveTo(x,y-3);ctx.lineTo(x,y+3);
+    }
+    stroke('132,173,221',.39,.8);
+  }
+
+  function draw(){
+    if(!width||!height)return;
+    const event=events[state.cursor];
+    const activeId=event.route??event.stage;
+    const activeIndex=graphRoutes.findIndex(([id])=>id===activeId);
+    const selectedIndex=state.isolated?graphRoutes.findIndex(([id])=>id===state.inspect):-1;
+    const emphasis=selectedIndex>=0?selectedIndex:activeIndex;
+    const emphasisHubs=graphRoutes[emphasis]?.[1]??[];
+    const tint=selectedIndex<0&&event.tone==='cyan'?2:graphRoutes[emphasis]?.[2]??2;
+    const phase=state.phase/EVENT_MS;
+    const time=state.topologyTime/1000;
+    const cx=width*.5,cy=mobile?height*.325:height*.505;
+    const rx=mobile?width*.437:Math.min(width*.31,height*.73);
+    const ry=mobile?height*.251:height*.443;
+    const yaw=-.43+.58*Math.sin(time*.32), pitch=.17+.19*Math.sin(time*.24), roll=-.22+.10*Math.sin(time*.19);
+    const sy=Math.sin(yaw),cyaw=Math.cos(yaw),sp=Math.sin(pitch),cp=Math.cos(pitch),sr=Math.sin(roll),cr=Math.cos(roll);
+    ctx.clearRect(0,0,width,height);
+    drawGuides(cx,cy,rx,ry);
+    function project(p){
+      const x=p.x*cyaw+p.z*sy;
+      const z=p.z*cyaw-p.x*sy;
+      const y=p.y*cp-z*sp;
+      p.depth=p.y*sp+z*cp;
+      const scale=1+p.depth*.18;
+      p.px=cx+(x*cr*rx-y*sr*ry)*scale;
+      p.py=cy+(x*sr*rx+y*cr*ry)*scale;
+    }
+    for(const p of points)project(p);
+    for(const fiber of network.fibers){
+      for(const p of fiber)project(p);
+      ctx.beginPath();ctx.moveTo(fiber[0].px,fiber[0].py);
+      for(let i=1;i<fiber.length-1;i++){
+        const p=fiber[i],q=fiber[i+1];
+        ctx.quadraticCurveTo(p.px,p.py,(p.px+q.px)/2,(p.py+q.py)/2);
+      }
+      ctx.lineTo(fiber.at(-1).px,fiber.at(-1).py);
+      const depth=fiber[16].depth;
+      stroke('164,203,255',(depth>.12?.39:.18)*(selectedIndex>=0?.52:1),depth>.12?.64:.46);
+    }
+
+    for(const bin of bins)bin.length=0;
+    for(const bin of nodeBins)bin.length=0;
+    for(let i=0;i<network.edges.length;i++){
+      const [a,b]=network.edges[i],p=points[a],q=points[b];
+      const hot=i%3!==1&&emphasisHubs.includes(p.hub)&&emphasisHubs.includes(q.hub);
+      const depth=(p.depth+q.depth)/2;
+      const band=hot?4:Math.max(0,Math.min(3,Math.floor((depth+.83)*2.42)));
+      const color=hot?tint:p.tone===q.tone?p.tone:0;
+      bins[color*5+band].push(i);
+    }
+    for(let band=0;band<5;band++){
+      for(let color=0;color<graphPalette.length;color++){
+        const bin=bins[color*5+band];
+        if(!bin.length)continue;
+        ctx.beginPath();
+        for(const edge of bin){
+          const [a,b]=network.edges[edge],p=points[a],q=points[b];
+          ctx.moveTo(p.px,p.py);
+          if(edge%4===0){
+            const bend=(edge%3-1)*.083;
+            ctx.quadraticCurveTo((p.px+q.px)/2+(q.py-p.py)*bend,(p.py+q.py)/2+(p.px-q.px)*bend,q.px,q.py);
+          }else ctx.lineTo(q.px,q.py);
+        }
+        const alpha=([.18,.25,.36,.51,.51][band])*(selectedIndex>=0&&band!==4?.47:1);
+        stroke(graphPalette[color],alpha,band===4?.74:.58);
+      }
+    }
+    for(let i=graphAnchors.length;i<points.length;i++){
+      const p=points[i],hot=i%3!==1&&emphasisHubs.includes(p.hub);
+      const band=hot?3:Math.max(0,Math.min(2,Math.floor((p.depth+.86)*1.75)));
+      nodeBins[(hot?tint:p.tone)*4+band].push(i);
+    }
+    for(let band=0;band<4;band++){
+      for(let color=0;color<graphPalette.length;color++){
+        const bin=nodeBins[color*4+band];
+        if(!bin.length)continue;
+        ctx.beginPath();
+        for(const index of bin){
+          const p=points[index],r=p.size*(.83+band*.12);
+          ctx.moveTo(p.px+r,p.py);ctx.arc(p.px,p.py,r,0,Math.PI*2);
+        }
+        const alpha=([.42,.60,.84,.98][band])*(selectedIndex>=0&&band!==3?.47:1);
+        ctx.fillStyle='rgba('+graphPalette[color]+','+alpha+')';ctx.fill();
+      }
+    }
+    ctx.beginPath();
+    for(let i=graphAnchors.length;i<points.length;i++){
+      const p=points[i];
+      if(p.depth<.23||i%5!==0)continue;
+      ctx.moveTo(p.px+.9,p.py);ctx.arc(p.px,p.py,.9,0,Math.PI*2);
+    }
+    ctx.fillStyle=selectedIndex<0?'#e7f7ffd1':'#e7f7ff59';ctx.fill();
+
+    function routeGeometry(index){
+      const [,hubs]=graphRoutes[index];
+      const [p,q,r]=hubs.map(i=>points[i]);
+      const t=terminals[index];
+      const turn=mobile?0:(index<3?1:-1)*Math.min(60,width*.068);
+      const a={x:t.x+turn,y:t.y-(mobile?26:0)},b={x:p.px-turn*.46,y:p.py};
+      return [t,a,b,{x:p.px,y:p.py},{x:q.px,y:q.py},{x:r.px,y:r.py}];
+    }
+    const samples=(route,progress)=>{
+      const t=Math.max(0,Math.min(1,progress));
+      const segment=t<.56?0:1;
+      const u=segment===0?t/.56:(t-.56)/.44,v=1-u;
+      if(segment===1){
+        const [a,b,c]=route.slice(3);
+        return {x:v*v*a.x+2*v*u*b.x+u*u*c.x,y:v*v*a.y+2*v*u*b.y+u*u*c.y};
+      }
+      const [a,b,c,d]=route;
+      return {x:v**3*a.x+3*v*v*u*b.x+3*v*u*u*c.x+u**3*d.x,y:v**3*a.y+3*v*v*u*b.y+3*v*u*u*c.y+u**3*d.y};
+    };
+    const drawRoute=route=>{
+      const [a,b,c,d,e,f]=route;
+      ctx.beginPath();ctx.moveTo(a.x,a.y);
+      ctx.bezierCurveTo(b.x,b.y,c.x,c.y,d.x,d.y);
+      ctx.quadraticCurveTo(e.x,e.y,f.x,f.y);
+    };
+    graphRoutes.forEach(([id,,color],i)=>{
+      drawRoute(routeGeometry(i));
+      if(i===emphasis){
+        stroke(graphPalette[tint],.20,5.1);stroke(graphPalette[tint],.94,1.33);
+      }else{
+        ctx.setLineDash(id==='outcome'||id==='usage'?[2,5]:[]);
+        stroke(graphPalette[color],selectedIndex>=0?.14:.34,.8);ctx.setLineDash([]);
+      }
+    });
+
+    if(activeIndex>=0&&(selectedIndex<0||selectedIndex===activeIndex)){
+      const outbound=event.stage==='outcome'||event.route==='receipt';
+      const route=routeGeometry(activeIndex);
+      const color=graphPalette[event.tone==='cyan'?2:graphRoutes[activeIndex][2]];
+      for(let i=0;i<4;i++){
+        const u=(phase*1.27-i*.098);
+        if(u<0||u>1)continue;
+        const t=outbound?1-u:u;
+        const a=samples(route,t),b=samples(route,t+(outbound?1:-1)*.065);
+        ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(a.x,a.y);stroke(color,.42,2.2);
+        bead(a.x,a.y,6.5,color,.15);bead(a.x,a.y,3.35,color,.52);bead(a.x,a.y,1.7,'243,254,255',1);
+      }
+      for(const particle of particles){
+        const [a,b]=network.edges[particle.edge];
+        const p=points[a],q=points[b];
+        if(!emphasisHubs.includes(p.hub)&&!emphasisHubs.includes(q.hub))continue;
+        const t=(particle.phase+phase*particle.speed)%1;
+        const x=p.px+(q.px-p.px)*t,y=p.py+(q.py-p.py)*t;
+        bead(x,y,2.65,color,.16);bead(x,y,.96,'235,247,255',.78);
+      }
+    }
+    for(let i=0;i<graphAnchors.length;i++){
+      const p=points[i],hot=emphasisHubs.includes(i), color=graphPalette[hot?tint:p.tone];
+      if(hot)bead(p.px,p.py,9+4*phase,color,.14);
+      ctx.beginPath();ctx.arc(p.px,p.py,hot?4.6:2.8,0,Math.PI*2);stroke(color,hot?.81:.43,.95);
+      bead(p.px,p.py,hot?1.95:1.25,color,hot?1:.68);
+    }
+    canvas.dataset.frame=String(Math.round(state.topologyTime));
+  }
+  const observer=new ResizeObserver(resize);
+  observer.observe(stage);
+  resize();
+  return {draw,disconnect:()=>observer.disconnect()};
+}
+function sparkline(values,tone){
+  const max=Math.max(...values,1);
+  const points=values.map((value,index)=>(3+index*74/Math.max(values.length-1,1)).toFixed(1)+','+(24-value/max*20).toFixed(1));
+  return '<svg class="metric-trace '+tone+'" viewBox="0 0 80 28" aria-hidden="true"><path d="M3 24H77" fill="none" stroke="currentColor" stroke-opacity=".27" stroke-width=".7"/><path d="M'+points.join(' L')+'" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="'+points.at(-1).split(',')[0]+'" cy="'+points.at(-1).split(',')[1]+'" r="1.8" fill="currentColor"/></svg>';
+}
+function readouts(){
+  const run=current(), scoped=scopedRuns().map(([,item])=>item), known=scoped.filter(item=>item.input!==null);
+  const observed=state.project==='checkout'?2:1;
+  const counts=known.length?fmt(known.reduce((sum,item)=>sum+item.input,0))+' in · '+fmt(known.reduce((sum,item)=>sum+item.output,0))+' out':'Unavailable';
+  let total=0;
+  const tokenSeries=[0,...known.map(item=>(total+=item.input+item.output))];
+  return '<dl class="control-strip network-strip">'+
+    '<div class="readout"><dt>Host exchanges · sample window</dt><dd class="cyan mono">'+observed+' observed</dd><p class="small muted">'+(observed===2?'Codex and OpenCode':'OpenCode')+'</p>'+sparkline(observed===2?[0,0,1,1,2]:[0,0,0,1,1],'cyan')+'</div>'+
+    '<div class="readout"><dt>Selected model · '+run.id+'</dt><dd class="mono">'+run.model+'</dd><p class="small muted">'+run.agent+' · '+(run.input===null?'usage unavailable':'host report')+'</p></div>'+
+    '<div class="readout"><dt>Reported tokens · '+known.length+' of '+scoped.length+' runs</dt><dd class="mono">'+counts+'</dd><p class="small muted">'+(known.length?'Example host reports':'No model usage receipt')+'</p>'+(known.length?sparkline(tokenSeries,'blue'):'')+'</div>'+
+    '<div class="readout"><dt>Selected context budget</dt><dd class="pink mono">'+fmt(run.pack)+' / '+fmt(run.limit)+'</dd><p class="small muted">Estimated pack tokens</p>'+sparkline([run.limit,run.limit,run.baseline,run.baseline,run.pack,run.pack],'pink')+'</div></dl>';
+}
+function graphArea(){
+  const trace=state.mode==='trace';
+  const count=trace?events.length+' sample events':fmt(network.points.length)+' nodes / '+fmt(network.edges.length)+' links';
+  return '<section class="panel graph-panel"><div class="panel-head"><div class="graph-header"><h2>'+(trace?'Run trace':'Neural topology')+'</h2><span class="mono graph-count">'+count+'</span></div><div class="actions">'+
+    (!trace?button('Clear focus','data-action="isolate"'+(state.isolated?'':' hidden'),'quiet'):'')+
+    button('Graph','data-mode="graph" aria-pressed="'+!trace+'"')+button('Trace','data-mode="trace" aria-pressed="'+trace+'"')+'</div></div>'+
+    (trace?'<ol class="trace-grid" aria-label="Run trace">'+events.map((event,i)=>'<li class="trace-row"><time class="mono muted">'+event.time+'</time>'+button(event.title,'data-event="'+i+'"','quiet')+chip(event.source,event.tone)+'</li>').join('')+'</ol>':renderGraph())+
+    '<div class="graph-footer"><div class="legend"><span class="pink"><i class="swatch"></i> Context</span><span class="cyan"><i class="swatch"></i> Exchange</span><span class="amber"><i class="swatch report"></i> Host report</span><span class="mint"><i class="swatch"></i> Outcome</span></div><span class="mono focus-state" id="network-focus"></span><span class="mono">'+(trace?current().id:'Illustrative topology')+'</span></div></section>';
+}
+function eventList(){
+  return '<ul class="list timeline" aria-label="Synthetic timeline events">'+[...events].reverse().map((event,offset)=>{
+    const i=events.length-offset-1;
+    return '<li><button class="event" type="button" data-event="'+i+'" aria-pressed="'+(state.cursor===i)+'"><time class="mono">'+event.time+'</time><span>'+event.title+'</span>'+chip(event.source,event.tone)+'</button></li>';
+  }).join('')+'</ul>';
+}
+function overview(){
+  const run=current();
+  const event=events[state.cursor];
+  return '<div class="page-head preview-heading"><div><h1 id="page-title" tabindex="-1">Brain control room</h1><p class="small muted">Trace a sample run from source to outcome.</p></div><div class="actions"><span class="playback-state" id="playback-status"></span>'+button('Pause playback','id="playback-button" data-action="playback"','primary')+'</div></div>'+readouts()+
+    '<div class="control-grid"><aside class="panel" aria-label="Workstreams and knowledge intake"><div class="rail-section"><div class="rail-label"><h2>Workstreams</h2><span class="tiny mono muted">'+scopedRuns().length+'</span></div><ul class="list">'+workRows()+'</ul></div><div class="rail-section"><div class="rail-label"><h2>Knowledge ingress</h2></div><ul class="list">'+sourceRows()+'</ul></div></aside>'+graphArea()+inspector()+'</div>'+
+    '<div class="lower">'+panel('Context efficiency','<div class="panel-body"><div class="meter-pair telemetry-pair"><div><span class="tiny muted">Selected pack</span><strong>'+fmt(run.pack)+'</strong><div class="meter pink"><i style="width:'+Math.round(run.pack/run.limit*100)+'%"></i></div></div><div><span class="tiny muted">Baseline</span><strong>'+fmt(run.baseline)+'</strong><div class="meter"><i style="width:'+Math.round(run.baseline/run.limit*100)+'%"></i></div></div></div><div class="telemetry-row"><span class="muted">Context reduction</span><strong class="mono">'+fmt(run.baseline-run.pack)+' tokens · '+Math.round((1-run.pack/run.baseline)*100)+'%</strong></div><div class="telemetry-row"><span class="muted">Budget used</span><strong class="mono">'+Math.round(run.pack/run.limit*100)+'%</strong></div></div>',chip('Estimate','pink'))+
+    panel('Synthetic playback timeline','<div class="replay"><label for="replay-range" class="small muted">Seek event</label><input id="replay-range" type="range" min="0" max="'+(events.length-1)+'" value="'+state.cursor+'"><output class="mono tiny" id="replay-time">'+event.time+'</output></div>'+eventList(),chip('Sample sequence','amber'))+'</div>';
+}
+function inspector(){const run=current(),shown=state.inspectAt===null?events:events.slice(0,state.inspectAt+1);
+  const hasUsage=shown.some(event=>event.stage==='usage'),hasReceipt=shown.some(event=>event.stage==='receipt'),hasReturn=shown.some(event=>event.route==='receipt');let details='';
+  if(state.inspect==='source'){details='<div class="receipt"><h3>'+run.doc+'</h3><p class="muted">Page '+run.page+' · Extracted text with a recorded citation</p><p>'+(run.project==='import'?'Replays reuse the source checksum and checkpoint identifier.':'Retry requests use the original idempotency key and a bounded attempt budget.')+'</p></div>'+button('Open source review','data-view="knowledge"','quiet');}
+  else if(state.inspect==='context'){details='<dl class="facts">'+fact('Context pack','CP-'+run.id.slice(2))+fact('Scope',state.project==='checkout'?'Checkout API':'Data importer')+fact('Estimated tokens',run.pack+' / '+run.limit)+fact('Compared baseline',run.baseline+' estimated')+fact('Selected source',run.doc+' · p.'+run.page)+'</dl><div class="receipt"><h3>Prepared context</h3><p class="muted">'+(run.project==='import'?'Review the source checksum and restart checkpoint.':'Review the retry boundary, stable key requirement, and linked regression evidence.')+'</p></div>';}
+  else if(state.inspect==='outcome'){details='<div class="receipt"><div class="row-line"><h3>Retry evidence</h3>'+chip(shown.some(event=>event.stage==='outcome')?'Useful · user report':'Awaiting outcome','mint')+'</div><p class="muted">'+(shown.some(event=>event.stage==='outcome')?'One committed checkout in the sample regression case.':'The sample has no outcome at this position.')+'</p></div>'+button('Open learning review','data-view="learning"','quiet');}
+  else if(state.inspect==='usage'){details='<dl class="facts">'+fact('Observed model',hasUsage?run.model:'Unavailable')+fact('Input tokens',hasUsage?fmt(run.input):'Unavailable')+fact('Output tokens',hasUsage?fmt(run.output):'Unavailable')+fact('Cached input subset',hasUsage&&run.cached!==null?fmt(run.cached):'Unavailable')+fact('Provenance',hasUsage?'Host report':'No usage receipt')+'</dl>'+button('Open usage breakdown','data-view="usage"','quiet');}
+  else{details='<dl class="facts">'+fact('Host',run.agent)+fact('Observed model',hasUsage?run.model:'Unavailable')+fact('Transport','MCP')+fact('Input / output',hasUsage?fmt(run.input)+' / '+fmt(run.output)+' · reported':'Unavailable')+'</dl><div class="receipt"><div class="row-line"><h3>Context delivery</h3>'+chip(hasReceipt?'Acknowledged':hasReturn?'Returned by tool':'Awaiting exchange',hasReceipt?'mint':'cyan')+'</div><p class="mono small">CP-'+run.id.slice(2)+' · '+(hasReceipt?run.receipt:hasReturn?'Waiting for host receipt':'No exchange at this event')+'</p><p class="muted">'+run.doc+' · page '+run.page+'</p></div>'+button('Open task room','data-view="room"','quiet');}
+  const tabs=[['run','Run'],['source','Source'],['context','Context'],['receipt','Receipt'],['usage','Usage'],['outcome','Outcome']];
+  return '<section class="panel inspector-panel"><div class="panel-head"><h2>'+(state.isolated?'Focused node':'Run inspector')+'</h2><span class="mono cyan tiny">'+run.id+'</span></div><div class="tabbar" aria-label="Run inspector">'+tabs.map(([id,label])=>button(label,'data-pick="'+id+'" aria-pressed="'+(state.inspect===id)+'"')).join('')+'</div><div class="inspector"><div><h3 class="inspect-title">'+run.title+'</h3><p class="small muted">'+run.agent+' · '+run.state+'</p></div>'+details+'</div></section>';
+}
+function knowledge(){const doc=documents[state.doc];const received=!!state.received[state.project];const approved=state.doc===3&&state.reviewed||doc.status==='Committed';const needsOcr=doc.status==='Needs OCR';const steps=['Received','Extracted','Cited passage','Review','Committed'];return title('Knowledge intake','Follow local documents from extraction and page citations to approved project memory.',button(received?'Example file queued':'Queue example PDF','data-action="queue"','primary'))+
+  '<div class="detail-grid">'+panel('Input queue','<ul class="list">'+sourceRows()+'</ul>'+(received?'<p class="panel-body small cyan" role="status">Example PDF added to the received queue.</p>':''),chip(documents.filter(item=>item.project===state.project).length+(received?1:0)+' examples'))+
+  panel('Page citation review','<div class="panel-body stack"><div class="row-line"><div><h3>'+doc.name+'</h3><p class="small muted">'+doc.pages+' pages · selected page '+state.page+'</p></div>'+chip(approved?'Committed':doc.status,approved?'mint':doc.tone)+'</div><div class="pipeline" aria-label="Document pipeline">'+steps.map((step,i)=>'<div class="'+(i===(approved?4:needsOcr?0:3)?'current':'')+'"><strong>'+step+'</strong></div>').join('')+'</div><div class="actions">'+button('Previous page','data-page="-1"')+button('Next page','data-page="1"')+'<span class="mono small muted">p. '+state.page+'</span></div><div class="doc-sheet"><p class="small pink">'+doc.name+' · p. '+state.page+'</p><blockquote>'+ (needsOcr?'This example page needs OCR before a passage can be reviewed.':state.doc===1?'Repeatable imports keep the source checksum and checkpoint together. A replay of the same batch should reuse the original identifier.':'Checkout retries use the original idempotency key. Before retrying a timeout, check the existing payment status and the current retry budget.')+'</blockquote><p class="small muted">'+(needsOcr?'Extraction status · image-only page':'Extracted sample passage · review page evidence before commit')+'</p></div><div class="actions">'+button(approved?'Open selected context':'Approve sample passage',approved?'data-action="source-context"':'data-action="approve"'+(needsOcr?' disabled':''),'primary')+button('Open task room','data-view="room"','quiet')+'</div></div>')+'</div>';}
+function room(){const run=current();if(run.project==='import')return title('Shared task room','Coordinate claims, critique, evidence, and the next agent handoff.')+'<div class="detail-grid">'+panel('Project workstreams','<ul class="list">'+workRows()+'</ul>')+panel(run.title,'<div class="panel-body stack">'+chip('Context returned','cyan')+'<p>OpenCode is reviewing the source checksum and restart checkpoint.</p><p class="small muted">Waiting for the host receipt and regression artifact.</p>'+button('Inspect delivery','data-action="source-context"','quiet')+'</div>')+'</div>';
+  const all=messages.concat(state.notes.map(note=>({role:'Operator',kind:'Note',tone:'blue',time:'Now',text:note})));return title('Shared task room','Coordinate claims, critique, evidence, and the next agent handoff.',button('Inspect run','data-view="overview"','quiet'))+
+  '<div class="columns room-layout">'+panel('Project workstreams','<ul class="list">'+workRows()+'</ul>')+panel(run.title,'<div class="panel-body stack"><div class="inline">'+chip('Open task','cyan')+chip(run.id)+chip('Example discussion')+'</div><p class="small muted">Review the project policy, check the regression, and deliver the brief to the implementation host.</p></div><ol class="list">'+all.map(message=>'<li class="message"><div class="row-line"><div class="inline"><strong>'+message.role+'</strong>'+chip(message.kind,message.tone)+'</div><time class="mono tiny">'+message.time+'</time></div><p>'+escape(message.text)+'</p></li>').join('')+'</ol><form class="panel-body stack" id="note-form"><label for="note" class="label">Add an example note<textarea id="note" class="field" maxlength="300" rows="2" placeholder="Record a claim or evidence reference"></textarea></label><div>'+button('Add note','data-action="note"','primary')+'</div></form>')+
+  panel('Claims and artifacts','<div class="panel-body stack"><ul class="claims"><li><strong>Codex · implementation</strong><span class="small muted">Claimed · retry boundary</span></li><li><strong>OpenCode · regression</strong><span class="small muted">Complete · depends on policy citation</span></li><li><strong>Claude Code · review</strong><span class="small muted">Critique recorded · host offline</span></li></ul><div class="receipt"><div class="row-line"><h3>Regression evidence</h3>'+chip('Accepted','mint')+'</div><p class="mono">tests/checkout-retry.test.ts</p><p class="small muted">Artifact · one completed checkout</p></div><div class="receipt"><div class="row-line"><h3>Handoff to '+run.agent+'</h3>'+chip(run.receipt==='Pending'?'Returned by tool':'Acknowledged',run.receipt==='Pending'?'cyan':'mint')+'</div><p class="mono">CP-'+run.id.slice(2)+' · '+run.receipt+'</p></div>'+button('Inspect delivery','data-action="source-context"','quiet')+'</div>')+'</div>';}
+function models(){return title('Connections and models','Inspect installation, configuration, observed handshake, and model reports for each host.',button('Review first-run setup','data-view="setup"','primary'))+panel('Host capabilities','<div class="panel-body"><table class="metrics-table"><thead><tr><th>Host</th><th>Project setup</th><th>Session evidence</th><th>Last observed model</th><th>Usage coverage</th></tr></thead><tbody>'+hosts.map(host=>'<tr><td><strong>'+host.name+'</strong><br>'+chip(host.mode,host.tone)+'</td><td>'+host.installed+'<br><span class="small muted">'+host.configured+'</span></td><td>'+host.session+'</td><td class="mono">'+host.model+'</td><td>'+host.usage+'</td></tr>').join('')+'</tbody></table></div>',chip('Example connections','amber'))+'<div class="footer">A host’s configured model and its model on a specific request have separate records.</div>';}
+function usage(){const run=current();const scoped=scopedRuns().map(([,item])=>item);const coverage=scoped.filter(item=>item.input!==null).length;return title('Usage and budgets','Inspect reported counts, estimated context budgets, and coverage by run.')+readouts()+'<div class="detail-grid equal">'+panel('Model turns','<table class="metrics-table"><thead><tr><th>Run</th><th>Input</th><th>Output</th><th>Evidence</th></tr></thead><tbody>'+scoped.map(r=>'<tr><td><strong>'+r.id+'</strong><br><span class="small muted">'+r.agent+'</span></td><td class="mono">'+(r.input===null?'—':fmt(r.input))+'</td><td class="mono">'+(r.output===null?'—':fmt(r.output))+'</td><td>'+chip(r.input===null?'Unavailable':'Host report',r.input===null?'':'amber')+'</td></tr>').join('')+'</tbody></table>',chip(coverage+' / '+scoped.length+' covered','cyan'))+panel('Context estimate','<div class="panel-body stack"><div><h3>Compared baseline</h3><p class="small mono muted">'+run.baseline+' tokens</p><div class="usage-bar"><i style="width:'+Math.round(run.baseline/run.limit*100)+'%"></i></div></div><div><h3>Selected pack</h3><p class="small mono muted">'+run.pack+' tokens</p><div class="usage-bar estimated"><i style="width:'+Math.round(run.pack/run.limit*100)+'%"></i></div></div><p class="small muted">'+(run.baseline-run.pack)+' fewer estimated context tokens for this sample task. Cost is unavailable without a supported rate and usage record.</p></div>',chip('Estimate','pink'))+'</div>';}
+function learning(){const next={candidate:['Evaluate example lesson','evaluate'],evaluated:['Promote example lesson','promote'],promoted:['Roll back example promotion','rollback'],reverted:['Evaluate again','evaluate']}[state.lesson];const status={candidate:'Candidate',evaluated:'Evaluation recorded',promoted:'Promoted',reverted:'Promotion rolled back'}[state.lesson];return title('Memory and learning','Review task outcomes and decide which lessons enter shared project knowledge.')+'<div class="detail-grid equal">'+panel('Recorded outcomes','<ul class="list"><li class="item"><div class="row-line"><h3>Stable checkout keys</h3>'+chip('Useful · user report','mint')+'</div><p class="small muted">Same-key retries produced one committed checkout in the sample fixture.</p><p class="mono small cyan">tests/checkout-retry.test.ts</p></li><li class="item"><div class="row-line"><h3>Retry every failure</h3>'+chip('Incorrect · agent report','rose')+'</div><p class="small muted">A validation error should enter the correction path.</p><p class="mono small cyan">Checkout API policy.pdf · p. 12</p></li></ul>')+panel('Candidate lesson','<div class="panel-body stack"><div class="row-line"><h3>Preserve request identity through retries</h3>'+chip(status,state.lesson==='promoted'?'mint':'amber')+'</div><p class="small muted">Source evidence and the reported outcome remain attached. Promotion applies to the selected project.</p><div class="receipt"><p class="mono small">Policy p. 12 · regression artifact · R-1843</p><p class="small muted">'+(state.lesson==='candidate'?'Evaluation pending.':state.lesson==='reverted'?'The prior memory state was restored in this example.':'The example regression and scope checks are recorded.')+'</p></div><div>'+button(next[0],'data-action="'+next[1]+'"','primary')+'</div></div>')+'</div>';}
+function setup(){return title('Set up the shared brain','Choose the project and confirm what each host can report before opening a live workstream.')+'<div class="setup-grid">'+panel('First connection','<div class="panel-body stack"><ol class="setup-steps"><li><div><strong>Choose the project</strong><p class="small muted">Use an explicit project-local workspace.</p></div></li><li><div><strong>Review the host recipe</strong><p class="small muted">Check its project scope and tool profile.</p></div></li><li><div><strong>Configure in the host</strong><p class="small muted">Use the host’s supported setup and credential interface.</p></div></li><li><div><strong>Confirm a round trip</strong><p class="small muted">Check handshake, exchange, and available usage fields.</p></div></li></ol><pre>shadow-brain project config . --target codex</pre><div>'+button(state.setup?'Example exchange observed':'Simulate example round trip','data-action="setup"','primary')+'</div>'+(state.setup?'<p class="small cyan" role="status">Example handshake and tool result received. Host usage capability is recorded separately.</p>':'')+'</div>',chip('Codex recipe','cyan'))+
+  panel('Project controls','<div class="panel-body stack"><div class="receipt"><div class="row-line"><h3>Activity recording</h3>'+button(state.feature?'On':'Off','data-action="feature" aria-pressed="'+state.feature+'"')+'</div><p class="small muted">Capture tool exchanges and reported task phases in the project journal.</p></div><div class="receipt"><h3>Context assembly</h3><p class="small muted">Prepare scoped context using the project’s reviewed memory.</p></div><div class="receipt"><h3>Skill setup</h3><p class="small muted">Preview the exact project-relative file and record approval before applying.</p><pre>.agents/skills/checkout-review/SKILL.md</pre></div>'+button('Inspect example host capabilities','data-view="models"','quiet')+'</div>')+'</div>';}
+const views={overview,knowledge,room,models,usage,learning,setup};
+let mountedNetwork=null, frameRequest=0, lastFrame=null;
+function running(){return state.playing&&state.view==='overview'&&!reduceMotion.matches&&!document.hidden;}
+function updatePlayback(){
+  if(state.view!=='overview')return;
+  const event=events[state.cursor];
+  const activeId=event.route??event.stage;
+  const status=reduceMotion.matches?'Reduced motion':running()?'Playing':'Paused';
+  $('playback-status').innerHTML='<i class="dot" aria-hidden="true"></i> Synthetic playback · '+status;
+  $('playback-button').textContent=state.playing?'Pause playback':'Play sample';
+  $('playback-button').disabled=reduceMotion.matches;
+  $('replay-range').value=state.cursor;
+  $('replay-range').setAttribute('aria-valuetext','Event '+(state.cursor+1)+' of '+events.length+' at '+event.time);
+  $('replay-time').textContent=event.time+' · '+(state.cursor+1)+'/'+events.length;
+  const clear=document.querySelector('[data-action=isolate]');
+  if(clear)clear.hidden=!state.isolated;
+  $('network-focus')?.replaceChildren(document.createTextNode(state.isolated?'Focused · '+graphNodes()[state.inspect][0]:'Event · '+graphNodes()[activeId][0]));
+  document.querySelectorAll('[data-graph-pick]').forEach(node=>{
+    const id=node.dataset.graphPick;
+    node.classList.toggle('active',id===activeId);
+    node.setAttribute('aria-pressed',String(state.isolated&&state.inspect===id));
+  });
+  document.querySelectorAll('[data-event]').forEach(node=>{
+    const index=Number(node.dataset.event),selected=index===state.cursor;
+    const future=index>state.cursor;
+    node.setAttribute('aria-pressed',String(selected));
+    node.toggleAttribute('data-future',future);
+    if(future)node.setAttribute('aria-description','Upcoming example event');
+    else node.removeAttribute('aria-description');
+    const traceRow=node.closest('.trace-row');
+    if(traceRow){
+      traceRow.setAttribute('aria-current',String(selected));
+      traceRow.toggleAttribute('data-future',future);
+    }
+  });
+  const timeline=document.querySelector('.timeline');
+  const active=timeline?.querySelector('[aria-pressed=true]');
+  if(active&&!timeline.matches(':focus-within, :hover')){
+    const top=active.getBoundingClientRect().top-timeline.getBoundingClientRect().top;
+    if(top<0||top+active.offsetHeight>timeline.clientHeight){
+      timeline.scrollTop+=top-Math.max(0,(timeline.clientHeight-active.offsetHeight)/2);
+    }
+  }
+}
+function loopFrame(now){
+  frameRequest=0;
+  if(!running()){lastFrame=null;return;}
+  const elapsed=lastFrame===null?0:Math.min(now-lastFrame,55);
+  lastFrame=now;
+  state.topologyTime+=elapsed;
+  state.phase+=elapsed;
+  if(state.phase>=EVENT_MS){
+    state.phase-=EVENT_MS;
+    state.cursor=(state.cursor+1)%events.length;
+    updatePlayback();
+  }
+  mountedNetwork?.draw();
+  frameRequest=requestAnimationFrame(loopFrame);
+}
+function syncPlayback(){
+  const animate=running();
+  document.documentElement.dataset.motion=animate?'running':'stopped';
+  if(!animate){
+    if(frameRequest)cancelAnimationFrame(frameRequest);
+    frameRequest=0;lastFrame=null;
+  }else if(!frameRequest){
+    frameRequest=requestAnimationFrame(loopFrame);
+  }
+  updatePlayback();
+}
+function changeMotionPreference(){
+  if(reduceMotion.matches)state.playing=false;
+  syncPlayback();
+  mountedNetwork?.draw();
+}
+document.addEventListener('visibilitychange',syncPlayback);
+reduceMotion.addEventListener('change',changeMotionPreference);
+
+function seekEvent(index){
+  const event=events[index];
+  if(!event)return;
+  state.playing=false;
+  state.cursor=index;
+  state.phase=EVENT_MS*.46;
+  state.topologyTime=index*EVENT_MS+state.phase;
+  state.inspect=event.stage;
+  state.inspectAt=index;
+  state.isolated=false;
+  refreshInspector();
+  syncPlayback();
+  mountedNetwork?.draw();
+}
+function refreshInspector(){
+  const panel=document.querySelector('.inspector-panel');
+  if(panel)panel.outerHTML=inspector();
+}
+
+function render(){
+  mountedNetwork?.disconnect();
+  mountedNetwork=null;
+  renderNav();
+  $('main').innerHTML=state.view==='learning'&&state.project==='import'?title('Memory and learning','Review task outcomes for this project.')+panel('Recorded outcomes','<div class="empty"><h3>No outcomes in this example project</h3><p class="small muted">The run is waiting for a host receipt.</p></div>'):views[state.view]();
+  document.title='Shadow Brain · '+viewNames[state.view]+' design preview';
+  mountedNetwork=mountNetwork();
+  syncPlayback();
+}
+function selectRun(id){
+  if(!Object.hasOwn(runs,id))return;
+  state.run=id;
+  state.project=runs[id].project;
+  state.doc=documents.findIndex(doc=>doc.project===state.project);
+  state.page=documents[state.doc].page;
+  state.inspect='run';state.inspectAt=null;state.isolated=false;
+  events=exampleEvents(runs[id]);
+  state.cursor=Math.min(2,events.length-1);
+  state.phase=EVENT_MS*.46;state.topologyTime=400;
+  render();
+}
+function setGraphFocus(id){
+  state.inspect=id;state.isolated=true;
+  refreshInspector();syncPlayback();mountedNetwork?.draw();
+}
+document.addEventListener('click',event=>{
+  const node=event.target.closest('[data-view],[data-run],[data-mode],[data-pick],[data-event],[data-doc],[data-page],[data-action],[data-graph-pick]');if(!node||node.disabled)return;
+  const data=node.dataset;
+  if(data.view){goto(data.view);return;}if(data.run){selectRun(data.run);return;}
+  if(data.mode){state.mode=data.mode;render();$('main').querySelector('[data-mode="'+data.mode+'"]')?.focus();return;}
+  if(data.graphPick){setGraphFocus(data.graphPick);return;}
+  if(data.pick){state.inspect=data.pick;refreshInspector();syncPlayback();mountedNetwork?.draw();$('main').querySelector('.tabbar [data-pick="'+data.pick+'"]')?.focus({preventScroll:true});return;}
+  if(data.event!==undefined){seekEvent(Number(data.event));return;}
+  if(data.doc!==undefined){state.doc=Number(data.doc);state.page=documents[state.doc].page;goto('knowledge');return;}
+  if(data.page){state.page=Math.max(1,Math.min(documents[state.doc].pages,state.page+Number(data.page)));render();return;}
+  switch(data.action){
+    case 'playback':state.playing=!state.playing;state.inspectAt=null;refreshInspector();syncPlayback();break;
+    case 'isolate':state.isolated=false;refreshInspector();syncPlayback();mountedNetwork?.draw();$('graph-'+state.inspect)?.focus({preventScroll:true});break;
+    case 'queue':state.received[state.project]=true;render();break;
+    case 'approve':state.reviewed=true;render();break;
+    case 'source-context':state.inspect='receipt';state.inspectAt=null;goto('overview');break;
+    case 'note':{const note=$('note').value.trim();if(note){state.notes.push(note);render();$('note').focus();}break;}
+    case 'evaluate':state.lesson='evaluated';render();break;
+    case 'promote':state.lesson='promoted';render();break;
+    case 'rollback':state.lesson='reverted';render();break;
+    case 'setup':state.setup=true;render();break;
+    case 'feature':state.feature=!state.feature;render();break;
+  }
+});
+document.addEventListener('input',event=>{if(event.target.id==='replay-range')seekEvent(Number(event.target.value));});
+$('project').addEventListener('change',event=>selectRun(event.target.value==='import'?'recovery':'checkout'));
+render();
+</script>
+</body>
+</html>

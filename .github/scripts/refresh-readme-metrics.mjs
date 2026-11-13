@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const PACKAGE = '@theihtisham/agent-shadow-brain';
-const REPOSITORY = 'ihtishaam-dev/agent-shadow-brain';
+const REPOSITORY = 'theihtishaam/agents-brain';
 const DAY = 86_400_000;
 const date = value => new Date(value).toISOString().slice(0, 10);
 
