@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "refreshedAt": "2026-11-13T10:46:49.286Z",
+  "refreshedAt": "2026-11-13T17:44:04.312Z",
   "package": "@theihtisham/agent-shadow-brain",
   "repository": "theihtishaam/agents-brain",
-  "latest": "7.1.3",
+  "latest": "7.1.4",
   "created": "2026-04-10",
   "coverage": {
     "start": "2026-04-10",

@@ -1,6 +1,6 @@
 # Package and repository statistics
 
-Last successful refresh: **2026-11-13T10:46:49.286Z**. Counts are snapshots from public npm and GitHub APIs.
+Last successful refresh: **2026-11-13T17:44:04.312Z**. Counts are snapshots from public npm and GitHub APIs.
 
 | Metric | Count | Coverage |
 | --- | ---: | --- |
