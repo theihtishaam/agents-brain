@@ -7,7 +7,7 @@ import { memoryAnnotationsFor } from './brain/memory-annotations.js';
 import { parseContextRequest } from './brain/context-request.js';
 import { inspectMemoryHealth } from './brain/memory-inspection.js';
 import { ProjectFeedbackStore } from './brain/project-feedback.js';
-import { requireProjectStore } from './brain/project-memory.js';
+import { resolveProjectStore } from './brain/project-memory.js';
 
 export function registerContextCommands(program: Command): void {
   program.command('context-pack').description('Build a bounded, explained project context pack without model calls')
@@ -24,21 +24,21 @@ export function registerContextCommands(program: Command): void {
     .action(async (query: string, opts) => {
       const tokenBudget = Number(opts.tokenBudget);
       if (!Number.isSafeInteger(tokenBudget) || tokenBudget < 0 || tokenBudget > 12000) throw new TypeError('Token budget must be an integer from 0 to 12000.');
-      const request = parseContextRequest({ projectId: opts.projectId ?? GlobalBrain.projectIdFor(path.resolve(opts.project)),
+      const local = resolveProjectStore(opts.project, opts.db);
+      const request = parseContextRequest({ projectId: opts.projectId ?? local?.projectId ?? GlobalBrain.projectIdFor(path.resolve(opts.project)),
         query, tokenBudget, includeCrossProject: !!opts.crossProject, profile: opts.profile, expandRelated: opts.related });
-      const brain = getGlobalBrain(opts.db ? { dbPath: path.resolve(opts.db) } : undefined);
-      const local = opts.db && path.resolve(opts.db) === path.resolve(opts.project, '.shadow-brain/project-memory.json');
-      if (local) {
-        const pinned = requireProjectStore(opts.project, brain);
-        if (request.projectId !== pinned.projectId || request.includeCrossProject) throw new TypeError('This memory store is pinned to its local project.');
+      if (local && (request.projectId !== local.projectId || request.includeCrossProject)) {
+        throw new TypeError('This memory store is pinned to its local project.');
       }
-      const settings = new FeatureSettingsStore({ filePath: opts.settings ?? (opts.db ? path.join(path.dirname(path.resolve(opts.db)), 'feature-settings.json') : undefined) });
+      const dbPath = local?.storagePath ?? (opts.db ? path.resolve(opts.db) : undefined);
+      const brain = getGlobalBrain(dbPath ? { dbPath } : undefined);
+      const settings = new FeatureSettingsStore({ filePath: opts.settings ?? local?.settingsPath ?? (dbPath ? path.join(path.dirname(dbPath), 'feature-settings.json') : undefined) });
       const features = settings.get().features;
       try {
         if (features.contextAssembly) brain.refresh();
         const pack = assembleContext(brain, {
           ...request, features,
-          feedback: features.contextAssembly && local && request.profile === 'adaptive' ? new ProjectFeedbackStore(opts.project, brain).get() : undefined,
+          feedback: features.contextAssembly && local && request.profile === 'adaptive' ? new ProjectFeedbackStore(local.root, brain).get() : undefined,
           annotations: features.contextAssembly ? memoryAnnotationsFor(brain).get() : undefined,
         });
         if (opts.json) console.log(JSON.stringify(pack, null, 2));
@@ -55,15 +55,14 @@ export function registerContextCommands(program: Command): void {
     .option('--db <path>', 'Explicit memory-store path')
     .option('--limit <number>', 'Maximum attention items, 1 to 100', '30')
     .action(async opts => {
-      const brain = getGlobalBrain(opts.db ? { dbPath: path.resolve(opts.db) } : undefined);
+      const local = resolveProjectStore(opts.project, opts.db);
+      if (local && opts.projectId && opts.projectId !== local.projectId) throw new TypeError('This memory store is pinned to its local project.');
+      const dbPath = local?.storagePath ?? (opts.db ? path.resolve(opts.db) : undefined);
+      const brain = getGlobalBrain(dbPath ? { dbPath } : undefined);
       try {
-        if (opts.db && path.resolve(opts.db) === path.resolve(opts.project, '.shadow-brain/project-memory.json')) {
-          const pinned = requireProjectStore(opts.project, brain);
-          if (opts.projectId && opts.projectId !== pinned.projectId) throw new TypeError('This memory store is pinned to its local project.');
-        }
         brain.refresh();
         console.log(JSON.stringify(inspectMemoryHealth(brain, memoryAnnotationsFor(brain).get(), {
-          projectId: opts.projectId ?? GlobalBrain.projectIdFor(path.resolve(opts.project)), limit: Number(opts.limit),
+          projectId: opts.projectId ?? local?.projectId ?? GlobalBrain.projectIdFor(path.resolve(opts.project)), limit: Number(opts.limit),
         }), null, 2));
       } finally { await brain.shutdown(); }
     });

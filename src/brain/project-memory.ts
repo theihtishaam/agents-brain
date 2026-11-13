@@ -20,6 +20,20 @@ export function projectStorage(directory: string) {
   return { root, projectId: GlobalBrain.projectIdFor(root), projectName: path.basename(root), storagePath, settingsPath, annotationsPath, journalPath, feedbackPath };
 }
 
+/** Identify an explicit project store even when Windows launch paths use different spellings. */
+export function resolveProjectStore(directory: string, dbPath: string | undefined): ReturnType<typeof projectStorage> | undefined {
+  if (!dbPath) return undefined;
+  const absolute = path.resolve(dbPath);
+  const parent = path.dirname(absolute);
+  if (path.relative(path.join(parent, 'project-memory.json'), absolute) ||
+      path.relative(path.join(path.dirname(parent), '.shadow-brain'), parent)) return undefined;
+  // Validate the supplied project ancestor before using its canonical spelling. The store and its directory can be absent.
+  const requestedRoot = projectRoot(path.dirname(parent));
+  const local = projectStorage(directory);
+  if (path.relative(local.root, requestedRoot)) throw new TypeError('The explicit project store must belong to the selected project.');
+  return local;
+}
+
 export function requireProjectStore(directory: string, brain: GlobalBrain) {
   const store = projectStorage(directory);
   if (path.resolve(brain.dbPath) !== store.storagePath) throw new Error('Project Kit requires its project-local store. Start shadow-brain project workspace in this project, or use its generated MCP recipe.');

@@ -21,7 +21,7 @@ function discover(project: string, db: string) {
   return spawnSync(process.execPath, [cli, 'mcp', project, '--stdio', '--db', db], { cwd: project, input: discovery, encoding: 'utf8', timeout: 20_000, windowsHide: true });
 }
 
-it.skipIf(process.platform !== 'win32')('recognizes mixed short and long Windows project spellings before the database exists', context => {
+it.skipIf(process.platform !== 'win32')('uses the same project for MCP and context commands under short and long Windows spellings', context => {
   const created = mkdtempSync(join(tmpdir(), 'asb-mcp-long-project-fixture-'));
   const root = realpathSync.native(created);
   try {
@@ -34,13 +34,27 @@ it.skipIf(process.platform !== 'win32')('recognizes mixed short and long Windows
     expect(realpathSync.native(alias)).toBe(root);
     const local = projectStorage(root);
     expect(existsSync(local.storagePath)).toBe(false);
-    for (const [project, database] of [[alias, local.storagePath], [root, join(alias, '.shadow-brain', 'project-memory.json')]]) {
+    const shortDb = join(alias, '.shadow-brain', 'project-memory.json');
+    for (const [project, database] of [[alias, local.storagePath], [root, shortDb]]) {
       const response = discover(project, database);
       expect(response.status, response.stderr).toBe(0);
       const catalog = response.stdout.trim().split('\n').map(line => JSON.parse(line)).at(-1);
       expect(catalog.result.tools.some((tool: { name: string }) => tool.name === 'hub_overview')).toBe(true);
     }
     expect(existsSync(local.storagePath)).toBe(false);
+    const run = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: root, encoding: 'utf8', timeout: 20_000, windowsHide: true });
+    const saved = run('project', 'knowledge', root, '--title', 'Retry evidence', '--content', 'Use the original retry key for a durable checkout.');
+    expect(saved.status, saved.stderr).toBe(0);
+    const memoryId = JSON.parse(saved.stdout).memoryId;
+    const brief = run('context-pack', 'durable checkout', '--project', alias, '--db', shortDb, '--profile', 'adaptive', '--json');
+    expect(brief.status, brief.stderr).toBe(0);
+    expect(JSON.parse(brief.stdout).entries[0]).toMatchObject({ id: memoryId, projectId: local.projectId });
+    const health = run('memory-health', '--project', alias, '--db', local.storagePath);
+    expect(health.status, health.stderr).toBe(0);
+    expect(JSON.parse(health.stdout).projectId).toBe(local.projectId);
+    const crossed = run('context-pack', 'durable checkout', '--project', root, '--db', shortDb, '--cross-project');
+    expect(crossed.status).toBe(1);
+    expect(crossed.stderr).toContain('pinned to its local project');
   } finally { rmSync(root, { recursive: true, force: true }); }
 }, 30_000);
 
@@ -51,7 +65,7 @@ it('rejects a project store from a different project or through a directory link
   try {
     const foreign = discover(root, projectStorage(other).storagePath);
     expect(foreign.status).toBe(1);
-    expect(foreign.stderr).toContain('must use the selected project store');
+    expect(foreign.stderr).toContain('must belong to the selected project');
     symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
     const linked = discover(root, join(alias, '.shadow-brain', 'project-memory.json'));
     expect(linked.status).toBe(1);

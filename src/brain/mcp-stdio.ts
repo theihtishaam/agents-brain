@@ -4,8 +4,7 @@ import * as path from 'node:path';
 import { MCPServer } from './mcp-server.js';
 import { getGlobalBrain, GlobalBrain } from './global-brain.js';
 import { FeatureSettingsStore } from './feature-settings.js';
-import { projectStorage } from './project-memory.js';
-import { projectRoot } from './project-kit-paths.js';
+import { resolveProjectStore } from './project-memory.js';
 import type { MCPRequest, MCPResponse } from '../types.js';
 
 const MAX_MESSAGE_BYTES = 1024 * 1024;
@@ -107,7 +106,7 @@ export async function serveMCPStdio(
 export async function runMemoryMCPStdio(options: { dbPath?: string; settingsPath?: string; projectDir?: string; projectId?: string } = {}): Promise<void> {
   if (options.projectId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(options.projectId)) throw new TypeError('Project ID must be a bounded identifier.');
   const dbPath = options.dbPath ? path.resolve(options.dbPath) : undefined;
-  const local = options.projectDir && dbPath ? resolveLocalStore(options.projectDir, dbPath) : undefined;
+  const local = options.projectDir ? resolveProjectStore(options.projectDir, dbPath) : undefined;
   if (local && options.projectId && options.projectId !== local.projectId) throw new TypeError('A project-local MCP service must use its pinned project identifier.');
   const storagePath = local?.storagePath ?? dbPath;
   const brain = storagePath ? GlobalBrain.createIsolated({ dbPath: storagePath }) : getGlobalBrain();
@@ -116,16 +115,4 @@ export async function runMemoryMCPStdio(options: { dbPath?: string; settingsPath
   const server = new MCPServer(null, { authToken: '', toolProfile: 'memory' }, { brain, settings, projectDir: local?.root ?? options.projectDir, projectId: local?.projectId ?? options.projectId, localProject: !!local });
   try { await serveMCPStdio(server, process.stdin, process.stdout); }
   finally { await server.finishMemorySession(); await brain.shutdown(); }
-}
-
-function resolveLocalStore(projectDir: string, dbPath: string) {
-  const parent = path.dirname(dbPath);
-  if (path.relative(path.join(parent, 'project-memory.json'), dbPath) ||
-      path.relative(path.join(path.dirname(parent), '.shadow-brain'), parent)) return undefined;
-  // Canonicalize both spellings of the project ancestor while rejecting symlinks and junctions.
-  // The storage filename and .shadow-brain directory may not exist yet.
-  const requestedRoot = projectRoot(path.dirname(parent));
-  const local = projectStorage(projectDir);
-  if (path.relative(local.root, requestedRoot)) throw new TypeError('A project-local MCP service must use the selected project store.');
-  return local;
 }

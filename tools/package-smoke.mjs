@@ -297,12 +297,22 @@ runNode([publicProbe]);
 // client recipes and a fresh MCP process connected to the same local store.
 const localProject = path.join(consumer, 'local-project');
 fs.mkdirSync(localProject);
+let contextProject = localProject;
+if (process.platform === 'win32') {
+  const shortPath = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("%ASB_ALIAS_FIXTURE%") do @echo %~sI'], {
+    env: { ...childEnv, ASB_ALIAS_FIXTURE: localProject }, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true, timeout: 5000,
+  });
+  assert.equal(shortPath.status, 0, shortPath.stderr);
+  contextProject = shortPath.stdout.trim();
+  assert.equal(fs.realpathSync.native(contextProject), fs.realpathSync.native(localProject));
+}
 fs.writeFileSync(path.join(localProject, 'package.json'), JSON.stringify({ name: 'consumer-fixture', scripts: { test: 'NEVER_EXECUTE_PACKAGE_FIXTURE' }, devDependencies: { vitest: '*' } }));
 const observed = JSON.parse(runNode([cli, 'project', 'inspect', localProject]));
 assert(observed.stack.includes('Node.js'));
 assert(!JSON.stringify(observed).includes('NEVER_EXECUTE_PACKAGE_FIXTURE'));
 const known = JSON.parse(runNode([cli, 'project', 'knowledge', localProject, '--title', 'Checkout idempotency', '--content', 'Checkout retries reuse the original idempotency key.', '--source', 'docs/checkout.md']));
 const localDb = path.join(localProject, '.shadow-brain', 'project-memory.json');
+const contextDb = path.join(contextProject, '.shadow-brain', 'project-memory.json');
 assert(fs.existsSync(localDb));
 const skillArgs = [cli, 'project', 'skill', localProject, '--target', 'codex', '--name', 'checkout-retries', '--requirement', 'Verify checkout retry idempotency'];
 const skillPlan = JSON.parse(runNode(skillArgs));
@@ -312,12 +322,12 @@ runNode([...skillArgs, '--apply', '--expected-plan-hash', skillPlan.planHash]);
 assert(fs.readFileSync(path.join(localProject, skillPlan.files[0].relativePath), 'utf8').includes('Verify checkout retry idempotency'));
 const learned = JSON.parse(runNode([cli, 'project', 'feedback', 'record', localProject, '--memory', known.memoryId, '--task', 'checkout retry idempotency', '--rating', 'useful', '--reason', 'Synthetic caller-observed fixture outcome.']));
 assert.equal(learned.records[0].reporter, 'user');
-const localContext = JSON.parse(runNode([cli, 'context-pack', 'checkout retry idempotency', '--project', localProject, '--db', localDb, '--profile', 'adaptive', '--json']));
+const localContext = JSON.parse(runNode([cli, 'context-pack', 'checkout retry idempotency', '--project', contextProject, '--db', contextDb, '--profile', 'adaptive', '--json']));
 assert.equal(localContext.entries[0].id, known.memoryId);
 assert(localContext.retrieval.candidates[0].signals.some(signal => signal.label === 'Project task feedback' && signal.value > 0));
 const recipe = JSON.parse(runNode([cli, 'project', 'config', localProject, '--target', 'claude-code']));
 const launch = JSON.parse(recipe.content).mcpServers.shadow_brain;
-assert(launch.args.includes(localDb));
+assert(launch.args.includes(fs.realpathSync.native(localDb)));
 assert(launch.args.includes(observed.projectId));
 const projectInput = [
   { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-11-25', clientInfo: { name: 'package-probe', version: '1' }, capabilities: {} } },
@@ -339,7 +349,7 @@ assert.equal(projectReplies[4].result.resources.length, 2);
 assert(projectReplies[5].result.messages[0].content.text.includes('idempotency'));
 assert(projectReplies[7].result.structuredContent.records.some(record => record.reporter === 'agent'));
 runNode([cli, 'project', 'feedback', 'set', 'off', '--project', localProject]);
-const disabledContext = JSON.parse(runNode([cli, 'context-pack', 'checkout retry idempotency', '--project', localProject, '--db', localDb, '--profile', 'adaptive', '--json']));
+const disabledContext = JSON.parse(runNode([cli, 'context-pack', 'checkout retry idempotency', '--project', contextProject, '--db', localDb, '--profile', 'adaptive', '--json']));
 assert(!disabledContext.retrieval.candidates[0].signals.some(signal => signal.label === 'Project task feedback'));
 const portalProbe = path.join(consumer, 'portal-probe.mjs');
 const fixturePhrase = 'The packed recovery threshold is seven transitions.';
