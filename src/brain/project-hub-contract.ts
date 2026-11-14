@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const HUB_LIMITS = Object.freeze({ pdfBytes: 8 * 1024 * 1024, pages: 60, pageChars: 8_000,
   extractedChars: 180_000, extractionMs: 20_000, documents: 30, rooms: 100, roomRecords: 500,
-  lessons: 200, operations: 20_000, artifactBytes: 1024 * 1024, leaseMs: 5 * 60_000 });
+  lessons: 200, operations: 20_000, artifactBytes: 1024 * 1024, artifactTextBytes: 32 * 1024, leaseMs: 5 * 60_000 });
 
 export class ProjectHubError extends Error {
   constructor(readonly code: string, message: string, readonly status: number) {
@@ -28,6 +28,7 @@ const messageType = z.enum(['idea', 'proposal', 'critique', 'question', 'answer'
 const targetType = z.enum(['message', 'artifact']);
 const result = z.enum(['pass', 'fail', 'partial']);
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u);
+export const artifactReadInput = z.strictObject({ roomId: hubId, artifactId: hubId, sha256 });
 
 const agentRoomActions = [
   z.strictObject({ kind: z.literal('task'), title: singleLine(240), key }),

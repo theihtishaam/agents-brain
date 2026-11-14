@@ -309,9 +309,11 @@ function explain(
 }
 
 export function rankAdaptiveContext(
-  memories: Iterable<ContextSearchMemory>, query: string, terms: readonly string[], feedback?: ReadonlyMap<string, ProjectFeedbackInfluence>,
+  memories: Iterable<ContextSearchMemory>, query: string, terms: readonly string[],
+  resolveFeedback?: (representativeFor: (id: string) => string | undefined) => ReadonlyMap<string, ProjectFeedbackInfluence>,
 ) {
   const { documents, byId, scanned, duplicateCount, boundedSearch } = groupMemories(memories);
+  const feedback = resolveFeedback?.(id => byId.get(id)?.memory.id);
   const taskType = query.trim() ? analyzeTask(query.slice(0, MAX_QUERY_CHARS)).taskType : 'direct';
   const termSet = new Set(terms);
   const compactQueries = new Map<string, string[]>();

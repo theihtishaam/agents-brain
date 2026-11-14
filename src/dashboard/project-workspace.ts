@@ -10,6 +10,8 @@ import { LIVE_WORKSPACE_HTML } from './live-workspace-html.js';
 import { BRAIN_HUB_HTML } from './brain-hub-html.js';
 import { WorkspaceRuntime } from './workspace-status.js';
 import { ProjectHubService } from '../brain/project-hub.js';
+import { ProjectLiveStream } from './project-live-stream.js';
+import { closeNativeCodex } from './native-codex-api.js';
 
 /** Persistent, provider-free project portal. Closing never deletes project files. */
 export async function startProjectWorkspace(directory: string, options: { port?: number } = {}) {
@@ -22,6 +24,7 @@ export async function startProjectWorkspace(directory: string, options: { port?:
   const annotations = memoryAnnotationsFor(brain);
   const requests = new Set<Promise<void>>();
   const runtime = new WorkspaceRuntime('project', { id: store.projectId, name: store.projectName, root: store.root });
+  const live = new ProjectLiveStream(store.root, runtime.serverInstanceId, settings);
   let hub: ProjectHubService | undefined;
   const prepareStorage = async (): Promise<string | null> => {
     try {
@@ -36,6 +39,8 @@ export async function startProjectWorkspace(directory: string, options: { port?:
   let listener: http.Server | undefined;
   let closing: Promise<void> | undefined;
   const close = () => closing ??= (async () => {
+    live.close();
+    closeNativeCodex(store.root);
     if (listener?.listening) {
       listener.closeAllConnections();
       await new Promise<void>((resolve, reject) => listener!.close(error => error ? reject(error) : resolve()));
@@ -52,6 +57,10 @@ export async function startProjectWorkspace(directory: string, options: { port?:
         res.writeHead(403); res.end('Unsupported host.'); return;
       }
       if (req.url?.startsWith('/api/workspace/')) {
+        let url: URL;
+        try { url = new URL(req.url, 'http://localhost'); }
+        catch { res.writeHead(400); res.end('Invalid request URL.'); return; }
+        if (ProjectLiveStream.route(url.pathname)) { live.handle(req, res, url); return; }
         const task = handleWorkspaceRequest(req, res, { brain, settings, annotations, journal, projectDir: store.root, localProject: true,
           runtime, get hub() { return hub; }, prepareStorage });
         requests.add(task); void task.finally(() => requests.delete(task)); return;

@@ -32,7 +32,7 @@ The task matcher drops generic action words and compares substantive terms. A re
 
 The final score cannot go below zero. The candidate report exposes the signed **Project task feedback** signal, contributing record IDs, and reporter kinds. This is a ranking heuristic, not a confidence or truth score.
 
-An identical memory/task/reporter combination updates its prior record. Repeated praise therefore does not accumulate. When a user and an agent report on the same normalized task, the user report takes precedence. The sidecar is limited to 500 records and 2 MiB, with bounded task, reason and evidence fields. At capacity, a new distinct record is rejected; existing records can still be updated or removed. Changes use revision checks and atomic file replacement. No age expiry is silently imposed.
+An identical memory/task/reporter combination updates its prior record. When eligible exact-text duplicates are grouped, the newest report from each normalized task can contribute once, with user reports taking precedence over agent reports. Candidate details retain the contributing report IDs. The sidecar is limited to 500 records and 2 MiB, with bounded task, reason and evidence fields. At capacity, a new distinct record is rejected. Existing records can still be updated or removed. Changes use revision checks and atomic file replacement. No age expiry is silently imposed.
 
 ## Keep control
 

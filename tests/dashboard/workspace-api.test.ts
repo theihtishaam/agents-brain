@@ -127,7 +127,9 @@ describe('workspace API and guidance integration', () => {
     expect(pack.entries).toHaveLength(1);
     expect(pack.entries[0].projectId).toBe('alpha');
     const flags: any = await mcp.handleRequest({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'feature_flags', arguments: {} } });
-    expect(JSON.parse(flags.result.content[0].text).definitions).toHaveLength(5);
+    const featureFlags = JSON.parse(flags.result.content[0].text);
+    expect(featureFlags.definitions).toHaveLength(6);
+    expect(featureFlags.features.projectFileActivity).toBe(false);
     const scripts = [...WORKSPACE_HTML.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     expect(scripts.length).toBeGreaterThan(0);
     for (const [, script] of scripts) expect(() => new Script(script)).not.toThrow();

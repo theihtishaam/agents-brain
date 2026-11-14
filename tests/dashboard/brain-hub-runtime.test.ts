@@ -64,13 +64,59 @@ function untrustedHostStatus(url: string): Promise<number | undefined> {
 }
 
 describe('Brain Hub project runtime', () => {
+  it('records bounded, paired portal operation results when recording is enabled', async () => {
+    const portal = await launch();
+    const created = await post(portal, 'hub/rooms', { goal: 'Pair synthetic room operations', key: randomUUID() });
+    expect(created.status).toBe(200);
+    const invalid = await post(portal, 'hub/rooms', { key: randomUUID() });
+    expect(invalid.status).toBe(400);
+    const timeline = async () => (await (await read(portal, 'telemetry')).json()).events.filter((event: any) => event.tool === 'hub-rooms');
+    await expect.poll(async () => (await timeline()).length).toBe(4);
+    const events = await timeline();
+    for (const [index, outcome] of ['success', 'error'].entries()) {
+      const [start, end] = events.slice(index * 2, index * 2 + 2);
+      expect(start).toMatchObject({ kind: 'tool-start', source: 'reported', sessionId: 'project-portal', projectId: portal.projectId });
+      expect(end).toMatchObject({ kind: 'tool-end', source: 'reported', sessionId: 'project-portal', outcome,
+        projectId: portal.projectId, correlationId: start.correlationId, durationMs: expect.any(Number) });
+      expect(end.durationMs).toBeGreaterThanOrEqual(0);
+    }
+    const features = await (await read(portal, 'features')).json();
+    expect((await post(portal, 'features', { patch: { activityRecording: false }, expectedRevision: features.revision })).status).toBe(200);
+    expect((await post(portal, 'hub/rooms', { goal: 'Record room without journal telemetry', key: randomUUID() })).status).toBe(200);
+    expect(await timeline()).toHaveLength(4);
+  });
+
+  it('records source preview and review outcomes without copying their filenames, text, or identifiers', async () => {
+    const portal = await launch();
+    const privateBody = 'Source body sentinel for telemetry minimization.';
+    const privateName = 'synthetic-private-name.txt';
+    const preview = await fetch(portal.url + '/api/workspace/sources?name=' + privateName, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: privateBody,
+    });
+    expect(preview.status).toBe(200);
+    const source = (await preview.json()).source;
+    const review = await post(portal, 'sources/' + source.id + '/review', { itemId: 'bad-id' });
+    expect(review.ok).toBe(false);
+    const telemetry = await (await read(portal, 'telemetry')).json();
+    const records = telemetry.events.filter((event: any) => event.tool?.startsWith('source-'));
+    expect(records).toMatchObject([
+      { tool: 'source-preview', kind: 'tool-start' }, { tool: 'source-preview', kind: 'tool-end', outcome: 'success', durationMs: expect.any(Number) },
+      { tool: 'source-review', kind: 'tool-start' }, { tool: 'source-review', kind: 'tool-end', outcome: 'error', durationMs: expect.any(Number) },
+    ]);
+    expect(records[0].correlationId).toBe(records[1].correlationId);
+    expect(records[2].correlationId).toBe(records[3].correlationId);
+    expect(JSON.stringify(records)).not.toContain(privateBody);
+    expect(JSON.stringify(records)).not.toContain(privateName);
+    expect(JSON.stringify(records)).not.toContain(source.id);
+  });
+
   it('serves the real hub and retained interfaces with independent instance and capability status', async () => {
     const portal = await launch();
     const statusResponse = await read(portal, 'status');
     expect(statusResponse.status).toBe(200);
     const status = await statusResponse.json();
-    expect(status).toMatchObject({ version: '7.21.0', mode: 'project', project: { id: portal.projectId, root: portal.root },
-      storage: { status: 'ready' }, capabilities: { hub: true, pdf: true, modelUsage: false, managedExecution: false } });
+    expect(status).toMatchObject({ version: '7.22.0', mode: 'project', project: { id: portal.projectId, root: portal.root },
+      storage: { status: 'ready' }, capabilities: { hub: true, pdf: true, modelUsage: true, sourceIntake: true, managedExecution: false } });
     expect(status.serverInstanceId).toMatch(/^[0-9a-f-]{36}$/u);
     expect((await (await read(portal, 'status')).json()).serverInstanceId).toBe(status.serverInstanceId);
     for (const route of ['/', '/hub', '/hub?test=route', '/workspace', '/memory-workspace', '/live']) {

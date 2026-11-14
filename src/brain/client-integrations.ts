@@ -67,7 +67,7 @@ export function inspectClientIntegrations(options: { projectDir?: string; brain?
       detail: health?.lastError ? 'Storage reports ' + health.lastError.code + '.' : health?.initialized ? 'Store initialized; ' + health.pendingOperations + ' pending operations.' : 'Not initialized in this process. No read success is claimed.' },
     { id: 'stdio', label: 'MCP transport', status: 'pass', detail: 'Standalone memory/workflow stdio service is included. This is capability information, not a connected-client claim.', command: 'shadow-brain mcp --stdio' },
   ];
-  const result = { checkedAt: new Date().toISOString(), version: '7.21.0', checks, agents };
+  const result = { checkedAt: new Date().toISOString(), version: '7.22.0', checks, agents };
   return { ...result, diagnostics: JSON.stringify({ version: result.version, checkedAt: result.checkedAt, node: process.versions.node,
     checks, agents: agents.map(({ id, installation, presentSkills, totalSkills }) => ({ id, installation, presentSkills, totalSkills })) }, null, 2) };
 }

@@ -14,10 +14,11 @@ Open the printed address and choose **Project Kit**. This mode needs no model pr
 | --- | --- |
 | `.shadow-brain/project-memory.json` | Explicit project knowledge |
 | `.shadow-brain/memory-annotations.json` | Reviews and recorded memory relationships |
-| `.shadow-brain/feature-settings.json` | The five runtime controls |
+| `.shadow-brain/feature-settings.json` | Workspace runtime controls |
 | `.shadow-brain/activity-journal.json` | Bounded measured/reported activity metadata |
 | `.shadow-brain/memory-feedback.json` | Reported outcomes and local learning control |
 | `.shadow-brain/project-kit-skills` | Ownership receipts for generated skills |
+| `.shadow-brain/disabled-project-skills` | Verified disabled copies outside client discovery paths |
 | Selected host's project skill folder | Generated `SKILL.md` files |
 
 Files are created when their feature needs to save data. Treat knowledge and skill content as project files: decide what belongs in version control before sharing the repository. Moving a project changes its path-derived project ID; this release does not automatically reassign earlier memory IDs to the new location.
@@ -63,6 +64,10 @@ The output includes `planHash`. Repeat the same inputs with `--apply --expected-
 | `portable` | `.agents/skills/NAME/SKILL.md` |
 
 Apply recomputes the preview, checks path safety and ownership, and refuses stale plans or files that were edited outside Project Kit. An unowned file is not overwritten, even if its name matches. Generated skills do not edit `AGENTS.md`, provider settings, or global skill directories. Host support and skill discovery still need to be checked in the client.
+
+In **Setup → Managed project skills**, preview Disable, Enable, or Remove to see the affected paths. Disabling moves the verified `SKILL.md` bytes into the workspace’s disabled-skill folder. Enabling restores them only when the discovery path is free. Removal deletes the verified file and its Project Kit receipt. Supporting files and other skill installations stay in place.
+
+The panel reports edited files, destination conflicts, and pending operations. For a pending operation, review the same action to complete it. Reload the coding client to refresh its skill discovery. An existing chat can still contain instructions it loaded earlier.
 
 ## 5. Connect the same local knowledge to your agent
 

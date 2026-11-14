@@ -1,8 +1,8 @@
 <h1 align="center">Agent Shadow Brain</h1>
 
 [![Follow Ihtisham on GitHub](https://img.shields.io/badge/Follow-Ihtisham%20on%20GitHub-181717?logo=github&logoColor=white)](https://github.com/theihtishaam)
-<p align="center"><strong>A shared brain for the tools you build with.</strong></p>
-<p align="center">Keep project knowledge, understand context, and follow the work between your AI tools.</p>
+<p align="center"><strong>Your project memory. Shared across your AI tools.</strong></p>
+<p align="center">Save a fact once. Find useful context. Hand off work with its evidence intact.</p>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img alt="npm latest version" src="https://img.shields.io/npm/v/@theihtisham/agent-shadow-brain/latest?label=npm&amp;color=0f766e"></a>
@@ -12,22 +12,28 @@
 </p>
 
 <!-- NPM_TOTAL_START -->
-**Total npm downloads: 6,229** · Through **2026-11-13**. [npm data](https://api.npmjs.org/downloads/point/2026-04-10:2026-11-13/@theihtisham/agent-shadow-brain).
+**Total npm downloads: 6,229** · Through **2026-11-13**. [npm data](https://github.com/theihtishaam/agents-brain/blob/main/docs/npm-metrics.json).
 
-GitHub refreshes this number daily. The npm README records the total when this version was published. Downloads include automated installs; they are not unique users.
+GitHub refreshes this number every two days. The npm README records the total when this version was published. Downloads include automated installs; they are not unique users.
 <!-- NPM_TOTAL_END -->
 
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
-![Running Brain Hub with imported public documentation, measured MCP tool calls, and source inspection](docs/assets/7.1.4-hub-public-docs.gif)
+![Running Brain Hub with stored synthetic project records and measured MCP calls](docs/assets/7.22.0-hub-exchanges.gif)
 
 [What works and its limits](docs/FEATURES_AND_LIMITS.md)
 
-The Brain Hub brings project memory, cited PDF pages, shared work, and recorded tool activity into one local workspace. The animation shows 74 excerpts from 18 public Agent Brain documents loaded into an isolated store. The activity journal records three actual local MCP calls from a scripted client. [Public documentation snapshot](https://github.com/theihtishaam/agents-brain/tree/2e26e7b349db4dd75bf0277b28caff8044190d16) · [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md)
+The Brain Hub brings reviewed notes, cited documents, shared work, and recorded tool activity into one local workspace. This recording uses an isolated synthetic test project: 580 stored memories, a bounded graph view, and real MCP calls from scripted clients. It does not show a model's private thoughts or a customer's activity. [Visual guide](docs/VISUAL_GUIDE_v7.22.0.md) · [Research and release plan](docs/launch/RESEARCH_AND_PLAN_v7.22.0.md)
 
 ## Try it
 
-Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. This guide describes the 7.21.0 build. Check the installed version before using the Hub steps.
+Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. From your project directory, one command installs the requested version in npm's cache and starts its local portal:
+
+```bash
+npx --yes --package @theihtisham/agent-shadow-brain@7.22.0 shadow-brain project workspace . --port 62595
+```
+
+For a reusable global command:
 
 ```bash
 npm install -g @theihtisham/agent-shadow-brain@latest
@@ -36,23 +42,64 @@ cd your-project
 shadow-brain project workspace . --port 62595
 ```
 
-Keep the launcher running and open [the project Brain Hub](http://127.0.0.1:62595/hub). Use the same project directory and port when restarting. Port `0` lets the OS assign a free port, so open the URL printed by that launch. The classic workspace remains at `/workspace`; detailed activity diagnostics remain at `/live`.
+Keep the launcher running and open [the project Brain Hub](http://127.0.0.1:62595/hub). Start with **Knowledge → Add to memory**, then **Context → Find useful context**. Connect your chosen tool through **Setup** when you want it to retrieve that memory. Use the same project directory and port when restarting. Port `0` lets the OS assign a free port; open the URL printed by that launch.
 
 To build from this checkout while preparing a release, use `npm ci`, `npm run build`, then `node dist/cli.js project workspace . --port 62595`. The command’s directory argument selects which project store to open. [Quickstart](docs/QUICKSTART.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
 
 ## Inside the Brain Hub
 
-![Brain Hub with stored public documentation, linked references, context estimates, and a measured MCP receipt](docs/assets/7.1.4-hub-public-docs.png)
+![Brain Hub with stored public documentation, linked references, context estimates, and a measured MCP receipt](docs/assets/7.22.0-hub-graph.png)
 
 | View | What you can do |
 | --- | --- |
 | **Brain overview** | Follow stored memory relationships, open a node or its keyboard-accessible list entry, and seek through recorded activity. An empty store has zero graph nodes and edges. |
-| **Knowledge** | Upload a PDF, review extracted text page by page, approve a cited page into project memory, or save supplied knowledge. Preview and apply a host-specific project skill. |
+| **Knowledge** | Paste ordinary text and click Add to memory. Review longer notes, inspect original sources, or optionally import a document. Generate a project-specific skill. |
+| **Sessions** | Inspect reported work, original conversation snapshots, saved checkpoints and linked continuations. Connect the supported Codex history API explicitly or select an export from another tool. |
 | **Collaboration** | Open a project room, post a proposal or critique, claim a task, attach a project file, accept evidence, and record the outcome. |
 | **Context** | Assemble a scoped pack, inspect selected passages and sources, compare retrieval profiles, and copy the rendered Markdown. |
-| **Models and Usage** | Inspect host file presence, retained tool activity, and estimated pack tokens. Missing model identities, token receipts, and costs display as unavailable. |
-| **Learning** | Create a lesson from a recorded outcome. Record a paired evaluation, promote an eligible lesson, or roll back its retrieval influence. |
-| **Setup** | Copy client configuration recipes and manage persisted runtime controls. |
+| **Models and Usage** | Inspect client readiness, retained exchanges and optional host-reported model/token receipts. Unknown counts remain unknown; costs are not invented. |
+| **Learning** | Rate memories for a task, pause or remove retrieval feedback, and create a lesson from a recorded outcome. Record a paired evaluation, promote an eligible lesson, or roll back its retrieval influence. |
+| **Setup** | Choose tool participation, chat sharing, context limits and coordination roles. Manage features and verified Project Kit skills. |
+
+### Start with ordinary words
+
+![Working Teach the brain screen with reviewed project notes](docs/assets/7.22.0-teach-brain.png)
+
+1. Open **Knowledge** and type: **“The cupboard is black. Keep its brass handles.”**
+2. Click **Add to memory**. The note and its original wording are saved in this project.
+3. Open **Context** and ask: **“What colour is the cupboard?”** Inspect the returned note and its source. A connected agent can request the same context through MCP.
+4. For longer notes or edits before saving, choose **Review first**, then save the useful parts. Pending and skipped parts stay outside shared retrieval.
+5. Use **Learning** to mark a memory useful, irrelevant or incorrect for a task, then inspect the effect on the next retrieval.
+
+Direct notes support up to 6,000 characters and 20 paragraphs. No PDF, JSON or special format is required. The brain stores reference knowledge; your agent handles reasoning and answers from the context it requests. [Notes and conversation import guide](docs/SOURCE_INTAKE.md)
+
+```mermaid
+flowchart LR
+  Note[Your plain-language note] --> Save[Add to project memory]
+  Save --> Recall[Relevant context with sources]
+  Recall --> Codex[Codex]
+  Recall --> Claude[Claude Code]
+  Recall --> Other[OpenCode / Harness / MCP host]
+  Other --> Feedback[Task feedback and reviewed outcomes]
+  Feedback --> Recall
+```
+
+### Continue where another agent stopped
+
+![Running Sessions view with reported history and an immutable handoff](docs/assets/7.22.0-sessions.png)
+
+An agent records meaningful progress and saves a checkpoint: what is done, decisions, evidence and next steps. Another connected agent calls `session_resume` with that checkpoint's ID and digest. It receives the exact saved handoff in a new linked session; the original remains available. This transfers recorded work, not hidden model state or an application's native running process.
+
+**Original tool history** preserves names and conversation IDs supplied by supported sources. Codex has an explicit read-only connection to its installed app-server's project index; Claude Code, OpenCode and DeepSeek Harness support selected native exports. Missing original names remain unavailable. A saved history page is a bounded snapshot, and an operator adds a checkpoint before handing it to another agent. [Sessions and native formats](docs/SESSIONS.md)
+
+```mermaid
+flowchart LR
+  A[Agent A in this project] --> Report[Progress and evidence]
+  Report --> Checkpoint[Immutable checkpoint]
+  Checkpoint --> B[Agent B resumes shared work]
+  Checkpoint --> Audit[Original history retained]
+  Control[Your sharing controls] --> Checkpoint
+```
 
 ### Follow evidence from a PDF to a context pack
 
@@ -67,7 +114,7 @@ flowchart LR
   Pack --> Host[Copy or retrieve through MCP]
 ```
 
-The project store records the document fingerprint and the approved page citation. An image-only page shows that OCR is needed. Context budget figures estimate rendered pack tokens, and profile comparisons use the same scoped request. Provider billing and model-token receipts remain unavailable. [Context guide](docs/CONTEXT_LAB.md)
+The project store records the document fingerprint and the approved page citation. An image-only page shows that OCR is needed. Context budget figures estimate rendered pack tokens, and profile comparisons use the same scoped request. Optional host-reported token receipts appear separately in Usage. Context estimates do not prove a billing reduction. [Context guide](docs/CONTEXT_LAB.md)
 
 ### Coordinate work and record a lesson
 
@@ -116,14 +163,22 @@ Preview the skill installation before adding `--apply`. Merge the printed recipe
 | DeepSeek Harness | `shadow-brain project config . --target deepseek-harness` |
 | Other compatible host | `shadow-brain project config . --target portable` |
 
-The Setup page distinguishes installed skill files and generated configuration from recorded activity. The public documentation capture used a scripted MCP client. Native host connectivity, model identity, and provider usage remain unavailable in that capture.
+The Setup page distinguishes installed files, configuration recipes, observed calls and host-reported usage. Tools must connect and request context; installing a package cannot make every application use it automatically. The Codex history adapter completed a real 0.145.0 handshake and an empty-project indexed list. History paging and imports were verified against controlled process fixtures; no personal native history was read for release testing.
 
-![Actual Setup view with persisted feature switches and client recipes](docs/assets/7.1.4-hub-setup.png)
+![Actual Setup view with project sharing, context limits and feature controls](docs/assets/7.22.0-project-controls.png)
+
+### Keep the workspace under your control
+
+Set context token and entry ceilings, turn features on or off, and choose which conversations can be delivered to connected agents. Explicit source links carry those exclusions into retrieval and inherited handoffs. Tool switches use the client label supplied by a cooperating host; they are not authenticated access control. Already delivered context cannot be withdrawn from another application.
+
+Enable **project file activity** only when you want file-change metadata. The live stream sends bounded change notifications; it does not repeatedly reload the whole dashboard. File events identify paths and times, while agent attribution requires an actual report. [Measured local performance and limits](docs/WORKSPACE.md)
+
+The dashboard separates **reported model tokens**, **estimated context reduction**, and **measured tool duration**. It never converts a smaller context pack into a claimed billing or speed saving.
 
 ## Documentation
 
-- [Quickstart](docs/QUICKSTART.md) · [Workspace guide](docs/WORKSPACE.md) · [Visual guide](docs/VISUAL_GUIDE_v7.1.4.md) · [Features and limits](docs/FEATURES_AND_LIMITS.md)
+- [Quickstart](docs/QUICKSTART.md) · [Workspace guide](docs/WORKSPACE.md) · [Visual guide](docs/VISUAL_GUIDE_v7.22.0.md) · [Features and limits](docs/FEATURES_AND_LIMITS.md)
 - [Project Kit](docs/PROJECT_KIT.md) · [Context Lab](docs/CONTEXT_LAB.md) · [Workflow skills](docs/WORKFLOW_INTEGRATION.md)
-- [Integrations](docs/INTEGRATIONS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.1.4.md)
+- [Integrations](docs/INTEGRATIONS.md) · [Sessions](docs/SESSIONS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.22.0.md)
 
 MIT license. [Changelog](CHANGELOG.md)

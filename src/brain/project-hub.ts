@@ -6,7 +6,7 @@ import { readProjectFile } from './project-kit-paths.js';
 import { extractHubPdf, PDF_PARSER } from './project-hub-pdf-worker.js';
 import { capped, conflict, digest, HubStore, missing } from './project-hub-store.js';
 import {
-  HUB_LIMITS, HUB_OPERATOR, ProjectHubError, hubActor, hubId, hubInput, lessonActionInput, lessonInput, reviewInput, roomActionInput, roomInput,
+  HUB_LIMITS, HUB_OPERATOR, ProjectHubError, artifactReadInput, hubActor, hubId, hubInput, lessonActionInput, lessonInput, reviewInput, roomActionInput, roomInput,
   type HubAck, type HubActor, type HubArtifact, type HubDocument, type HubLesson, type HubMessage, type HubOutcome,
   type HubPage, type HubRoom, type HubTask,
 } from './project-hub-contract.js';
@@ -323,6 +323,22 @@ export class ProjectHubService {
     const bytes = this.db.blob('artifact:' + artifact.sha256) ?? missing('Artifact bytes');
     if (digest(bytes) !== artifact.sha256) throw new ProjectHubError('HUB_ARTIFACT_CORRUPT', 'Artifact bytes do not match their recorded digest.', 409);
     return { artifact, bytes };
+  }
+
+  artifactText(raw: unknown) {
+    const { roomId, artifactId, sha256 } = hubInput(artifactReadInput, raw);
+    const { artifact, bytes } = this.artifact(roomId, artifactId);
+    if (artifact.sha256 !== sha256) conflict('The requested digest does not match the recorded artifact.');
+    if (bytes.length > HUB_LIMITS.artifactTextBytes) {
+      throw new ProjectHubError('HUB_ARTIFACT_TEXT_LIMIT', 'The artifact exceeds the 32 KiB text read limit.', 413);
+    }
+    const unsupported = () => new ProjectHubError('HUB_ARTIFACT_NOT_TEXT', 'The artifact is not supported UTF-8 text. Use the project workspace to download it.', 415);
+    if (/\.(?:pdf|png|jpe?g|webp)$/iu.test(artifact.path)) throw unsupported();
+    let text: string;
+    try { text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes); }
+    catch { throw unsupported(); }
+    if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(text)) throw unsupported();
+    return { artifact, text };
   }
 
   createLesson(raw: unknown, by: HubActor) {

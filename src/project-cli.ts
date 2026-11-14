@@ -16,7 +16,7 @@ export function registerProjectCommands(program: Command): void {
     .action(async (directory, opts) => {
       const { startProjectWorkspace } = await import('./dashboard/project-workspace.js');
       const workspace = await startProjectWorkspace(directory, { port: Number(opts.port) });
-      console.log('Agent Shadow Brain 7.21.0 · PROJECT WORKSPACE');
+      console.log('Agent Shadow Brain 7.22.0 · PROJECT WORKSPACE');
       console.log('Project: ' + workspace.root);
       console.log('Memory: ' + workspace.storagePath);
       console.log('Brain Hub: ' + workspace.url + '/hub');

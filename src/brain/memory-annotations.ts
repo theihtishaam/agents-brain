@@ -242,6 +242,18 @@ export function memoryState(snapshot: MemoryAnnotationSnapshot, projectId: strin
   return review?.projectId === projectId ? review.state : 'active';
 }
 
+/** Collect curated exclusions for a caller already pinned to this project. */
+export function excludedMemoryIds(snapshot: MemoryAnnotationSnapshot, projectId: string): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const [id, review] of Object.entries(snapshot.reviews)) {
+    if (review.projectId === projectId && review.state !== 'active') ids.add(id);
+  }
+  for (const link of snapshot.links) {
+    if (link.projectId === projectId && link.type === 'supersedes') ids.add(link.toId);
+  }
+  return ids;
+}
+
 /** Independent local curation state. The original memory store remains schema version 1. */
 export class MemoryAnnotationsStore {
   readonly filePath: string;

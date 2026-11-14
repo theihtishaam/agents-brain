@@ -12,7 +12,7 @@ it('serves an isolated marked demo with real protocol telemetry, scoped context,
     expect(workspace).toContain('data-demo="true"');
     expect(live).toContain('data-demo="true"');
     const overview = await (await fetch(demo.url + '/api/workspace/overview')).json();
-    expect(overview).toMatchObject({ version: '7.21.0', demo: true, totals: { memories: 20, projects: 2 } });
+    expect(overview).toMatchObject({ version: '7.22.0', demo: true, totals: { memories: 20, projects: 2 } });
     const telemetry = await (await fetch(demo.url + '/api/workspace/telemetry')).json();
     expect(telemetry.demo).toBe(true);
     expect(telemetry.events.some((event: any) => event.kind === 'tool-end' && event.source === 'measured' && event.tool === 'context_pack')).toBe(true);

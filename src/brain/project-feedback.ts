@@ -275,25 +275,34 @@ function similarity(left: Set<string>, right: Set<string>): number {
 /** Compute task-local signals. Retrieval applies them only to already matched, eligible candidates. */
 export function projectFeedbackInfluence(
   snapshot: ProjectFeedbackSnapshot | undefined, projectId: string, queryTerms: readonly string[],
+  representativeFor: (id: string) => string | undefined = id => id,
 ): ReadonlyMap<string, ProjectFeedbackInfluence> {
   const influences = new Map<string, ProjectFeedbackInfluence>();
   const query = substantiveTerms(queryTerms);
   if (snapshot?.enabled !== true || !query.size) return influences;
   const eligible = new Map<string, Array<{ task: string; record: ProjectFeedbackRecord; similarity: number }>>();
   const recent = [...snapshot.records].reverse().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .filter(record => record.projectId === projectId && rating(record.rating) && isReporter(record.reporter));
-  const userReports = new Map(recent.filter(record => record.reporter === 'user')
-    .map(record => [JSON.stringify([record.memoryId, normalizedTask(record.task)]), record]));
-  for (const record of recent) {
-    const group = eligible.get(record.memoryId) ?? [];
+    .flatMap(record => {
+      if (record.projectId !== projectId || !rating(record.rating) || !isReporter(record.reporter)) return [];
+      const representative = representativeFor(record.memoryId);
+      return representative ? [{ representative, record }] : [];
+    });
+  const userReports = new Map<string, ProjectFeedbackRecord>();
+  for (const { representative, record } of recent) {
+    if (record.reporter !== 'user') continue;
+    const key = JSON.stringify([representative, normalizedTask(record.task)]);
+    if (!userReports.has(key)) userReports.set(key, record);
+  }
+  for (const { representative, record } of recent) {
+    const group = eligible.get(representative) ?? [];
     if (group.length >= 3) continue;
     const task = normalizedTask(record.task);
     if (group.some(item => item.task === task)) continue;
     const match = similarity(query, substantiveTerms(adaptiveQueryKeywords(record.task)));
     if (match < 0.34) continue;
-    const userReport = userReports.get(JSON.stringify([record.memoryId, task]));
+    const userReport = userReports.get(JSON.stringify([representative, task]));
     group.push({ task, record: userReport ?? record, similarity: match });
-    eligible.set(record.memoryId, group);
+    eligible.set(representative, group);
   }
   for (const [memoryId, group] of eligible) {
     const mean = group.reduce((sum, item) => sum + RATINGS[item.record.rating] * item.similarity * (item.record.reporter === 'agent' ? 0.5 : 1), 0) / group.length;

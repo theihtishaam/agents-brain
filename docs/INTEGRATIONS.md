@@ -7,7 +7,7 @@ Agent Shadow Brain provides six reusable workflow skills, project-specific skill
 Run these commands from the project root:
 
 ```bash
-npm install -g @theihtisham/agent-shadow-brain@7.1.4
+npm install -g @theihtisham/agent-shadow-brain@7.22.0
 shadow-brain project workspace .
 shadow-brain project config . --target codex
 ```
@@ -34,6 +34,8 @@ shadow-brain project config . --target deepseek-harness
 
 Recipes contain an absolute Node executable and installed CLI path. Regenerate them after moving the installation. OpenCode V2 uses `mcp.servers`; consult the documentation for an older host. DeepSeek Harness requires the MCP client plugin and, for skill discovery, the filesystem skill provider. Its documented MCP bridge supports tools and resources; prompt templates are unsupported. A generic wrapper is not universal configuration for every client.
 
+The legacy Models panel uses provider settings configured for Shadow Brain. It returns model labels and enabled status to the browser. Coding-agent settings stay with their hosts. The old custom-agent configuration endpoint is retired.
+
 [Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) · [Claude Code MCP](https://code.claude.com/docs/en/mcp) · [OpenCode MCP](https://opencode.ai/docs/mcp-servers/) · [Harness MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md) · [Harness filesystem skills](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/skill/skill-filesystem/README.md)
 
 ## Add workflow skills
@@ -50,7 +52,7 @@ The first command previews the reusable skill bundle. The second applies it. Loc
 
 Ask the connected host to call `workflow_skills`, then `context_pack` with the selected project ID, your current task, and `profile: "adaptive"`. Check the returned memory IDs and sources. A successful host call verifies the connection. With recording enabled, its measured boundaries appear in the matching portal's Live view.
 
-The regular memory profile offers twelve tools, two static resources, a scoped memory resource template, and two task/handoff prompt templates. A project-local MCP launch additionally exposes Project Kit inspection, explicit knowledge storage, skill preview, and guarded apply. Use the current `tools/list` response for available tools. Resource references are saved labels; the service does not open their targets.
+The memory profile offers scoped tools, resources and task/handoff prompt templates. A project-local MCP launch additionally exposes Project Kit, reviewed source evidence, collaboration, sessions and optional host-reported usage. Use the current `tools/list` response for available tools. Resource references are saved labels; the service does not open their targets. Project tool participation and conversation sharing apply to agent delivery through tools, resources and prompts.
 
 `activity_report` records explicitly reported phases or spans. Reported activity is labelled separately from measured MCP calls. Neither exposes a model's hidden reasoning.
 

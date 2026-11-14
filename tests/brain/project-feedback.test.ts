@@ -147,6 +147,30 @@ describe('project-local reported feedback', () => {
     expect(JSON.stringify(pack)).not.toContain('foreign-report');
   });
 
+  it('preserves attributable feedback when an eligible exact duplicate becomes the representative', () => {
+    const original = add('Checkout retry uses the recorded key.');
+    const duplicate = brain.writeSync({ projectId: store.projectId, projectName: 'Synthetic project', agentTool: 'codex',
+      category: 'lesson', content: 'CHECKOUT retry uses  the recorded key.', importance: 1, metadata: {} });
+    const olderUser = fixtureRecord(original, 'original-review', { rating: 'incorrect' });
+    const laterAgent = fixtureRecord(duplicate, 'duplicate-report', { reporter: 'agent' });
+    const foreignCopy = add('Checkout retry uses the recorded key.', 'foreign');
+    const foreignReport = fixtureRecord(foreignCopy, 'foreign-report');
+    const options = { projectId: store.projectId, query: 'Debug checkout retry', profile: 'adaptive' } as const;
+    const feedback = { schemaVersion: 1 as const, revision: 1, updatedAt: now, enabled: true, records: [olderUser, laterAgent, foreignReport] };
+    const ranked = assembleContext(brain, { ...options, feedback });
+    expect(ranked.entries[0]).toMatchObject({ id: duplicate, duplicateIds: [original] });
+    expect(ranked.retrieval?.candidates[0]).toMatchObject({ id: duplicate,
+      feedback: { adjustment: -0.12, recordIds: ['original-review'], reporterKinds: ['user'] } });
+    const newerUser = fixtureRecord(duplicate, 'latest-review');
+    const updated = assembleContext(brain, { ...options, feedback: { ...feedback, records: [...feedback.records, newerUser] } });
+    expect(updated.retrieval?.candidates[0]?.feedback).toEqual({ adjustment: 0.08, recordIds: ['latest-review'], reporterKinds: ['user'] });
+    const curated = assembleContext(brain, { ...options, feedback, annotations: {
+      schemaVersion: 1, revision: 1, updatedAt: now, links: [], history: [],
+      reviews: { [original]: { projectId: store.projectId, state: 'archived', note: '', updatedAt: now } },
+    } });
+    expect(curated.retrieval?.candidates[0]?.feedback).toEqual({ adjustment: 0.04, recordIds: ['duplicate-report'], reporterKinds: ['agent'] });
+  });
+
   it('uses at most three newest distinct tasks, excludes generic-only terms, and clamps weighted outcomes', () => {
     const id = add('Checkout retry uses the shared ledger.');
     const feedback = { schemaVersion: 1 as const, revision: 1, updatedAt: now, enabled: true,

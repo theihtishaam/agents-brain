@@ -38,6 +38,10 @@ assert(pack.files.some(file => file.path === 'dist/brain/global-brain.js'));
 for (const file of ['activity-cli', 'curation-cli', 'project-cli', 'brain/activity-journal', 'brain/memory-annotations', 'brain/mcp-stdio',
   'brain/context-retrieval', 'brain/context-request', 'brain/client-config', 'brain/memory-inspection', 'brain/memory-mcp-content',
   'brain/project-kit', 'brain/project-kit-paths', 'brain/project-kit-inspection', 'brain/project-memory', 'brain/project-feedback',
+  'brain/project-source-intake', 'brain/project-source-contract', 'brain/model-usage', 'dashboard/project-source-api',
+  'brain/project-sessions', 'brain/project-session-mcp', 'brain/native-session-import', 'brain/native-codex', 'brain/project-policy', 'brain/project-policy-delivery',
+  'brain/managed-project-skills', 'dashboard/managed-project-skills-api', 'dashboard/brain-hub-managed-skills',
+  'dashboard/project-session-api', 'dashboard/native-codex-api', 'dashboard/project-policy-api', 'dashboard/project-live-stream', 'dashboard/project-file-watch',
   'brain/project-hub', 'brain/project-hub-contract', 'brain/project-hub-store', 'brain/project-hub-pdf-worker', 'brain/project-hub-mcp', 'brain/file-identity',
   'dashboard/project-workspace', 'dashboard/project-hub-api', 'dashboard/brain-hub-html', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.js'), 'missing packaged module ' + file);
@@ -165,7 +169,8 @@ assert(context.budget.estimatedTokens <= 250);
 const featureFile = path.join(sandbox, 'flags.json');
 const defaults = JSON.parse(runNode([cli, 'features', 'list', '--settings', featureFile]));
 assert.equal(defaults.features.crossProjectContext, false);
-assert.equal(defaults.definitions.length, 5);
+assert.equal(defaults.definitions.length, 6);
+assert.equal(defaults.features.projectFileActivity, false);
 assert.equal(defaults.features.activityRecording, true);
 assert(!fs.existsSync(featureFile), 'listing default settings must not create a file');
 const disabled = JSON.parse(runNode([cli, 'features', 'set', 'contextAssembly', 'off', '--settings', featureFile]));
@@ -366,10 +371,19 @@ const fixtureOffsets = fixtureObjects.map((object, index) => {
 fixturePdf += `xref\n0 6\n0000000000 65535 f \n${fixtureOffsets.map(offset => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${fixturePdf.length}\n%%EOF\n`;
 fs.writeFileSync(portalProbe, `import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { startProjectWorkspace, startDemoWorkspace, ProjectFeedbackStore, inspectProject, GlobalBrain } from '@theihtisham/agent-shadow-brain';
+import { startProjectWorkspace, startDemoWorkspace } from '@theihtisham/agent-shadow-brain';
 const portal = await startProjectWorkspace(${JSON.stringify(localProject)});
 try {
-  const overview = await (await fetch(portal.url + '/api/workspace/overview')).json();
+  const projectId = ${JSON.stringify(observed.projectId)};
+  const workspace = portal.url + '/api/workspace/';
+  const request = async (route, input, type = 'application/json') => {
+    const response = await fetch(workspace + route, input === undefined ? undefined : { method: 'POST',
+      headers: { 'Content-Type': type, 'X-Shadow-Brain-Project': projectId }, body: type === 'application/json' ? JSON.stringify(input) : input });
+    const body = await response.json();
+    assert.equal(response.status, 200, route + ': ' + JSON.stringify(body));
+    return body;
+  };
+  const overview = await request('overview');
   assert.equal(overview.projectKit.projectId, ${JSON.stringify(observed.projectId)});
   assert.equal(overview.totals.memories, 1);
   assert((await (await fetch(portal.url + '/workspace')).text()).includes('data-project-local="true"'));
@@ -392,6 +406,54 @@ try {
   assert.equal(page.status, 'approved');
   const scoped = await (await fetch(portal.url + '/api/workspace/memories?project=' + status.project.id)).json();
   assert(JSON.stringify(scoped).includes(page.memoryId));
+
+  const note = 'The packed fixture board is violet. Keep the brass frame.';
+  const saveNote = async () => (await request('sources/remember', note, 'text/plain')).source;
+  const remembered = await saveNote();
+  const [rememberedItem] = remembered.items;
+  assert.equal(rememberedItem.status, 'approved');
+  assert.equal((await saveNote()).items[0].memoryId, rememberedItem.memoryId);
+  const evidence = await request('memory-evidence?memoryId=' + rememberedItem.memoryId);
+  assert.equal(evidence.state, 'resolved');
+  assert.equal(evidence.evidence.sourceId, remembered.id);
+  assert.equal(evidence.evidence.text, note);
+
+  const opened = await request('sessions', { title: 'Packed continuation', goal: 'Pass a fixture check to another session.', key: 'packed-session-open' });
+  const id = opened.session.id;
+  const actions = 'sessions/' + id + '/actions';
+  const recorded = await request(actions, { kind: 'message', role: 'note', text: 'Initial fixture setup verified.', key: 'packed-session-note' });
+  assert.equal(recorded.messages[0].text, 'Initial fixture setup verified.');
+  const checked = await request(actions, { kind: 'checkpoint', summary: 'Setup complete.', nextSteps: ['Run the remaining fixture.'], key: 'packed-session-checkpoint' });
+  const checkpoint = (await request('sessions/' + id + '/checkpoints/' + checked.checkpoints[0].id)).checkpoint;
+  const resumed = await request('sessions/' + id + '/resume', { checkpointId: checkpoint.id, sha256: checkpoint.sha256, key: 'packed-session-resume' });
+  assert.notEqual(resumed.session.id, id);
+  assert.deepEqual(resumed.handoff, checkpoint);
+  assert.equal((await request('sessions/' + id)).messages[0].id, recorded.messages[0].id);
+
+  const beforePolicy = (await request('project-policy')).policy;
+  const limits = { maxTokens: 300, maxEntries: 1 };
+  const changed = (await request('project-policy', { kind: 'set-context-limits', expectedRevision: beforePolicy.revision, context: limits })).policy;
+  assert.deepEqual(changed.context, limits);
+  const pack = await request('context', { projectId, query: 'What color is the fixture board?', tokenBudget: 1000, maxEntries: 10, profile: 'adaptive' });
+  assert.equal(pack.budget.tokenBudget, limits.maxTokens);
+  assert.equal(pack.entries.length, 1);
+  assert.equal(pack.entries[0].id, rememberedItem.memoryId);
+
+  const [owned] = (await request('managed-skills')).skills;
+  assert.equal(owned.state, 'enabled');
+  assert.equal(owned.relativePath, ${JSON.stringify(skillPlan.files[0].relativePath)});
+  const ownedPath = ${JSON.stringify(path.join(localProject, skillPlan.files[0].relativePath))};
+  const originalBytes = fs.readFileSync(ownedPath);
+  const applySkillState = async action => {
+    const preview = await request('managed-skills/preview', { id: owned.id, action });
+    assert.deepEqual(preview.conflicts, []);
+    return request('managed-skills/apply', { id: owned.id, action, planHash: preview.planHash });
+  };
+  assert.equal((await applySkillState('disable')).finalState, 'disabled');
+  assert.equal(fs.existsSync(ownedPath), false);
+  assert.equal((await request('managed-skills')).skills[0].state, 'disabled');
+  assert.equal((await applySkillState('enable')).finalState, 'enabled');
+  assert.deepEqual(fs.readFileSync(ownedPath), originalBytes);
 } finally { await portal.close(); }
 assert(fs.existsSync(${JSON.stringify(localDb)}));
 const demo = await startDemoWorkspace({ activity: false });
@@ -405,6 +467,7 @@ for (const [modulePath, name, marker] of [
   ['workspace-html', 'WORKSPACE_HTML', 'Memory relationships'],
   ['live-workspace-html', 'LIVE_WORKSPACE_HTML', 'Live operations'],
   ['v6-dashboard-html', 'V6_DASHBOARD_HTML', 'Recorded network'],
+  ['brain-hub-html', 'BRAIN_HUB_HTML', 'Managed project skills'],
 ]) {
   const loaded = await import(pathToFileURL(path.join(installed, 'dist/dashboard', modulePath + '.js')).href);
   const html = loaded[name];
@@ -432,5 +495,7 @@ console.log(JSON.stringify({
     'curation CLI and context suppression', 'activity CLI and cursor', 'stdio handshake and tool permissions',
     'measured and reported metadata without tool arguments', 'served live workspace and telemetry', 'workspace scripts and README artwork',
     'project inspection without script execution', 'local knowledge and protected skill apply', 'reversible task feedback and reporter attribution',
-    'fresh MCP project recipe, resources and prompts', 'persistent project portal and isolated demo teardown', 'packed PDF extraction and approval', 'demo CLI invalid-port validation'],
+    'fresh MCP project recipe, resources and prompts', 'persistent project portal and isolated demo teardown', 'packed PDF extraction and approval',
+    'plain text recall with exact source evidence and retry identity', 'immutable session checkpoint and resume', 'effective project context ceilings',
+    'managed skill disable and byte-exact restoration', 'demo CLI invalid-port validation'],
 }, null, 2));

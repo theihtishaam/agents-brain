@@ -1,9 +1,20 @@
 # Changelog
 
-## [7.21.0] - 2026-11-14 - Plain download totals
+## [7.22.0] - 2026-11-14 - Shared project memory and resumable work
 
-- Show exact, dated npm download totals as text with links to the public source. GitHub refreshes daily; npm retains the count recorded at publication.
-- No feature, dependency, storage, or account-permission changes.
+- Added ordinary text/Markdown, knowledge JSON and simple conversation intake, editable review, immutable originals and typed evidence resolution through HTTP and MCP.
+- Fixed stale project recall across warm processes, inactive-memory exclusions, duplicate feedback attribution and unrelated fallback for queries without searchable terms.
+- Added immutable artifact reads, correctly paired portal activity, dense depth-layered graph inspection, honest replay expiration and complete context diagnostics.
+- Added bounded, idempotent host-reported model/token receipts with safe concurrent storage, partial coverage and accurate subset arithmetic.
+- Added direct plain-text memory saving with original evidence and retry protection; optional review remains available for longer notes.
+- Added reported sessions, paged conversation history, immutable checkpoints and cross-agent continuation, including exact available native identities from selected exports.
+- Added an explicit project-scoped Codex history connection with bounded paging, archive browsing, disconnect cleanup and verified page imports.
+- Added bounded live change streaming, reconnect/fallback and optional project file metadata watching.
+- Added revisioned tool participation, per-conversation sharing, coordination roles and context ceilings, enforced across agent tools, resources and prompts.
+- Added verified Project Kit skill disable, restore and removal with exact preview, conflict detection and protected local edits.
+- Removed automatic legacy host-config discovery, credential-bearing HTTP fields and untested success claims in provider tests.
+- Show exact dated npm totals as plain text; refresh public totals every two days.
+- Full release behavior and boundaries are documented in [the release notes](docs/launch/RELEASE_NOTES_v7.22.0.md).
 
 ## [7.1.4] - 2026-11-13 - Brain Hub, shared work, and reviewed learning
 

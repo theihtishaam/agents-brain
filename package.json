@@ -1,6 +1,6 @@
 {
   "name": "@theihtisham/agent-shadow-brain",
-  "version": "7.21.0",
+  "version": "7.22.0",
   "description": "Local memory, focused skills, and a visual context workspace for coding agents. Explore memories, build project-scoped context, and control briefings across Codex, Claude Code, OpenCode, and DeepSeek Harness.",
   "main": "dist/index.js",
   "exports": {
@@ -101,6 +101,10 @@
     "docs/launch/RELEASE_NOTES_v7.1.0.md",
     "docs/WORKFLOW_INTEGRATION.md",
     "docs/assets/*.png",
+    "docs/assets/7.22.0-hub-exchanges.gif",
+    "docs/launch/RESEARCH_AND_PLAN_v7.22.0.md",
+    "docs/launch/RELEASE_NOTES_v7.22.0.md",
+    "docs/launch/RELEASE_ACCEPTANCE_v7.22.0.md",
     "docs/assets/live-v7.1.4.gif",
     "docs/assets/7.1.4-hub-walkthrough.gif",
     "docs/assets/7.1.4-hub-public-docs.gif",

@@ -42,7 +42,7 @@ export interface ProjectSkillApplyResult {
   warnings: string[];
 }
 
-interface Receipt {
+export interface ProjectSkillReceipt {
   schemaVersion: 1;
   projectId: string;
   relativePath: string;
@@ -50,8 +50,10 @@ interface Receipt {
 }
 
 const MAX_INPUT = 8000;
-const MAX_SKILL = 64 * 1024;
-const RECEIPT_DIR = '.shadow-brain/project-kit-skills';
+export const MAX_PROJECT_SKILL_BYTES = 64 * 1024;
+export const PROJECT_SKILL_RECEIPT_DIR = '.shadow-brain/project-kit-skills';
+const MAX_SKILL = MAX_PROJECT_SKILL_BYTES;
+const RECEIPT_DIR = PROJECT_SKILL_RECEIPT_DIR;
 const HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
 const RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/iu;
@@ -133,6 +135,10 @@ function renderSkill(profile: ProjectProfile, selected: ReturnType<typeof inputs
     '',
     'If the project exposes `project_feedback`, report a memory ID and observed outcome only when a check or the user’s feedback supports the rating. Describe the evidence and uncertainty. Retrieval rank and successful tool execution alone do not establish a useful or correct memory.',
     '',
+    '## Shared session handoffs',
+    '',
+    'For work the user wants shared, use `session_open` or call `session_resume` with the request copied from the project portal. Record meaningful milestones and a final checkpoint with `session_record`. Save verified progress, remaining steps, and evidence labels. Keep source material quoted and exclude unrelated chat text, credentials, and private reasoning.',
+    '',
   ];
   return rows.join('\n');
 }
@@ -141,11 +147,11 @@ function receiptPath(relative: string): string {
   return RECEIPT_DIR + '/' + sha(relative) + '.json';
 }
 
-function readReceipt(profile: ProjectProfile, relative: string): { receipt: Receipt; bytes: Buffer } | undefined {
+function readReceipt(profile: Pick<ProjectProfile, 'root' | 'projectId'>, relative: string): { receipt: ProjectSkillReceipt; bytes: Buffer } | undefined {
   const bytes = readProjectFile(profile.root, receiptPath(relative), 4096);
   if (!bytes) return undefined;
   try {
-    const receipt = JSON.parse(bytes.toString('utf8')) as Receipt;
+    const receipt = JSON.parse(bytes.toString('utf8')) as ProjectSkillReceipt;
     if (receipt?.schemaVersion === 1 && receipt.projectId === profile.projectId && receipt.relativePath === relative && HASH_PATTERN.test(receipt.sha256)) {
       return { receipt, bytes };
     }
@@ -159,6 +165,9 @@ function destinationState(profile: ProjectProfile, relativePath: string, content
     const filename = projectLocalPath(profile.root, relativePath);
     const existing = fs.lstatSync(filename, { throwIfNoEntry: false });
     const ownership = readReceipt(profile, relativePath);
+    if (ownership && fs.lstatSync(projectLocalPath(profile.root, receiptPath(relativePath).replace(/\.json$/u, '.lifecycle.json')), { throwIfNoEntry: false })) {
+      return { ...file, status: 'conflict', reason: 'A managed skill lifecycle operation is pending. Review it in Setup before regenerating the skill.' };
+    }
     if (!existing && !ownership) return { ...file, status: 'create' };
     if (!existing || !ownership) {
       return { ...file, status: 'conflict', reason: existing ? 'An existing file is outside Project Kit ownership.' : 'The previously owned skill file is missing.' };
@@ -187,7 +196,7 @@ export function planProjectSkill(root: string, params: ProjectSkillParams): Proj
     name: selected.name, files: [file], planHash, warnings: [...profile.warnings] };
 }
 
-function replaceProjectFile(root: string, relative: string, content: string | Buffer, expectedHash?: string): void {
+export function replaceProjectFile(root: string, relative: string, content: string | Buffer, expectedHash?: string): void {
   const filename = projectLocalPath(root, relative);
   const temporary = filename + '.' + randomUUID() + '.tmp';
   const fd = fs.openSync(temporary, 'wx', 0o600);
@@ -233,15 +242,7 @@ export async function applyProjectSkill(root: string, params: ProjectSkillParams
     projectId: initial.projectId, planHash: initial.planHash, files: [{ relativePath: initial.files[0].relativePath, status }], warnings: initial.warnings,
   });
   if (initial.files[0].status === 'unchanged') return result('unchanged');
-  const lockDirectory = ensureProjectDirectory(canonical, RECEIPT_DIR);
-  const lock = path.join(lockDirectory, 'write.lock');
-  let fd: number;
-  try { fd = fs.openSync(lock, 'wx', 0o600); } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ProjectKitError('PROJECT_KIT_CONFLICT', 'Another Project Kit write is in progress.');
-    throw new ProjectKitError('PROJECT_KIT_WRITE_FAILED', 'Could not acquire the project skill write lock.');
-  }
-  const owner = fs.fstatSync(fd, { bigint: true });
-  try {
+  return withProjectSkillWriteLock(canonical, () => {
     const plan = planProjectSkill(canonical, params);
     assertPlan(plan, expectedPlanHash);
     const file = plan.files[0];
@@ -252,7 +253,7 @@ export async function applyProjectSkill(root: string, params: ProjectSkillParams
       throw new ProjectKitError('PROJECT_KIT_STALE_PLAN', 'The project skill ownership changed during application.');
     }
     const newHash = sha(file.content);
-    const next: Receipt = { schemaVersion: 1, projectId: plan.projectId, relativePath: file.relativePath, sha256: newHash };
+    const next: ProjectSkillReceipt = { schemaVersion: 1, projectId: plan.projectId, relativePath: file.relativePath, sha256: newHash };
     try {
       replaceProjectFile(canonical, file.relativePath, file.content, file.existingHash);
       try {
@@ -270,9 +271,52 @@ export async function applyProjectSkill(root: string, params: ProjectSkillParams
       throw new ProjectKitError('PROJECT_KIT_WRITE_FAILED', 'Could not save the project skill and ownership receipt.');
     }
     return result(file.status === 'create' ? 'created' : 'updated');
+  });
+}
+
+export function withProjectSkillWriteLock<T>(canonical: string, mutate: () => T): T {
+  const lockDirectory = ensureProjectDirectory(canonical, RECEIPT_DIR);
+  const lock = path.join(lockDirectory, 'write.lock');
+  let fd: number;
+  try { fd = fs.openSync(lock, 'wx', 0o600); } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw new ProjectKitError('PROJECT_KIT_WRITE_FAILED', 'Could not acquire the project skill write lock.');
+    if (!clearAbandonedSkillLock(lock)) throw new ProjectKitError('PROJECT_KIT_CONFLICT', 'Another Project Kit write is in progress.');
+    try { fd = fs.openSync(lock, 'wx', 0o600); }
+    catch { throw new ProjectKitError('PROJECT_KIT_CONFLICT', 'Project Kit could not reacquire the interrupted write lock. Retry.'); }
+  }
+  const owner = fs.fstatSync(fd, { bigint: true });
+  try {
+    fs.writeFileSync(fd, JSON.stringify({ kind: 'project-kit-lock', pid: process.pid }));
+    fs.fsyncSync(fd);
+    return mutate();
   } finally {
     fs.closeSync(fd);
     const current = fs.lstatSync(lock, { throwIfNoEntry: false, bigint: true });
     if (matchesFileIdentity(lock, owner, current)) fs.unlinkSync(lock);
   }
+}
+
+function clearAbandonedSkillLock(filename: string): boolean {
+  let fd: number | undefined;
+  try {
+    const before = fs.lstatSync(filename, { bigint: true, throwIfNoEntry: false });
+    if (!before?.isFile() || before.isSymbolicLink() || before.nlink !== 1n || before.size > 128n) return false;
+    fd = fs.openSync(filename, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    const owner = fs.fstatSync(fd, { bigint: true });
+    if (!matchesFileIdentity(filename, owner, before)) return false;
+    const bytes = Buffer.alloc(129);
+    const count = fs.readSync(fd, bytes, 0, bytes.length, 0);
+    if (BigInt(count) !== owner.size) return false;
+    const value = JSON.parse(bytes.subarray(0, count).toString('utf8')) as { kind?: string; pid?: number };
+    if (value?.kind !== 'project-kit-lock' || !Number.isSafeInteger(value.pid) || value.pid! < 1 || value.pid! > 0x7fffffff) return false;
+    try { process.kill(value.pid!, 0); return false; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ESRCH') return false; }
+    fs.closeSync(fd);
+    fd = undefined;
+    const current = fs.lstatSync(filename, { bigint: true, throwIfNoEntry: false });
+    if (!matchesFileIdentity(filename, owner, current)) return false;
+    fs.unlinkSync(filename);
+    return true;
+  } catch { return false; }
+  finally { if (fd !== undefined) fs.closeSync(fd); }
 }

@@ -19,6 +19,29 @@ import { handleWorkspaceRequest } from './workspace-api.js';
 import { getFeatureSettings } from '../brain/feature-settings.js';
 import { BRAIN_HUB_HTML } from './brain-hub-html.js';
 import { WorkspaceRuntime } from './workspace-status.js';
+import type { BrainIntelligenceConfig, ModelInfo, ProviderConfig } from '../brain/model-registry.js';
+
+const publicLabel = (value: unknown) => typeof value === 'string' ? value : undefined;
+const publicNumber = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+const publicProviderId = (value: unknown) => typeof value === 'string' && /^[a-z][a-z-]*$/u.test(value) ? value : undefined;
+
+function publicProvider(provider: ProviderConfig) {
+  return { id: publicProviderId(provider.id), displayName: publicLabel(provider.displayName), defaultModel: publicLabel(provider.defaultModel), enabled: provider.enabled === true };
+}
+
+function publicModel(model: ModelInfo) {
+  return { id: publicLabel(model.id), provider: publicLabel(model.provider), displayName: publicLabel(model.displayName),
+    contextWindow: publicNumber(model.contextWindow), priceInputPerMTok: publicNumber(model.priceInputPerMTok),
+    priceOutputPerMTok: publicNumber(model.priceOutputPerMTok), tags: Array.isArray(model.tags) ? model.tags.filter(tag => typeof tag === 'string') : [] };
+}
+
+function publicIntelligence(config: BrainIntelligenceConfig) {
+  const model = ({ provider, model }: { provider: string; model: string }) => ({ provider: publicLabel(provider), model: publicLabel(model) });
+  return { leadProvider: publicLabel(config.leadProvider), leadModel: publicLabel(config.leadModel),
+    fallbackChain: (Array.isArray(config.fallbackChain) ? config.fallbackChain : []).filter(Boolean).map(model),
+    perFeatureModel: Object.fromEntries(Object.entries(config.perFeatureModel ?? {}).filter(([, value]) => value).map(([name, value]) => [name, model(value)])),
+    useAgentToolModels: false, preferLocalFirst: config.preferLocalFirst === true };
+}
 
 export interface DashboardOptions {
   port?: number;
@@ -639,7 +662,7 @@ export class DashboardServer {
         const tokenReport = await tokens.report();
         const runtime = this.getRuntimeContext();
         return send({
-          version: '7.21.0',
+          version: '7.22.0',
           localFirst: true,
           runtime,
           totalAgentsConnected: brain.getStats().totalAgents,
@@ -1087,14 +1110,15 @@ export class DashboardServer {
         }
       }
       case '/api/v6/config-test': {
-        const provider = (body.provider as string) ?? 'ollama';
+        const provider = body?.provider ?? 'ollama';
+        if (!publicProviderId(provider)) return send({ ok: false, error: 'Unknown provider.' }, 400);
         if (provider === 'ollama') {
           try {
             const r = await fetch('http://127.0.0.1:11434/api/tags', { signal: AbortSignal.timeout(3000) });
             return send({ ok: r.ok, provider });
           } catch { return send({ ok: false, error: 'Ollama unreachable at 127.0.0.1:11434', provider }); }
         }
-        return send({ ok: true, provider, note: 'Manual API key test not implemented; assume valid.' });
+        return send({ ok: false, provider, error: 'Use the Models panel to test a configured provider.' });
       }
       case '/api/v6/mcp-start': {
         try {
@@ -1149,41 +1173,61 @@ export class DashboardServer {
       case '/api/v6/providers': {
         const { getModelRegistry } = await import('../brain/model-registry.js');
         const reg = getModelRegistry(); await reg.init();
-        return send({ providers: reg.listProviders(), discovered: reg.getDiscoveredAgentConfigs() });
+        return send({ providers: reg.listProviders().filter(provider => provider.id !== 'agent-proxy' && publicProviderId(provider.id)).map(publicProvider), discovered: [] });
       }
       case '/api/v6/provider-models': {
         const { getModelRegistry } = await import('../brain/model-registry.js');
         const reg = getModelRegistry(); await reg.init();
-        return send(await reg.listModels(body.provider));
+        return send((await reg.listModels(body.provider)).map(publicModel));
       }
       case '/api/v6/provider-save': {
+        if (req.method !== 'POST') return send({ error: 'Use POST to save a provider.' }, 405);
+        if (!body || ['apiKey', 'baseUrl', 'defaultModel'].some(key => body[key] !== undefined && typeof body[key] !== 'string') ||
+            (body.enabled !== undefined && typeof body.enabled !== 'boolean')) return send({ error: 'Invalid provider settings.' }, 400);
         const { getModelRegistry } = await import('../brain/model-registry.js');
         const reg = getModelRegistry(); await reg.init();
-        return send(await reg.saveProvider(body.provider, { apiKey: body.apiKey, baseUrl: body.baseUrl, defaultModel: body.defaultModel, enabled: body.enabled ?? true }));
+        if (!reg.getProvider(body.provider) || body.provider === 'agent-proxy') return send({ error: 'Unknown provider.' }, 400);
+        return send(publicProvider(await reg.saveProvider(body.provider, { apiKey: body.apiKey, baseUrl: body.baseUrl,
+          defaultModel: body.defaultModel, enabled: body.enabled ?? true })));
       }
       case '/api/v6/provider-test': {
         const { getModelRegistry } = await import('../brain/model-registry.js');
         const reg = getModelRegistry(); await reg.init();
-        return send(await reg.test(body.provider));
+        const result = await reg.test(body.provider);
+        return send(result.ok ? { ok: true, modelCount: publicNumber(result.modelCount) } : { ok: false, error: 'Provider test failed.' });
       }
       case '/api/v6/intelligence': {
         const { getModelRegistry } = await import('../brain/model-registry.js');
         const reg = getModelRegistry(); await reg.init();
-        if (req.method === 'POST') return send(await reg.setIntelligence(body));
-        return send(reg.getIntelligence());
+        if (req.method === 'POST') {
+          if (!body || typeof body !== 'object' || Array.isArray(body)) return send({ error: 'Invalid intelligence settings.' }, 400);
+          const { leadProvider, leadModel, fallbackChain, perFeatureModel, preferLocalFirst } = body;
+          if (leadProvider !== undefined && (!reg.getProvider(leadProvider) || leadProvider === 'agent-proxy')) {
+            return send({ error: 'Unknown lead provider.' }, 400);
+          }
+          if ((leadModel !== undefined && typeof leadModel !== 'string') || (preferLocalFirst !== undefined && typeof preferLocalFirst !== 'boolean') ||
+              (fallbackChain !== undefined && !Array.isArray(fallbackChain)) || (perFeatureModel !== undefined &&
+                (!perFeatureModel || typeof perFeatureModel !== 'object' || Array.isArray(perFeatureModel)))) {
+            return send({ error: 'Invalid intelligence settings.' }, 400);
+          }
+          const routes = [...fallbackChain ?? [], ...Object.values(perFeatureModel ?? {})];
+          if (routes.some(route => !route || typeof route !== 'object' || typeof route.model !== 'string' ||
+              !reg.getProvider(route.provider) || route.provider === 'agent-proxy')) {
+            return send({ error: 'Invalid provider route.' }, 400);
+          }
+          const pickRoute = ({ provider, model }: { provider: ProviderConfig['id']; model: string }) => ({ provider, model });
+          return send(publicIntelligence(await reg.setIntelligence({
+            ...(leadProvider !== undefined && { leadProvider }), ...(leadModel !== undefined && { leadModel }),
+            ...(preferLocalFirst !== undefined && { preferLocalFirst }), ...(fallbackChain && { fallbackChain: fallbackChain.map(pickRoute) }),
+            ...(perFeatureModel && { perFeatureModel: Object.fromEntries(Object.entries(perFeatureModel as BrainIntelligenceConfig['perFeatureModel'])
+              .map(([name, value]) => [name, pickRoute(value)])) }),
+          })));
+        }
+        return send(publicIntelligence(reg.getIntelligence()));
       }
       case '/api/v6/custom-agents': {
-        const fs = await import('node:fs');
-        const path = await import('node:path');
-        const os = await import('node:os');
-        const cfgPath = path.join(os.homedir(), '.shadow-brain', 'custom-agents.json');
-        if (req.method === 'POST') {
-          fs.mkdirSync(path.dirname(cfgPath), { recursive: true });
-          fs.writeFileSync(cfgPath, JSON.stringify({ agents: body.agents ?? [] }, null, 2));
-          return send({ ok: true });
-        }
-        try { return send(JSON.parse(fs.readFileSync(cfgPath, 'utf-8'))); }
-        catch { return send({ agents: [] }); }
+        return req.method === 'GET' ? send({ agents: [], available: false }) :
+          send({ error: 'Host configuration discovery is unavailable.' }, 410);
       }
       case '/api/v6/features-config': {
         const fs = await import('node:fs');

@@ -3,7 +3,7 @@ name: README metrics
 on:
   workflow_dispatch:
   schedule:
-    - cron: '17 10 * * *'
+    - cron: '17 10 */2 * *'
 
 permissions:
   contents: write

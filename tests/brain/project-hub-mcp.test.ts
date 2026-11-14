@@ -3,13 +3,15 @@ import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:chil
 import { once } from 'node:events';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { expect, it } from 'vitest';
 import { GlobalBrain } from '../../src/brain/global-brain.js';
 import { HUB_OPERATOR } from '../../src/brain/project-hub-contract.js';
 import { ProjectHubService } from '../../src/brain/project-hub.js';
 import { projectStorage } from '../../src/brain/project-memory.js';
+import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
+import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
 
 const cli = resolve('dist/cli.js');
 const key = () => ({ key: randomUUID() });
@@ -82,7 +84,7 @@ class FixtureClient {
   private readonly calls = new Map<number, { resolve(value: any): void; reject(error: Error): void }>();
   readonly closed: Promise<any[]>;
 
-  constructor(project: string, db: string) {
+  constructor(project: string, db: string, private readonly clientName = 'fixture-mcp') {
     this.child = spawn(process.execPath, [cli, 'mcp', project, '--stdio', '--db', db], { cwd: project, windowsHide: true });
     this.closed = once(this.child, 'close');
     this.child.stderr.resume();
@@ -110,7 +112,7 @@ class FixtureClient {
   }
 
   async initialize() {
-    const handshake = await this.request('initialize', { protocolVersion: '2025-11-25', clientInfo: { name: 'fixture-mcp', version: '1' }, capabilities: {} });
+    const handshake = await this.request('initialize', { protocolVersion: '2025-11-25', clientInfo: { name: this.clientName, version: '1' }, capabilities: {} });
     expect(handshake.result.protocolVersion).toBe('2025-11-25');
     this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     return (await this.request('tools/list')).result.tools;
@@ -143,8 +145,9 @@ it('shares project-local rooms through two independent stdio clients, persists r
     const catalogs = await Promise.all(clients.map(client => client.initialize()));
     for (const catalog of catalogs.slice(0, 3)) {
       expect(catalog.filter((tool: any) => tool.name.startsWith('hub_')).map((tool: any) => tool.name)).toEqual([
-        'hub_overview', 'hub_room_read', 'hub_room_create', 'hub_room_action', 'hub_lesson_propose',
+        'hub_overview', 'hub_room_read', 'hub_room_create', 'hub_room_action', 'hub_lesson_propose', 'hub_artifact_read',
       ]);
+      expect(catalog.find((tool: any) => tool.name === 'hub_artifact_read').annotations.readOnlyHint).toBe(true);
     }
     expect(catalogs[3].some((tool: any) => tool.name.startsWith('hub_'))).toBe(false);
     expect((await unpinned.call('hub_overview')).error.code).toBe(-32601);
@@ -167,6 +170,27 @@ it('shares project-local rooms through two independent stdio clients, persists r
     const artifact = payload(await action(winner, roomId, { kind: 'artifact', taskId: task.targetId, revision: successful.revision, path: 'evidence.txt', ...key() })).applied;
     expect((await action(winner, roomId, { kind: 'accept', artifactId: artifact.targetId, ...key() })).error.code).toBe(-32602);
     const attachment = hub.artifact(roomId, artifact.targetId).artifact;
+    const artifactRequest = { roomId, artifactId: artifact.targetId, sha256: attachment.sha256 };
+    writeFileSync(join(a, 'evidence.txt'), 'Working tree changed after attachment.');
+    expect(payload(await other.call('hub_artifact_read', artifactRequest))).toEqual({ artifact: attachment, text: 'Recorded fixture output' });
+    expect((await foreign.call('hub_artifact_read', artifactRequest)).result.structuredContent.code).toBe('HUB_NOT_FOUND');
+    expect((await other.call('hub_artifact_read', { ...artifactRequest, sha256: '0'.repeat(64) })).result.structuredContent.code).toBe('HUB_CONFLICT');
+    expect((await other.call('hub_artifact_read', { ...artifactRequest, roomId: randomUUID() })).result.structuredContent.code).toBe('HUB_NOT_FOUND');
+    expect((await other.call('hub_artifact_read', { ...artifactRequest, path: 'evidence.txt' })).error.code).toBe(-32602);
+    expect((await other.call('hub_artifact_read', { ...artifactRequest, sha256: 'bad-digest' })).error.code).toBe(-32602);
+    for (const [name, bytes, code] of [
+      ['malformed.txt', Buffer.from([0xc3, 0x28]), 'HUB_ARTIFACT_NOT_TEXT'],
+      ['binary.txt', Buffer.from([0x00, 0x01]), 'HUB_ARTIFACT_NOT_TEXT'],
+      ['image.png', Buffer.from('Text bytes in a binary format'), 'HUB_ARTIFACT_NOT_TEXT'],
+      ['large.txt', Buffer.alloc(32 * 1024 + 1, 0x61), 'HUB_ARTIFACT_TEXT_LIMIT'],
+    ] as const) {
+      writeFileSync(join(a, name), bytes);
+      const proposal = payload(await action(other, roomId, { kind: 'artifact', taskId: task.targetId, revision: successful.revision,
+        path: name, ...key() })).applied;
+      const proposed = hub.artifact(roomId, proposal.targetId).artifact;
+      const rejected = await winner.call('hub_artifact_read', { roomId, artifactId: proposed.id, sha256: proposed.sha256 });
+      expect(rejected.result.structuredContent.code).toBe(code);
+    }
     payload(await action(other, roomId, { kind: 'ack', targetType: 'artifact', targetId: artifact.targetId, sha256: attachment.sha256, ...key() }));
     hub.roomAction(roomId, { kind: 'accept', artifactId: artifact.targetId, ...key() }, HUB_OPERATOR);
     const outcome = payload(await action(winner, roomId, { kind: 'outcome', taskId: task.targetId, artifactId: artifact.targetId, result: 'pass', check: 'fixture assertion', evidence: 'see artifact', ...key() })).applied;
@@ -192,5 +216,182 @@ it('shares project-local rooms through two independent stdio clients, persists r
     await brain.shutdown();
     rmSync(a, { recursive: true, force: true });
     rmSync(b, { recursive: true, force: true });
+  }
+}, 30_000);
+
+it('opens, inspects and resumes exact handoff checkpoints across independent client processes', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'hub-mcp-session-'));
+  const foreignRoot = mkdtempSync(join(tmpdir(), 'hub-mcp-session-'));
+  const project = projectStorage(root), foreignProject = projectStorage(foreignRoot);
+  const portal = await startProjectWorkspace(root);
+  const clients = [new FixtureClient(root, project.storagePath, 'codex-fixture'), new FixtureClient(root, project.storagePath, 'claude-fixture'),
+    new FixtureClient(foreignRoot, foreignProject.storagePath), new FixtureClient(root, join(root, 'unscoped.json'))];
+  const [first, second, foreign, unpinned] = clients;
+  const command = (client: FixtureClient, sessionId: string, input: object) => client.call('session_record', { sessionId, command: input });
+  const result = (reply: any) => {
+    expect(reply.error, JSON.stringify(reply)).toBeUndefined();
+    expect(reply.result.isError, JSON.stringify(reply)).toBeUndefined();
+    return reply.result.structuredContent;
+  };
+  try {
+    const tools = await Promise.all(clients.map(client => client.initialize()));
+    expect(tools[0].filter((tool: any) => tool.name.startsWith('session_')).map((tool: any) => tool.name)).toEqual([
+      'session_list', 'session_read', 'session_checkpoint_read', 'session_open', 'session_record', 'session_resume',
+    ]);
+    expect(tools[3].some((tool: any) => tool.name.startsWith('session_'))).toBe(false);
+    expect((await unpinned.call('session_list')).error.code).toBe(-32601);
+    expect(result(await first.call('session_list')).sessions).toEqual([]);
+    expect(existsSync(join(root, '.shadow-brain', 'project-hub.sqlite'))).toBe(false);
+    const opening = { title: 'Verify retry behavior', goal: 'Check a shared fixture', hostSessionId: 'fixture-chat', ...key() };
+    const [opened, parallel] = (await Promise.all([first.call('session_open', opening), second.call('session_open', {
+      title: 'Check another part of the fixture', goal: 'Open a separate session concurrently', ...key(),
+    })])).map(result);
+    expect(opened.session).toMatchObject({ revision: 0, presence: 'recent', reportedStatus: 'working', hostSessionId: 'fixture-chat', actor: { tool: 'codex' } });
+    expect(parallel.session).toMatchObject({ revision: 0, actor: { tool: 'claude-code' } });
+    expect(result(await first.call('session_list')).sessions.map((row: { id: string }) => row.id).sort()).toEqual([opened.session.id, parallel.session.id].sort());
+    expect(result(await first.call('session_open', opening)).session.id).toBe(opened.session.id);
+    expect((await first.call('session_open', { ...opening, title: 'Do not reuse the key' })).result.structuredContent.code).toBe('SESSION_CONFLICT');
+    expect((await second.call('session_open', { ...opening, ...key(), parentSessionId: randomUUID() })).result.structuredContent.code).toBe('SESSION_NOT_FOUND');
+    const id = opened.session.id;
+    expect((await command(second, id, { kind: 'status', status: 'completed', ...key() })).result.structuredContent.code).toBe('SESSION_OWNER_REQUIRED');
+    expect((await foreign.call('session_read', { sessionId: id })).result.structuredContent.code).toBe('SESSION_NOT_FOUND');
+    expect(result(await foreign.call('session_list')).sessions).toEqual([]);
+    const firstMessage = { kind: 'message', role: 'assistant', text: '  First captured note.  ', expectedRevision: 0, ...key() };
+    expect(result(await command(first, id, firstMessage)).messages[0].text).toBe(firstMessage.text);
+    expect(result(await command(first, id, firstMessage)).messages).toHaveLength(1);
+    expect((await command(first, id, { ...firstMessage, ...key() })).result.structuredContent.code).toBe('SESSION_CONFLICT');
+    const savedRef = result(await command(first, id, { kind: 'checkpoint', summary: 'First verified checkpoint', completed: ['Checked artifacts'],
+      nextSteps: ['Run the test fixture'], evidence: ['tests/evidence.md'], ...key() })).checkpoints[0];
+    expect(savedRef.summary).toBeUndefined();
+    const saved = result(await second.call('session_checkpoint_read', { sessionId: id, checkpointId: savedRef.id })).checkpoint;
+    result(await command(first, id, { kind: 'checkpoint', summary: 'Newer checkpoint', ...key() }));
+    const page = result(await second.call('session_read', { sessionId: id, limit: 1 }));
+    expect(page.checkpoints).toHaveLength(2);
+    const handoff = { sessionId: id, checkpointId: saved.id, sha256: saved.sha256, ...key() };
+    expect((await second.call('session_resume', { ...handoff, sha256: undefined })).error.code).toBe(-32602);
+    expect((await second.call('session_resume', { ...handoff, sha256: '0'.repeat(64) })).result.structuredContent.code).toBe('SESSION_CONFLICT');
+    const copy = result(await second.call('session_resume', handoff));
+    expect(copy).toMatchObject({ session: { parentSessionId: id, resumedFrom: { sessionId: id, checkpointId: saved.id }, actor: { tool: 'claude-code' } },
+      handoff: saved, messageCount: 0, messages: [] });
+    expect(copy.session.id).not.toBe(id);
+    expect(result(await second.call('session_resume', handoff)).session.id).toBe(copy.session.id);
+    result(await command(second, copy.session.id, { kind: 'status', status: 'waiting', ...key() }));
+    result(await command(first, id, { kind: 'status', status: 'completed', ...key() }));
+    const portalList = await fetch(portal.url + '/api/workspace/sessions');
+    expect((await portalList.json()).sessions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id, presence: 'completed', revision: 4 }),
+      expect.objectContaining({ id: copy.session.id, reportedStatus: 'waiting', revision: 1 }),
+    ]));
+    const portalChild = await fetch(portal.url + '/api/workspace/sessions/' + copy.session.id);
+    expect((await portalChild.json()).handoff).toEqual(saved);
+  } finally {
+    await Promise.allSettled(clients.map(client => client.stop()));
+    await portal.close();
+    for (const candidate of [root, foreignRoot]) {
+      const canonical = realpathSync.native(candidate);
+      if (dirname(canonical) !== realpathSync.native(tmpdir()) || !basename(canonical).startsWith('hub-mcp-session-')) throw new Error('Unexpected fixture path.');
+      rmSync(canonical, { recursive: true, force: true });
+    }
+  }
+}, 30_000);
+
+it('refreshes both ordinary MCP recalls across processes and respects live project curation', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'hub-mcp-recall-'));
+  const portal = await startProjectWorkspace(root);
+  const writer = new FixtureClient(root, portal.storagePath);
+  const reader = new FixtureClient(root, portal.storagePath);
+  const callPayload = async (client: FixtureClient, tool: string, args: object) => {
+    const result = await client.call(tool, args);
+    expect(result.error).toBeUndefined();
+    expect(result.result.isError).toBeUndefined();
+    return JSON.parse(result.result.content[0].text);
+  };
+  const post = async (route: string, body: object) => {
+    const response = await fetch(portal.url + '/api/workspace/' + route, { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    expect(response.status, await response.clone().text()).toBe(200);
+    return response.json();
+  };
+  const types = ['global_recall', 'global_recall_scored'] as const;
+  const recalled = async (tool: typeof types[number], limit = 10) =>
+    (await callPayload(reader, tool, { keywords: ['CheckoutProbe'], limit })).map((row: { id: string }) => row.id);
+  try {
+    await Promise.all([writer.initialize(), reader.initialize()]);
+    for (const tool of types) expect(await recalled(tool)).toEqual([]);
+    const archived = await post('project-knowledge', { title: 'CheckoutProbe archive', content: 'CheckoutProbe CheckoutProbe Older process learns this from the portal.' });
+    const contested = await callPayload(writer, 'project_knowledge', { title: 'CheckoutProbe contest', content: 'A second host records this.' });
+    const predecessor = await callPayload(writer, 'project_knowledge', { title: 'CheckoutProbe predecessor', content: 'Replace this evidence.' });
+    const active = await callPayload(writer, 'project_knowledge', { title: 'Replacement evidence', content: 'Keep current evidence for CheckoutProbe.' });
+    for (const tool of types) expect(await recalled(tool)).toEqual(expect.arrayContaining([archived.memoryId, contested.memoryId, predecessor.memoryId, active.memoryId]));
+    const writeScope = { projectId: portal.projectId };
+    await post('memory-review', { ...writeScope, memoryId: archived.memoryId, state: 'archived', expectedRevision: 0 });
+    await post('memory-review', { ...writeScope, memoryId: contested.memoryId, state: 'contested', expectedRevision: 1 });
+    await post('memory-link', { ...writeScope, fromId: active.memoryId, toId: predecessor.memoryId, type: 'supersedes', expectedRevision: 2 });
+    for (const tool of types) {
+      expect(await recalled(tool, 1)).toEqual([active.memoryId]);
+      expect((await reader.call(tool, { projectId: 'foreign-project', keywords: ['CheckoutProbe'] })).error.code).toBe(-32602);
+    }
+    const timeline = await callPayload(reader, 'global_timeline', {});
+    expect(timeline.map((row: { id: string }) => row.id)).toEqual(expect.arrayContaining([archived.memoryId, contested.memoryId, predecessor.memoryId, active.memoryId]));
+    expect(await callPayload(reader, 'memory_inspect', { memoryId: archived.memoryId })).toMatchObject({ id: archived.memoryId, state: 'archived' });
+  } finally {
+    await Promise.allSettled([writer.stop(), reader.stop()]);
+    await portal.close();
+    const canonical = realpathSync.native(root);
+    if (dirname(canonical) !== realpathSync.native(tmpdir()) || !basename(canonical).startsWith('hub-mcp-recall-')) throw new Error('Unexpected fixture path.');
+    rmSync(canonical, { recursive: true, force: true });
+  }
+}, 30_000);
+
+it('records bounded host usage from two independent MCP clients and shares it with the project portal', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'hub-mcp-usage-'));
+  const project = projectStorage(root);
+  const brain = GlobalBrain.createIsolated({ dbPath: project.storagePath });
+  const settings = new FeatureSettingsStore({ filePath: project.settingsPath });
+  const clients = [new FixtureClient(root, project.storagePath), new FixtureClient(root, project.storagePath),
+    new FixtureClient(root, join(root, 'separate.json'))];
+  const [first, second, unpinned] = clients;
+  const filename = join(root, '.shadow-brain', 'model-usage.sqlite');
+  let portal: Awaited<ReturnType<typeof startProjectWorkspace>> | undefined;
+  try {
+    const definitions = await Promise.all(clients.map(client => client.initialize()));
+    expect(definitions[0].find((tool: any) => tool.name === 'usage_report').annotations.readOnlyHint).toBe(false);
+    expect(definitions[2].some((tool: any) => tool.name === 'usage_report')).toBe(false);
+    const base = { projectId: project.projectId, agent: 'fixture-agent', sessionId: 'fixture-session', requestModel: 'reported-request' };
+    expect((await unpinned.call('usage_report', { ...base, operationId: 'unpinned' })).error.code).toBe(-32601);
+    await settings.update({ activityRecording: false });
+    expect((await first.call('usage_report', { ...base, operationId: 'disabled' })).error.code).toBe(-32602);
+    expect(existsSync(filename)).toBe(false);
+    await settings.update({ activityRecording: true });
+    expect((await first.call('usage_report', { ...base, operationId: 'forged', provenance: 'provider-measured' })).error.code).toBe(-32602);
+    expect((await first.call('usage_report', { ...base, operationId: 'negative', inputTokens: -1 })).error.code).toBe(-32602);
+    const foreign = await first.call('usage_report', { ...base, operationId: 'foreign', projectId: 'foreign-project' });
+    expect(foreign.result).toMatchObject({ isError: true, structuredContent: { code: 'USAGE_PROJECT_MISMATCH' } });
+    expect(existsSync(filename)).toBe(false);
+    const one = { ...base, operationId: 'operation-one', inputTokens: 0 };
+    const two = { ...base, operationId: 'operation-two', outputTokens: 9, reasoningOutputTokens: 2 };
+    const writes = await Promise.all([first.call('usage_report', one), second.call('usage_report', two)]);
+    for (const result of writes) {
+      expect(result.error).toBeUndefined();
+      expect(result.result.isError).toBeUndefined();
+      expect(result.result.structuredContent).toMatchObject({ projectId: project.projectId, provenance: 'host-reported' });
+    }
+    const duplicate = await second.call('usage_report', one);
+    expect(duplicate.result.structuredContent).toEqual(writes[0].result.structuredContent);
+    const conflicts = await Promise.all([first.call('usage_report', { ...one, inputTokens: 1 }), second.call('usage_report', { ...two, outputTokens: 11 })]);
+    for (const reply of conflicts) expect(reply.result).toMatchObject({ isError: true, structuredContent: { code: 'USAGE_CONFLICT' } });
+    portal = await startProjectWorkspace(root);
+    const usage = await fetch(portal.url + '/api/workspace/usage');
+    expect(usage.status).toBe(200);
+    expect(await usage.json()).toMatchObject({ dropped: 0, recording: true, totals: {
+      inputTokens: { total: 0, known: 1, receipts: 2 }, outputTokens: { total: 9, known: 1, receipts: 2 },
+    }, receipts: expect.arrayContaining([writes[0].result.structuredContent, writes[1].result.structuredContent]) });
+  } finally {
+    await Promise.allSettled(clients.map(client => client.stop()));
+    await portal?.close();
+    await brain.shutdown();
+    const canonical = realpathSync.native(root);
+    if (dirname(canonical) !== realpathSync.native(tmpdir()) || !basename(canonical).startsWith('hub-mcp-usage-')) throw new Error('Unexpected fixture path.');
+    rmSync(canonical, { recursive: true, force: true });
   }
 }, 30_000);

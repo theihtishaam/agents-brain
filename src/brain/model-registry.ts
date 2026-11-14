@@ -1,13 +1,8 @@
 // src/brain/model-registry.ts — Unified multi-provider LLM adapter
 // v6.0.0 — Hive Mind Edition
 //
-// Supports Ollama, Anthropic, OpenAI, OpenRouter, Moonshot/Kimi, Gemini,
-// DeepSeek, Mistral, plus "agent-proxy" mode that reuses the intelligence
-// configured in already-installed agent tools (Claude Code, Cursor, Cline,
-// Codex, Aider, Kilo, Roo, OpenCode).
-//
-// Auto-discovers agent configs on disk so the user doesn't have to re-enter
-// API keys that are already set up for their coding agents.
+// Supports explicitly configured Ollama, Anthropic, OpenAI, OpenRouter,
+// Moonshot/Kimi, Gemini, DeepSeek, and Mistral providers.
 
 import * as fs from 'fs';
 import * as path from 'path';
@@ -60,12 +55,12 @@ const PROVIDER_DEFAULTS: Record<ProviderId, Omit<ProviderConfig, 'id' | 'enabled
   gemini:      { displayName: 'Google Gemini',      baseUrl: 'https://generativelanguage.googleapis.com/v1',  defaultModel: 'gemini-2.5-flash' },
   deepseek:    { displayName: 'DeepSeek',           baseUrl: 'https://api.deepseek.com/v1',                   defaultModel: 'deepseek-chat' },
   mistral:     { displayName: 'Mistral',            baseUrl: 'https://api.mistral.ai/v1',                     defaultModel: 'mistral-large-latest' },
-  'agent-proxy': { displayName: 'Agent Proxy (reuse configured agents)', baseUrl: '', defaultModel: '' },
+  'agent-proxy': { displayName: 'Legacy Agent Proxy (unavailable)', baseUrl: '' },
   none:        { displayName: 'No LLM (fallback)',  baseUrl: '' },
 };
 
 const ENV_KEY_MAP: Record<ProviderId, string[]> = {
-  ollama: ['OLLAMA_BASE_URL'],
+  ollama: [],
   anthropic: ['ANTHROPIC_API_KEY', 'CLAUDE_API_KEY'],
   openai: ['OPENAI_API_KEY'],
   openrouter: ['OPENROUTER_API_KEY'],
@@ -91,7 +86,7 @@ function defaultIntelligence(): BrainIntelligenceConfig {
       { provider: 'ollama', model: 'qwen2.5-coder:7b' },
     ],
     perFeatureModel: {},
-    useAgentToolModels: true,
+    useAgentToolModels: false,
     preferLocalFirst: true,
   };
 }
@@ -100,11 +95,12 @@ export class ModelRegistry {
   private providers: Map<ProviderId, ProviderConfig> = new Map();
   private intelligence: BrainIntelligenceConfig = defaultIntelligence();
   private initialized = false;
-  private discoveredAgentConfigs: AgentDiscovered[] = [];
+
+  constructor(private readonly configPath = CONFIG_PATH, private readonly providerEnv = process.env) {}
 
   async init(): Promise<void> {
     if (this.initialized) return;
-    fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.mkdirSync(path.dirname(this.configPath), { recursive: true });
 
     // Seed defaults
     for (const id of Object.keys(PROVIDER_DEFAULTS) as ProviderId[]) {
@@ -113,9 +109,9 @@ export class ModelRegistry {
     }
 
     // Load saved config
-    if (fs.existsSync(CONFIG_PATH)) {
+    if (fs.existsSync(this.configPath)) {
       try {
-        const parsed = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')) as PersistShape;
+        const parsed = JSON.parse(fs.readFileSync(this.configPath, 'utf-8')) as PersistShape;
         for (const [id, cfg] of Object.entries(parsed.providers ?? {})) {
           const existing = this.providers.get(id as ProviderId);
           if (existing) this.providers.set(id as ProviderId, { ...existing, ...cfg, id: id as ProviderId });
@@ -132,23 +128,9 @@ export class ModelRegistry {
       const p = this.providers.get(id as ProviderId);
       if (!p) continue;
       for (const k of envKeys) {
-        const v = process.env[k];
+        const v = this.providerEnv[k];
         if (v && !p.apiKey) { p.apiKey = v; p.source = 'env'; p.enabled = true; break; }
       }
-    }
-
-    // Auto-discover from agent config files
-    this.discoveredAgentConfigs = await this.discoverAgentConfigs();
-    for (const d of this.discoveredAgentConfigs) {
-      const p = this.providers.get(d.provider);
-      if (!p) continue;
-      if (!p.apiKey && d.apiKey) {
-        p.apiKey = d.apiKey;
-        p.source = 'agent-discovered';
-        p.discoveredFrom = d.agent;
-        p.enabled = true;
-      }
-      if (!p.defaultModel && d.model) p.defaultModel = d.model;
     }
 
     this.initialized = true;
@@ -167,7 +149,8 @@ export class ModelRegistry {
     await this.init();
     const existing = this.providers.get(id);
     if (!existing) throw new Error('Unknown provider: ' + id);
-    const updated = { ...existing, ...patch, id, source: patch.apiKey ? 'user' : existing.source };
+    const updated = { ...existing, ...Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)),
+      id, source: patch.apiKey !== undefined ? 'user' : existing.source };
     this.providers.set(id, updated);
     await this.persist();
     return updated;
@@ -194,7 +177,6 @@ export class ModelRegistry {
     if (providerId === 'openrouter') return this.fetchOpenRouterModels(p);
     if (providerId === 'moonshot' || providerId === 'deepseek' || providerId === 'mistral') return this.fetchOpenAICompatibleModels(p);
     if (providerId === 'gemini') return this.fetchGeminiModels(p);
-    if (providerId === 'agent-proxy') return this.fetchAgentProxyModels();
     return [];
   }
 
@@ -202,7 +184,8 @@ export class ModelRegistry {
   async test(providerId: ProviderId): Promise<{ ok: boolean; error?: string; modelCount?: number }> {
     try {
       const models = await this.listModels(providerId);
-      return { ok: true, modelCount: models.length };
+      return models.length ? { ok: true, modelCount: models.length } :
+        { ok: false, modelCount: 0, error: 'The provider did not return a model list.' };
     } catch (err: any) {
       return { ok: false, error: err?.message ?? String(err) };
     }
@@ -238,7 +221,8 @@ export class ModelRegistry {
     return { text: '[no-llm-available] ' + prompt.slice(0, 140), provider: 'none', model: 'fallback', durationMs: 0 };
   }
 
-  getDiscoveredAgentConfigs(): AgentDiscovered[] { return [...this.discoveredAgentConfigs]; }
+  /** Compatibility method. Host configuration discovery is disabled. */
+  getDiscoveredAgentConfigs(): AgentDiscovered[] { return []; }
 
   // ── Provider-specific calls ────────────────────────────────────────────
 
@@ -252,7 +236,6 @@ export class ModelRegistry {
       case 'deepseek':
       case 'mistral':     return this.callOpenAICompatible(p, model, prompt, opts);
       case 'gemini':      return this.callGemini(p, model, prompt, opts);
-      case 'agent-proxy': return this.callAgentProxy(p, model, prompt, opts);
       default: return null;
     }
   }
@@ -316,17 +299,6 @@ export class ModelRegistry {
       inputTokens: json.usageMetadata?.promptTokenCount,
       outputTokens: json.usageMetadata?.candidatesTokenCount,
     };
-  }
-
-  /** Agent proxy: route through whichever agent tool has intelligence configured. */
-  private async callAgentProxy(_p: ProviderConfig, _model: string, prompt: string, opts: { system?: string; maxTokens?: number }): Promise<{ text: string; inputTokens?: number; outputTokens?: number } | null> {
-    for (const agent of this.discoveredAgentConfigs) {
-      const upstreamProvider = this.providers.get(agent.provider);
-      if (!upstreamProvider || !upstreamProvider.apiKey) continue;
-      const out = await this.dispatch(agent.provider, upstreamProvider, agent.model, prompt, opts).catch(() => null);
-      if (out) return { ...out };
-    }
-    return null;
   }
 
   // ── Model discovery ────────────────────────────────────────────────────
@@ -423,177 +395,19 @@ export class ModelRegistry {
     } catch { return []; }
   }
 
-  private fetchAgentProxyModels(): ModelInfo[] {
-    return this.discoveredAgentConfigs.map(a => ({
-      id: a.model || a.provider,
-      provider: 'agent-proxy' as ProviderId,
-      displayName: `${a.agent} → ${a.provider} / ${a.model || '(default)'}`,
-      tags: ['agent-config', a.agent],
-    }));
-  }
-
-  // ── Agent config auto-discovery ────────────────────────────────────────
-
-  private async discoverAgentConfigs(): Promise<AgentDiscovered[]> {
-    const out: AgentDiscovered[] = [];
-    const home = os.homedir();
-
-    const tryJson = (p: string): any => {
-      try { return JSON.parse(fs.readFileSync(p, 'utf-8')); } catch { return null; }
-    };
-
-    // Claude Code
-    const claudePath = path.join(home, '.claude', 'settings.json');
-    const claude = tryJson(claudePath);
-    if (claude && typeof claude === 'object') {
-      const model = claude.model || claude.defaultModel;
-      if (model && /claude|opus|sonnet|haiku/i.test(String(model))) {
-        out.push({ agent: 'claude-code', provider: 'anthropic', model: String(model), apiKey: process.env.ANTHROPIC_API_KEY, sourcePath: claudePath });
-      }
-    }
-
-    // Codex
-    const codexPath = path.join(home, '.codex', 'config.json');
-    const codex = tryJson(codexPath);
-    if (codex && codex.model_provider) {
-      const prov = String(codex.model_provider).toLowerCase();
-      if (['openai', 'openrouter', 'anthropic', 'ollama'].includes(prov)) {
-        out.push({ agent: 'codex', provider: prov as ProviderId, model: codex.model ?? '', apiKey: codex.api_key, sourcePath: codexPath });
-      }
-    }
-
-    // Kilo Code
-    const kiloPath = path.join(home, '.kilocode', 'settings.json');
-    const kilo = tryJson(kiloPath);
-    if (kilo && kilo.model && kilo.provider) {
-      const prov = String(kilo.provider).toLowerCase();
-      if (['openai', 'anthropic', 'openrouter', 'ollama', 'gemini', 'deepseek'].includes(prov)) {
-        out.push({ agent: 'kilo-code', provider: prov as ProviderId, model: String(kilo.model), apiKey: kilo.apiKey, sourcePath: kiloPath });
-      }
-    }
-
-    // OpenCode
-    const openCodePath = path.join(home, '.opencode', 'settings.json');
-    const opencode = tryJson(openCodePath);
-    if (opencode && opencode.provider && opencode.model) {
-      const prov = String(opencode.provider).toLowerCase();
-      if (['openai', 'anthropic', 'openrouter', 'ollama'].includes(prov)) {
-        out.push({ agent: 'opencode', provider: prov as ProviderId, model: String(opencode.model), apiKey: opencode.apiKey, sourcePath: openCodePath });
-      }
-    }
-
-    // Roo Code
-    const rooPath = path.join(home, '.roocode', 'mcp.json');
-    const roo = tryJson(rooPath);
-    if (roo && roo.provider && roo.model) {
-      out.push({ agent: 'roo-code', provider: String(roo.provider) as ProviderId, model: String(roo.model), apiKey: roo.apiKey, sourcePath: rooPath });
-    }
-
-    // Aider — YAML file, we only parse the model field if it matches a well-known name
-    const aiderPath = path.join(home, '.aider.conf.yml');
-    if (fs.existsSync(aiderPath)) {
-      try {
-        const raw = fs.readFileSync(aiderPath, 'utf-8');
-        const modelMatch = raw.match(/^\s*model:\s*(\S+)/m);
-        if (modelMatch) {
-          const model = modelMatch[1].trim();
-          const provider: ProviderId = /claude|opus|sonnet|haiku/i.test(model) ? 'anthropic'
-            : /gpt|o1|o3|o4/i.test(model) ? 'openai'
-            : /gemini/i.test(model) ? 'gemini'
-            : /deepseek/i.test(model) ? 'deepseek'
-            : 'openrouter';
-          out.push({ agent: 'aider', provider, model, sourcePath: aiderPath });
-        }
-      } catch { /* skip */ }
-    }
-
-    // Cline / Cursor — VS Code settings (platform-dependent); check common macOS/Linux paths + Windows
-    const vscodePaths = [
-      path.join(home, 'AppData', 'Roaming', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
-      path.join(home, 'Library', 'Application Support', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
-      path.join(home, '.config', 'Code', 'User', 'globalStorage', 'saoudrizwan.claude-dev', 'settings', 'cline_mcp_settings.json'),
-    ];
-    for (const p of vscodePaths) {
-      const cfg = tryJson(p);
-      if (cfg && typeof cfg === 'object') {
-        out.push({ agent: 'cline', provider: 'anthropic', model: 'claude-sonnet-4-6', sourcePath: p });
-        break;
-      }
-    }
-
-    // Cursor .cursor/mcp.json
-    const cursorPath = path.join(home, '.cursor', 'mcp.json');
-    if (fs.existsSync(cursorPath)) {
-      out.push({ agent: 'cursor', provider: 'anthropic', model: 'claude-sonnet-4-6', sourcePath: cursorPath });
-    }
-
-    // ── Generic discovery for any additional agent tools ───────────────
-    // If Hermes / OpenClaw / Nemoclaw / any other tool ships a standard
-    // JSON or YAML config in the home dir, we probe the most likely paths
-    // and pick up provider + model if those fields exist.
-    const extraAgentCandidates: Array<{ name: string; paths: string[] }> = [
-      { name: 'hermes',    paths: ['.hermes/config.json', '.hermes/settings.json', '.config/hermes/config.json'] },
-      { name: 'openclaw',  paths: ['.openclaw/config.json', '.openclaw/settings.json'] },
-      { name: 'nemoclaw',  paths: ['.nemoclaw/config.json', '.nemoclaw/settings.json'] },
-      { name: 'continue',  paths: ['.continue/config.json'] },
-      { name: 'tabby',     paths: ['.tabby/config.toml'] },
-      { name: 'cody',      paths: ['.sourcegraph/cody.json'] },
-      { name: 'zed',       paths: ['.config/zed/settings.json', 'AppData/Roaming/Zed/settings.json'] },
-    ];
-    for (const cand of extraAgentCandidates) {
-      for (const rel of cand.paths) {
-        const p = path.join(home, rel);
-        if (!fs.existsSync(p)) continue;
-        const cfg = tryJson(p);
-        if (!cfg || typeof cfg !== 'object') continue;
-        // Pull provider+model from any of these conventional field names
-        const provider = String(cfg.provider || cfg.model_provider || cfg.llm_provider || cfg.providerId || '').toLowerCase();
-        const model = String(cfg.model || cfg.defaultModel || cfg.model_id || '');
-        const apiKey = cfg.apiKey || cfg.api_key || cfg.apiToken;
-        if (provider && (['ollama','anthropic','openai','openrouter','moonshot','gemini','deepseek','mistral'] as ProviderId[]).includes(provider as ProviderId)) {
-          out.push({ agent: cand.name, provider: provider as ProviderId, model, apiKey, sourcePath: p });
-          break;
-        } else if (model) {
-          // Still record the discovery even if provider is missing — user can map it manually in UI
-          out.push({ agent: cand.name, provider: 'agent-proxy', model, apiKey, sourcePath: p });
-          break;
-        }
-      }
-    }
-
-    // Also check user-added custom paths from ~/.shadow-brain/custom-agents.json
-    try {
-      const customPath = path.join(CONFIG_DIR, 'custom-agents.json');
-      if (fs.existsSync(customPath)) {
-        const raw = JSON.parse(fs.readFileSync(customPath, 'utf-8')) as { agents?: Array<{ name: string; path: string; provider?: ProviderId; model?: string; apiKey?: string }> };
-        for (const entry of raw.agents ?? []) {
-          if (!fs.existsSync(entry.path)) continue;
-          out.push({
-            agent: entry.name,
-            provider: (entry.provider || 'agent-proxy') as ProviderId,
-            model: entry.model || '',
-            apiKey: entry.apiKey,
-            sourcePath: entry.path,
-          });
-        }
-      }
-    } catch { /* skip */ }
-
-    return out;
-  }
-
   private async persist(): Promise<void> {
     try {
       const shape: PersistShape = {
         schemaVersion: 2,
         providers: Object.fromEntries(
-          Array.from(this.providers.entries()).map(([id, p]) => [id, { apiKey: p.apiKey, baseUrl: p.baseUrl, defaultModel: p.defaultModel, enabled: p.enabled, source: p.source }])
+          Array.from(this.providers.entries()).map(([id, p]) => [id, { apiKey: p.source === 'env' ? undefined : p.apiKey,
+            baseUrl: p.baseUrl, defaultModel: p.defaultModel, enabled: p.enabled, source: p.source }])
         ),
         intelligence: this.intelligence,
       };
-      const tmp = CONFIG_PATH + '.tmp';
+      const tmp = this.configPath + '.tmp';
       fs.writeFileSync(tmp, JSON.stringify(shape, null, 2));
-      fs.renameSync(tmp, CONFIG_PATH);
+      fs.renameSync(tmp, this.configPath);
     } catch { /* non-fatal */ }
   }
 }

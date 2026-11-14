@@ -8,6 +8,8 @@ import { parseContextRequest } from './brain/context-request.js';
 import { inspectMemoryHealth } from './brain/memory-inspection.js';
 import { ProjectFeedbackStore } from './brain/project-feedback.js';
 import { resolveProjectStore } from './brain/project-memory.js';
+import { ProjectPolicyStore } from './brain/project-policy.js';
+import { enforceProjectContext } from './brain/project-policy-delivery.js';
 
 export function registerContextCommands(program: Command): void {
   program.command('context-pack').description('Build a bounded, explained project context pack without model calls')
@@ -17,6 +19,7 @@ export function registerContextCommands(program: Command): void {
     .option('--db <path>', 'Explicit memory-store path')
     .option('--settings <path>', 'Explicit feature-settings file')
     .option('--token-budget <number>', 'Approximate token budget, including the rendered context', '2000')
+    .option('--max-entries <number>', 'Maximum selected memories, 1 to 30')
     .option('--cross-project', 'Request broader context when the feature is enabled')
     .option('--profile <name>', 'Retrieval profile: legacy or adaptive', 'legacy')
     .option('--no-related', 'Disable recorded one-hop expansion in adaptive retrieval')
@@ -26,7 +29,8 @@ export function registerContextCommands(program: Command): void {
       if (!Number.isSafeInteger(tokenBudget) || tokenBudget < 0 || tokenBudget > 12000) throw new TypeError('Token budget must be an integer from 0 to 12000.');
       const local = resolveProjectStore(opts.project, opts.db);
       const request = parseContextRequest({ projectId: opts.projectId ?? local?.projectId ?? GlobalBrain.projectIdFor(path.resolve(opts.project)),
-        query, tokenBudget, includeCrossProject: !!opts.crossProject, profile: opts.profile, expandRelated: opts.related });
+        query, tokenBudget, maxEntries: opts.maxEntries === undefined ? undefined : Number(opts.maxEntries),
+        includeCrossProject: !!opts.crossProject, profile: opts.profile, expandRelated: opts.related });
       if (local && (request.projectId !== local.projectId || request.includeCrossProject)) {
         throw new TypeError('This memory store is pinned to its local project.');
       }
@@ -36,11 +40,13 @@ export function registerContextCommands(program: Command): void {
       const features = settings.get().features;
       try {
         if (features.contextAssembly) brain.refresh();
-        const pack = assembleContext(brain, {
+        const options = {
           ...request, features,
           feedback: features.contextAssembly && local && request.profile === 'adaptive' ? new ProjectFeedbackStore(local.root, brain).get() : undefined,
           annotations: features.contextAssembly ? memoryAnnotationsFor(brain).get() : undefined,
-        });
+        };
+        const pack = assembleContext(brain, local
+          ? enforceProjectContext(local.root, brain, new ProjectPolicyStore(local.root, local.projectId).get(), options) : options);
         if (opts.json) console.log(JSON.stringify(pack, null, 2));
         else {
           console.log(pack.markdown || (pack.enabled ? 'No matching context fits this request and budget.' : 'Context packs are disabled in feature settings.'));

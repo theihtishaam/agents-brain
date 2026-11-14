@@ -9,15 +9,15 @@ const isoTime = value => value && Number.isFinite(new Date(value).getTime()) ? n
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const local = document.documentElement.dataset.projectLocal === 'true';
 const projectFeatureLimits={crossProjectContext:'Project memory stays scoped to this project.',automaticBriefing:'Automatic briefing requires a legacy analysis session.'};
-const featureLimit = id => local ? projectFeatureLimits[id] : undefined;
-const nav = {overview:'Brain overview',knowledge:'Knowledge',room:'Collaboration',context:'Context',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
+const featureLimit = id => local ? projectFeatureLimits[id] : id==='projectFileActivity'?'Open a project workspace to observe project files.':undefined;
+const nav = {overview:'Brain overview',sessions:'Sessions',knowledge:'Knowledge',room:'Collaboration',context:'Context',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
 const labels = {codex:'Codex','claude-code':'Claude Code',opencode:'OpenCode','deepseek-harness':'DeepSeek Harness',user:'Operator'};
 const hostName = value => labels[value] ?? value ?? 'Unknown host';
 const state = {view:'overview',project:'',overview:null,server:null,connection:'connecting',errors:{},graph:null,features:null,integrations:null,
-  profile:null,feedback:null,hub:null,documents:null,docPage:1,room:null,context:null,contextInput:null,comparison:null,skill:null,skillInput:null,
+  nativeConnection:null,nativeThreads:null,nativeThread:null,nativeArchived:false,nativeListCursor:null,nativeThreadCursor:null,sessions:null,session:null,sessionBefore:null,sessionCheckpoint:null,usage:null,sources:null,source:null,evidence:null,teachDraft:'',profile:null,feedback:null,hub:null,documents:null,docPage:1,room:null,context:null,contextInput:null,comparison:null,skill:null,skillInput:null,
   picked:null,memory:null,focus:false,inspector:'record',graphMode:'graph',listing:false,events:[],cursor:undefined,journalId:undefined,
-  live:false,recording:false,journalGap:false,replayId:null,motionPaused:false,motionStarted:0,pulseIds:[],pending:false,message:'',messageError:false,
-  dataEpoch:0,viewEpoch:0,search:null,lessonFrom:null};
+  live:false,recording:false,journalGap:false,replayId:null,replayExpired:false,motionPaused:false,motionStarted:0,pulseIds:[],pending:false,message:'',messageError:false,
+  dataEpoch:0,viewEpoch:0,graphEpoch:0,graphFilter:'all',search:null,lessonFrom:null,policy:null,policySelection:null,managedSkills:null,managedSkillPlan:null};
 let timer, polling=false, pollAgain=false, failures=0, polls=0;
 let controller;
 const list = (content,attributes='',classes='') => '<ul class="list '+classes+'" '+attributes+'>'+content+'</ul>';
@@ -93,7 +93,8 @@ function renderChrome(){
   const notice=$('notice');
   notice.textContent=state.connection==='offline'?'The local workspace did not respond. Keep this tab open while the launcher restarts the server, or refresh to retry. '+(state.overview?'Showing the last loaded snapshot.':''):
     state.errors.overview||state.server?.storage?.status==='error'?'The server responded, but the memory store is unavailable. '+(state.errors.overview||state.server.storage.error||''):
-    state.journalGap?'Some activity expired before this page could read it. The timeline shows retained records.':'';
+    state.replayExpired?'The selected replay record is outside the loaded history. Choose another record or return to latest.':
+    state.journalGap?'Some activity expired before this page could read it. The timeline shows retained records.':liveStream.notice??'';
   $('scope-note').textContent=state.overview?(fixed?'Project-local workspace · ':'Global workspace · ')+scopeName()+(state.overview.version?' · v'+state.overview.version:''):'';
   const buttons=Object.entries(nav).map(([id,label])=>'<button type="button" data-view="'+id+'" '+(id===state.view?'aria-current="page"':'')+'>'+label+'</button>').join('');
   if($('nav').dataset.buttons!==buttons){$('nav').innerHTML=buttons;$('nav').dataset.buttons=buttons;}
@@ -102,7 +103,10 @@ function resetScope(){
   state.dataEpoch++;state.viewEpoch++;state.graph=null;state.picked=null;state.memory=null;state.focus=false;state.context=null;
   state.comparison=null;state.contextInput=null;state.hub=null;state.documents=null;state.room=null;state.profile=null;state.feedback=null;
   state.skill=null;state.skillInput=null;state.search=null;state.events=[];state.cursor=undefined;state.journalId=undefined;state.lessonFrom=null;
-  state.replayId=null;state.journalGap=false;state.pulseIds=[];state.motionStarted=0;
+  state.replayId=null;state.replayExpired=false;state.journalGap=false;state.pulseIds=[];state.motionStarted=0;
+  state.policy=null;state.policySelection=null;state.managedSkills=null;state.managedSkillPlan=null;
+  clearTimeout(nativeTimer);state.nativeConnection=null;state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;state.nativeArchived=false;state.sessions=null;state.session=null;state.sessionBefore=null;state.sessionCheckpoint=null;state.usage=null;state.sources=null;state.source=null;state.evidence=null;state.teachDraft='';
+  state.graphEpoch++;state.graphFilter='all';state.listing=false;graphCamera=defaultCamera();
 }
 function updateOverview(value){
   const fixed=value.projectKit?.projectId;
@@ -112,40 +116,46 @@ function updateOverview(value){
 }
 function installTelemetry(page){
   if(!page.liveEnabled){
-    state.events=[];state.cursor=undefined;state.journalId=undefined;state.live=false;state.recording=page.recordingEnabled;state.replayId=null;state.pulseIds=[];
+    state.events=[];state.cursor=undefined;state.journalId=undefined;state.live=false;state.recording=page.recordingEnabled;state.replayId=null;state.replayExpired=false;state.pulseIds=[];
     return;
   }
   state.live=true;state.recording=page.recordingEnabled;
   if(page.gap||page.reset||(state.journalId&&state.journalId!==page.journalId)){
-    state.events=[];state.replayId=null;state.journalGap=!!page.gap;state.pulseIds=[];
+    state.events=[];state.journalGap=!!page.gap;state.pulseIds=[];
   }
   const hasHistory=state.cursor!==undefined;
   const unique=new Map(state.events.map(event=>[event.id,event]));
   const added=arr(page.events).filter(event=>!unique.has(event.id));
   for(const event of added)unique.set(event.id,event);
-  state.events=[...unique.values()].sort((a,b)=>a.sequence-b.sequence).slice(-200);
+  if(added.length||unique.size!==state.events.length)state.events=[...unique.values()].sort((a,b)=>a.sequence-b.sequence).slice(-200);
   state.cursor=page.cursor;
   state.journalId=page.journalId;
-  if(state.replayId&&!unique.has(state.replayId))state.replayId=null;
-  if(hasHistory&&!page.gap&&!page.reset&&!page.hasMore&&state.view==='overview'&&state.graphMode==='graph'&&!state.focus&&!state.replayId&&!state.motionPaused&&!reduced.matches){
+  if(state.replayId&&!state.events.some(event=>event.id===state.replayId))state.replayExpired=true;
+  if(state.suppressLivePulse){state.suppressLivePulse=false;return;}
+  if(hasHistory&&!page.gap&&!page.reset&&!page.hasMore&&state.view==='overview'&&state.graphMode==='graph'&&!state.replayId&&!state.motionPaused&&!reduced.matches){
     const now=Date.now();
     const fresh=added.filter(event=>{
       const age=now-Date.parse(event.timestamp);
-      return age>=0&&age<=6500;
+      return exchangeKey(event)&&age>=0&&age<=6500;
     });
     if(fresh.length){state.pulseIds=fresh.slice(-4).map(event=>event.id);state.motionStarted=performance.now();}
   }
 }
-async function refresh(manual=false){
+async function refresh(manual=false,areas=null){
   if(document.hidden&&!manual)return;
   clearTimeout(timer);
-  if(polling){pollAgain ||= manual;return;}
+  if(polling){if(areas)queueLive(areas);else pollAgain ||= manual;return;}
   polling=true;
   controller=new AbortController();
   const signal=controller.signal;
   const options={signal};
   try{
-    const [health,summary]=await Promise.allSettled([api('status',options),api('overview',options)]);
+    const scope=state.view;
+    const needsHealth=!areas||!state.server,needsSummary=!areas||areas.has('graph');
+    const [health,summary]=await Promise.allSettled([
+      needsHealth?api('status',options):state.server,
+      needsSummary?api('overview',options):state.overview,
+    ]);
     if(signal.aborted)return;
     const old=state.server?.serverInstanceId;
     const healthOk=health.status==='fulfilled'&&validStatus(health.value);
@@ -163,24 +173,46 @@ async function refresh(manual=false){
     if(!reachable){failures++;state.pulseIds=[];drawGraph();if(!$('title'))render();return;}
     failures=0;
     polls++;
-    const epoch=state.dataEpoch;
+    const epoch=state.dataEpoch,graphEpoch=state.graphEpoch;
     const params=new URLSearchParams(projectQuery({limit:'200'}).slice(1));
     if(state.cursor!==undefined)params.set('cursor',state.cursor);
     if(state.journalId)params.set('journalId',state.journalId);
-    const jobs=[['telemetry',api('telemetry?'+params,options)]];
-    if(!state.graph||manual||(state.view==='overview'&&(polls%3===0||state.graph.totalMemories!==state.overview?.quality?.total)))jobs.push(['graph',api('graph'+projectQuery({limit:'140',...(state.picked?.startsWith('memory:')?{memory:state.picked.slice(7)}:{})}),options)]);
-    if(!state.features||manual||state.view==='setup')jobs.push(['features',api('features',options)]);
-    if(local&&state.server?.capabilities?.hub!==false&&!state.pending&&(!state.hub||manual||['room','knowledge','learning'].includes(state.view)))jobs.push(['hub',api('hub',options)]);
-    if(local&&!state.pending&&state.view==='room'&&state.room)jobs.push(['room',api('hub/rooms/'+encodeURIComponent(state.room.room.id),options)]);
+    const wanted=area=>!areas||areas.has(area);
+    const jobs=[];
+    if(local&&(wanted('policy')||scope==='setup'&&wanted('sessions'))&&!state.pending&&
+      (['setup','sessions','context'].includes(scope)||state.context))jobs.push(['policy',api('project-policy',options)]);
+    if(wanted('telemetry'))jobs.push(['telemetry',api('telemetry?'+params,options)]);
+    if(local&&wanted('usage')&&['models','usage','sessions'].includes(scope))jobs.push(['usage',api('usage',options)]);
+    if(local&&wanted('sessions')&&scope==='sessions'&&!state.pending){jobs.push(['sessions',api('sessions',options)]);if(state.session)jobs.push(['session',api('sessions/'+state.session.session.id+(state.sessionBefore?'?before='+encodeURIComponent(state.sessionBefore):''),options)]);}
+    if(local&&wanted('feedback')&&scope==='learning'&&!state.pending)jobs.push(['feedback',api('project-feedback',options)]);
+    if(local&&wanted('sources')&&scope==='knowledge'&&!state.pending){
+      jobs.push(['sources',api('sources',options)]);
+      if(state.source)jobs.push(['source',api('sources/'+encodeURIComponent(state.source.id),options)]);
+    }
+    if(wanted('graph')&&(!state.graph||manual||(scope==='overview'&&(areas||polls%3===0||state.graph.totalMemories!==state.overview?.quality?.total))))jobs.push(['graph',api('graph'+projectQuery({limit:graphMemoryLimit,...(state.picked?.startsWith('memory:')?{memory:state.picked.slice(7)}:{})}),options)]);
+    if(wanted('features')&&(!state.features||manual||areas||scope==='setup'))jobs.push(['features',api('features',options)]);
+    if(local&&wanted('hub')&&state.server?.capabilities?.hub!==false&&!state.pending&&(!state.hub||manual||['room','knowledge','learning'].includes(scope)))jobs.push(['hub',api('hub',options)]);
+    if(local&&wanted('hub')&&!state.pending&&scope==='room'&&state.room)jobs.push(['room',api('hub/rooms/'+encodeURIComponent(state.room.room.id),options)]);
     const results=await Promise.allSettled(jobs.map(([,job])=>job));
     if(signal.aborted||epoch!==state.dataEpoch)return;
     let needsRender=false;
     results.forEach((result,index)=>{
       const name=jobs[index][0];
-      if(result.status==='rejected'){state.errors[name]=result.reason.message;return;}
+      if(result.status==='rejected'){needsRender ||= state.errors[name]!==result.reason.message;state.errors[name]=result.reason.message;return;}
+      needsRender ||= !!state.errors[name];
       delete state.errors[name];
-      if(name==='telemetry'){installTelemetry(result.value);if(result.value.hasMore)pollAgain=true;}
-      else if(name==='graph'&&JSON.stringify(state.graph)!==JSON.stringify(result.value)){state.graph=result.value;needsRender ||= state.view==='overview';}
+      if(name==='policy'){const changed=installPolicy(result.value);needsRender ||= changed;return;}
+      if(name==='session'&&state.session?.session.id!==result.value.session.id)return;
+      if(name==='source'){
+        if(state.source?.id!==result.value.source.id)return;
+        needsRender ||= state.view==='knowledge'&&JSON.stringify(state.source)!==JSON.stringify(result.value.source);
+        state.source=result.value.source;return;
+      }
+      if(name==='sessions'||name==='session'||name==='sources'){needsRender ||= state.view===scope&&JSON.stringify(state[name])!==JSON.stringify(result.value);state[name]=result.value;}
+      else if(name==='feedback'){needsRender ||= state.view==='learning'&&state.feedback?.revision!==result.value.revision;state.feedback=result.value;}
+      else if(name==='usage'){needsRender ||= ['models','usage','sessions'].includes(state.view)&&JSON.stringify(state.usage)!==JSON.stringify(result.value);state.usage=result.value;}
+      else if(name==='telemetry'){const before=JSON.stringify([state.live,state.recording,state.cursor,state.events.map(event=>event.id)]);installTelemetry(result.value);needsRender ||= ['models','usage'].includes(state.view)&&before!==JSON.stringify([state.live,state.recording,state.cursor,state.events.map(event=>event.id)]);if(result.value.hasMore)pollAgain=true;}
+      else if(name==='graph'&&graphEpoch===state.graphEpoch&&JSON.stringify(state.graph)!==JSON.stringify(result.value)){state.graph=result.value;needsRender ||= state.view==='overview';}
       else if(name==='features'&&(!state.features||result.value.revision>=state.features.revision)){
         needsRender ||= state.view==='setup'&&state.features?.revision!==result.value.revision;
         state.features=result.value;
@@ -192,17 +224,19 @@ async function refresh(manual=false){
         state.room=result.value;
       }
     });
-    renderChrome();
+    syncProjectStream();streamBadge();renderChrome();
+    if(local&&(!areas||areas.has('features'))&&state.features?.features?.projectFileActivity)void readLiveFiles();
     if(state.view==='overview'){
-      if(manual||!$('brain-stage')||needsRender)render();
+      if(manual||!$('brain-stage')||needsRender)render(true);
       else updateOverviewLive();
     }else if(manual||!$('title')||needsRender)render(true);
     if(manual)await loadView();
   } finally {
     polling=false;controller=undefined;
     if(!document.hidden){
-      const delay=pollAgain?20:failures?Math.min(15000,1800*2**Math.min(3,failures-1)):2600;
-      pollAgain=false;timer=setTimeout(()=>void refresh(),delay);
+      const delay=pollAgain?20:failures?Math.min(15000,1800*2**Math.min(3,failures-1)):local&&liveStream.status==='off'?5000:2600;
+      const next=local&&liveStream.status==='live'?new Set(['telemetry']):null;
+      if(pollAgain||!next){pollAgain=false;timer=setTimeout(()=>void refresh(false,next),delay);}
     }
   }
 }
@@ -211,20 +245,27 @@ async function loadView(){
   const current=state.view;
   const jobs=[];
   if(current==='setup')jobs.push(['integrations','integrations']);
+  if(local&&current==='setup')jobs.push(['managedSkills','managed-skills']);
+  if(local&&['setup','sessions','context'].includes(current))jobs.push(['policy','project-policy']);
   if(current==='knowledge'||current==='room'||current==='learning'){
     if(local&&!state.hub)jobs.push(['hub','hub']);
     if(local&&current==='knowledge'&&!state.profile)jobs.push(['profile','project-profile']);
-    if(local&&current==='learning'&&!state.feedback)jobs.push(['feedback','project-feedback']);
+    if(local&&current==='learning')jobs.push(['feedback','project-feedback']);
   }
+  if(local&&current==='sessions')jobs.push(['sessions','sessions']);
+  if(local&&['models','usage','sessions'].includes(current))jobs.push(['usage','usage']);
+  if(local&&current==='knowledge')jobs.push(['sources','sources']);
   if(current==='models')jobs.push(['integrations','integrations']);
   const results=await Promise.allSettled(jobs.map(([,url])=>api(url)));
   if(epoch!==state.viewEpoch||current!==state.view)return;
   results.forEach((result,index)=>{
     const name=jobs[index][0];
-    if(result.status==='fulfilled'){state[name]=result.value;delete state.errors[name];}
+    if(result.status==='fulfilled'){if(name==='policy')installPolicy(result.value);else state[name]=result.value;delete state.errors[name];}
     else state.errors[name]=result.reason.message;
   });
   if(jobs.length)render(true);
+  if(local&&current==='sessions')void refreshNativeChats();
+  if(local&&current==='sessions')void readLiveFiles();
 }
 function openView(next){
   if(!Object.hasOwn(nav,next))return;
@@ -232,19 +273,30 @@ function openView(next){
   render();window.scrollTo(0,0);$('title')?.focus({preventScroll:true});void loadView();
 }
 function render(restore=false){
+  const policyToolsOpen=$('policy-tools')?.open;
+  const finder=$('node-list');
+  const finderFocus=finder?.contains(document.activeElement)?document.activeElement:null;
+  const finderDraft=$('graph-search')?.value;
   const formValues=restore?[...$('main').querySelectorAll('form[data-form]')].map(form=>{
     const fields=[...form.elements].filter(node=>node.name&&node.type!=='submit'&&node.type!=='button');
-    return {kind:form.dataset.form,id:form.dataset.id,fields:fields.map(node=>({name:node.name,value:node.value,checked:node.checked,
+    return {kind:form.dataset.form,id:form.dataset.id,item:form.dataset.item,fields:fields.map(node=>({name:node.name,value:node.value,checked:node.checked,
       file:node.type==='file'?node:null,active:node===document.activeElement,start:node.selectionStart,end:node.selectionEnd}))};
   }):[];
   unmountGraph();
   renderChrome();
   const viewBody=views[state.view]();
   $('main').innerHTML=viewBody+'<p class="status small" id="view-status" role="status"></p>';
+  if(policyToolsOpen&&$('policy-tools'))$('policy-tools').open=true;
   status(state.message,state.messageError);
-  if(state.view==='overview')mountGraph();
+  if(state.view==='overview'){mountGraph();updateLiveFilePulse();}
+  if(state.listing&&typeof finderDraft==='string'&&$('graph-search'))$('graph-search').value=finderDraft;
+  if(finderFocus&&state.listing){
+    const next=finderFocus.id==='graph-search'?$('graph-search'):[...$('node-list')?.querySelectorAll('button')??[]].find(button=>
+      button.dataset.node===finderFocus.dataset.node&&button.dataset.graphMemory===finderFocus.dataset.graphMemory&&button.type===finderFocus.type);
+    next?.focus({preventScroll:true});
+  }
   for(const form of $('main').querySelectorAll('form[data-form]')){
-    const saved=formValues.find(item=>item.kind===form.dataset.form&&item.id===form.dataset.id);
+    const saved=formValues.find(item=>item.kind===form.dataset.form&&item.id===form.dataset.id&&item.item===form.dataset.item);
     if(!saved)continue;
     for(const field of saved.fields){
       let node=form.elements.namedItem(field.name);
@@ -255,11 +307,18 @@ function render(restore=false){
       if(field.active){node.closest('details')?.setAttribute('open','');node.focus({preventScroll:true});if(field.start!==null)node.setSelectionRange?.(field.start,field.end);}
     }
   }
+  $('main').querySelectorAll('[id^="policy-"][type="range"]').forEach(reflectPolicySlider);
 }
 async function chooseMemory(id){
   const item=arr(state.graph?.nodes).find(node=>node.id===id);
   if(!item)return;
   state.picked=id;state.memory=null;state.focus=true;state.inspector='record';state.pulseIds=[];
+  if(graphCamera.scale>1&&graphSurface?.points.has(id)){
+    const point=graphSurface.points.get(id);
+    graphCamera.x=(graphSurface.width/2-point.x)*graphCamera.scale;
+    graphCamera.y=(graphSurface.height/2-point.y)*graphCamera.scale;
+    boundCamera(graphSurface);
+  }
   renderInspector();drawGraph();
   if(item.kind!=='memory')return;
   const epoch=state.dataEpoch;
@@ -272,7 +331,7 @@ async function chooseMemory(id){
 async function loadDocuments(id){state.documents=await api('hub/documents/'+encodeURIComponent(id));state.docPage=arr(state.documents.pages)[0]?.page??1;}
 async function loadRoom(id){state.room=await api('hub/rooms/'+encodeURIComponent(id));}
 async function refreshHub(){state.hub=await api('hub');delete state.errors.hub;}
-async function refreshGraph(){state.graph=await api('graph'+projectQuery({limit:'140'}));delete state.errors.graph;}
+async function refreshGraph(){state.graph=await api('graph'+projectQuery({limit:graphMemoryLimit}));delete state.errors.graph;}
 function field(form,name){return String(form.get(name)??'').trim();}
 async function clipboard(text){
   if(!text)throw new Error('There is no text to copy.');
@@ -290,10 +349,14 @@ async function mutation(operation,source,success='Saved.'){
     const message=await operation();
     state.pending=false;status(typeof message==='string'?message:success);render(state.view!==submissionView);
     if(source?.dataset.feature)[...$('main').querySelectorAll('[data-feature]')].find(node=>node.dataset.feature===source.dataset.feature)?.focus({preventScroll:true});
+    if(source?.dataset.policyTool||source?.dataset.policyChat)[...$('main').querySelectorAll('[data-policy-tool],[data-policy-chat]')].find(node=>
+      source.dataset.policyTool?node.dataset.policyTool===source.dataset.policyTool:node.dataset.policyChat===source.dataset.policyChat)?.focus({preventScroll:true});
   }
   catch(failure){
     if(failure.status===409){
       if(source?.dataset.feature){try{state.features=await api('features');render(true);}catch{}}
+      else if(source?.dataset.action?.startsWith('managed-skill-')){state.managedSkillPlan=null;try{state.managedSkills=await api('managed-skills');render(true);}catch{}}
+      else if(source?.closest?.('[data-form=feedback]')||['toggle-feedback','remove-feedback'].includes(source?.dataset.action)){try{state.feedback=await api('project-feedback');render(true);}catch{}}
       else if(source?.dataset.roomAction&&state.room){try{await loadRoom(state.room.room.id);render(true);}catch{}}
     }
     status(failure.message||'The workspace request failed.',true);
@@ -311,7 +374,8 @@ async function afterSave(...refreshers){
 function setReplay(index){
   const event=state.events[index];
   if(!event)return;
-  state.replayId=event.id;state.pulseIds=[];state.inspector='event';state.focus=false;
+  state.replayId=event.id;state.replayExpired=false;state.pulseIds=[];state.inspector='event';state.focus=false;
+  renderChrome();
   updateOverviewLive();renderInspector();drawGraph();
 }
 function start(){
@@ -320,10 +384,11 @@ function start(){
   $('project').addEventListener('change',event=>{
     state.project=event.target.value;resetScope();render();void refresh(true);
   });
-  $('main').addEventListener('input',event=>{if(event.target.id==='replay')setReplay(Number(event.target.value));});
+  $('main').addEventListener('input',event=>{if(event.target.id==='replay')setReplay(Number(event.target.value));else reflectPolicySlider(event.target);});
+  $('main').addEventListener('change',event=>{if(event.target.id==='policy-chat'){state.policySelection=event.target.value;render();$('policy-chat')?.focus();}});
   document.addEventListener('visibilitychange',()=>{
     clearTimeout(timer);state.pulseIds=[];drawGraph();
-    if(document.hidden)controller?.abort();else void refresh(true);
+    if(document.hidden){controller?.abort();stopProjectStream();}else {state.suppressLivePulse=!!liveStream.cursor;void refresh(true);}
   });
   reduced.addEventListener('change',()=>{state.pulseIds=[];updateOverviewLive();});
   window.addEventListener('online',()=>void refresh(true));

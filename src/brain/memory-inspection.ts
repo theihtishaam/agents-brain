@@ -54,13 +54,13 @@ export function inspectMemory(brain: InspectionSource, annotations: MemoryAnnota
 
 /** Deterministic attention hints over a bounded, project-first snapshot. No truth or accuracy score. */
 export function inspectMemoryHealth(brain: InspectionSource, annotations: MemoryAnnotationSnapshot,
-  options: { projectId?: string; limit?: number; now?: Date } = {}): MemoryHealthReport {
+  options: { projectId?: string; limit?: number; now?: Date; excludeIds?: ReadonlySet<string> } = {}): MemoryHealthReport {
   if (options.projectId !== undefined) requireMemoryIdentifier(options.projectId);
   const queueLimit = options.limit ?? 30;
   if (!Number.isSafeInteger(queueLimit) || queueLimit < 1 || queueLimit > 100) throw new TypeError('limit must be an integer from 1 to 100.');
   const now = options.now ?? new Date();
   if (!Number.isFinite(now.getTime())) throw new TypeError('Invalid observation time.');
-  const fetched = brain.timeline({ projectId: options.projectId, limit: HEALTH_LIMIT + 1 });
+  const fetched = brain.timeline({ projectId: options.projectId, limit: HEALTH_LIMIT + 1, excludeIds: options.excludeIds });
   const entries = fetched.slice(0, HEALTH_LIMIT);
   const shown = new Map(entries.map(entry => [entry.id, entry.projectId]));
   const superseded = new Set<string>();

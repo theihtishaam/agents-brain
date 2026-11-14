@@ -538,12 +538,13 @@ export class GlobalBrain {
   }
 
   /** Chronological memory stream for dashboards and handoffs. */
-  timeline(opts: Pick<RecallOptions, 'projectId' | 'agentTool' | 'category' | 'limit'> = {}): BrainTimelineEvent[] {
+  timeline(opts: Pick<RecallOptions, 'projectId' | 'agentTool' | 'category' | 'limit' | 'excludeIds'> = {}): BrainTimelineEvent[] {
     if (!this.initialized) return [];
     return Array.from(this.entries.values())
       .filter(entry => !opts.projectId || entry.projectId === opts.projectId)
       .filter(entry => !opts.agentTool || entry.agentTool === opts.agentTool)
       .filter(entry => !opts.category || entry.category === opts.category)
+      .filter(entry => !opts.excludeIds?.has(entry.id))
       .sort((a, b) => dateTime(b.createdAt) - dateTime(a.createdAt) || compareIds(a.id, b.id))
       .slice(0, nonNegativeInt(opts.limit, 50))
       .map(({ id, projectId, projectName, agentTool, category, content, importance, createdAt, lastAccessed, metadata }) => ({

@@ -995,7 +995,7 @@ export class Orchestrator extends EventEmitter {
   getStatus() {
     return {
       running: this.running,
-      version: '7.21.0',
+      version: '7.22.0',
       agents: this.adapters.map(a => `${a.displayName} (${a.name})`),
       insightsGenerated: this.currentSession?.insights.length || 0,
       filesReviewed: this.currentSession?.filesReviewed || 0,

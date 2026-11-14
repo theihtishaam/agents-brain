@@ -27,6 +27,8 @@ export interface ContextAssemblyOptions {
   alwaysInclude?: readonly string[];
   annotations?: MemoryAnnotationSnapshot;
   feedback?: ProjectFeedbackSnapshot;
+  excludeIds?: ReadonlySet<string>;
+  policy?: { revision: number; maxTokens: number; maxEntries: number; hiddenMemories: number };
 }
 
 export interface ContextMemoryRelation {
@@ -79,6 +81,7 @@ export interface ContextPack {
   warnings: string[];
   markdown: string;
   retrieval?: ContextRetrievalReport;
+  policy?: NonNullable<ContextAssemblyOptions['policy']> & { effectiveMaxEntries: number };
 }
 
 const MAX_CANDIDATES = 200;
@@ -379,6 +382,7 @@ function* scopedAdaptiveEntries(
 ): IterableIterator<ContextSearchMemory> {
   for (const memory of memories) {
     if (pack.scope === 'project' && memory.projectId !== pack.projectId) continue;
+    if (options.excludeIds?.has(memory.id)) continue;
     if (curation.hidden.get(memory.id)?.projectId === memory.projectId) continue;
     if (cutoff && !options.alwaysInclude?.includes(memory.category) &&
         Math.max(memory.createdAt, memory.lastAccessed) < cutoff) continue;
@@ -396,10 +400,10 @@ function assembleAdaptive(
   const memories = brain.contextEntries({
     ...(broaden ? {} : { projectId: pack.projectId }),
     minImportance: options.minImportance,
-    ...(curation.hidden.size ? { excludeIds: new Set(curation.hidden.keys()) } : {}),
+    excludeIds: new Set([...curation.hidden.keys(), ...options.excludeIds ?? []]),
   });
-  const feedback = broaden ? undefined : projectFeedbackInfluence(options.feedback, pack.projectId, pack.queryKeywords);
-  const ranking = rankAdaptiveContext(scopedAdaptiveEntries(memories, options, pack, curation, cutoff), options.query ?? '', pack.queryKeywords, feedback);
+  const ranking = rankAdaptiveContext(scopedAdaptiveEntries(memories, options, pack, curation, cutoff), options.query ?? '', pack.queryKeywords,
+    broaden || !options.feedback ? undefined : representativeFor => projectFeedbackInfluence(options.feedback, pack.projectId, pack.queryKeywords, representativeFor));
   const related = adaptiveRelations(ranking, curation.related);
   const expanded = options.expandRelated !== false && pack.queryKeywords.length
     ? expandCandidates(ranking, related) : [];
@@ -507,6 +511,7 @@ export function assembleContext(brain: RecallSource, options: ContextAssemblyOpt
       ...(adaptive ? { estimator: 'unicode-code-heuristic' as const, usedBytes: 0 } : {}) },
     warnings: [],
     markdown: '',
+    ...(options.policy ? { policy: { ...options.policy, effectiveMaxEntries: maxEntries } } : {}),
     ...(adaptive ? { retrieval: emptyRetrieval() } : {}),
   };
   if (!pack.enabled) {
@@ -514,10 +519,16 @@ export function assembleContext(brain: RecallSource, options: ContextAssemblyOpt
     return pack;
   }
   if (options.includeCrossProject && !broaden) pack.warnings.push('Cross-project context is disabled in feature settings.');
+  if (adaptive && options.query?.trim() && !queryKeywords.length) {
+    pack.warnings.push('No searchable terms in this query. Use a project term or leave the query blank for general context.');
+    return pack;
+  }
 
-  const details = scopedMemoryDetails(brain, projectId, broaden);
+  const memoryDetails = scopedMemoryDetails(brain, projectId, broaden);
+  const details: ScopedMemoryDetails = (id, origin) => options.excludeIds?.has(id) ? undefined : memoryDetails(id, origin);
   const curation = readCuration(brain, options.annotations, projectId, broaden, details);
   const { hidden, related, orphanedReplacements } = curation;
+  if (options.policy?.hiddenMemories) pack.warnings.push(options.policy.hiddenMemories + ' memories linked to unshared chats were omitted.');
   const exclude = (id: string, origin: string, reason: ContextExclusion['reason']) => {
     pack.excluded.push({ id, reason, ...details(id, origin) });
   };
@@ -540,10 +551,10 @@ export function assembleContext(brain: RecallSource, options: ContextAssemblyOpt
     keywords: queryKeywords,
     limit: MAX_CANDIDATES + 1,
     minImportance: options.minImportance,
-    ...(hidden.size ? { excludeIds: new Set(hidden.keys()) } : {}),
+    excludeIds: new Set([...hidden.keys(), ...options.excludeIds ?? []]),
   });
   const scoped = ranked.filter(memory => (broaden || memory.projectId === projectId) &&
-    hidden.get(memory.id)?.projectId !== memory.projectId);
+    hidden.get(memory.id)?.projectId !== memory.projectId && !options.excludeIds?.has(memory.id));
   if (scoped.length > MAX_CANDIDATES) {
     pack.warnings.push('Context considered the highest-ranked ' + MAX_CANDIDATES + ' matching memories.');
   }

@@ -2103,15 +2103,9 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
       <div class="section-header">
         <div>
           <h1 class="section-title">Models & Brain Intelligence</h1>
-          <div class="section-subtitle">Route the Hive Mind through Ollama · Anthropic · OpenAI · OpenRouter · Moonshot/Kimi · Gemini · DeepSeek · Mistral — or reuse your existing agent tools' configuration</div>
+          <div class="section-subtitle">Route the Hive Mind through Ollama · Anthropic · OpenAI · OpenRouter · Moonshot/Kimi · Gemini · DeepSeek · Mistral using the provider settings configured for Shadow Brain</div>
         </div>
         <div class="section-actions"><button class="btn" onclick="refreshModels()">Refresh</button></div>
-      </div>
-
-      <div class="card mb-lg">
-        <div class="card-header"><div class="card-title">Auto-Discovered Agent Configurations</div></div>
-        <div class="mono mb" style="color:var(--text-2)">Shadow Brain detected these agent tools' configs on your machine — no need to re-enter API keys. Toggle "Use agent-tool models" below to let the brain borrow their intelligence.</div>
-        <div id="discovered-agents"></div>
       </div>
 
       <div class="card mb-lg">
@@ -2120,7 +2114,6 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
           <div class="field"><label>Lead Provider</label><select id="intel-provider"></select></div>
           <div class="field"><label>Lead Model</label><select id="intel-model"></select></div>
         </div>
-        <div class="feature-toggle mb"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="meta"><div class="name">Use already-configured agent-tool models</div><div class="desc">Reuse Claude Code / Cursor / Codex / Cline intelligence — no new API keys needed</div></div><label class="switch"><input type="checkbox" id="intel-agent-proxy"><span class="slider"></span></label></div>
         <div class="feature-toggle"><div class="icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div><div class="meta"><div class="name">Prefer Local-First (Ollama)</div><div class="desc">Route everything through Ollama when possible · zero cost · offline-ready</div></div><label class="switch"><input type="checkbox" id="intel-local-first"><span class="slider"></span></label></div>
         <button class="btn primary mt" onclick="saveIntelligence()">Save Intelligence Config</button>
         <div class="mono mt" id="intel-result"></div>
@@ -2131,16 +2124,6 @@ export const V6_DASHBOARD_HTML = `<!DOCTYPE html>
         <div class="grid cols-2" id="providers-grid"></div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><div class="card-title">Custom Agent Paths (Hermes / OpenClaw / Nemoclaw / any)</div></div>
-        <div class="mono mb" style="color:var(--text-2)">Point Shadow Brain at any agent's config file — we'll read the provider, model, and API key if present.</div>
-        <div id="custom-agents-list"></div>
-        <div class="grid cols-3 mt">
-          <div class="field"><label>Agent name</label><input id="ca-name" placeholder="hermes / openclaw / nemoclaw / ..."/></div>
-          <div class="field"><label>Config file path</label><input id="ca-path" placeholder="C:\\Users\\you\\.hermes\\config.json"/></div>
-          <div class="field"><label>&nbsp;</label><button class="btn primary" onclick="addCustomAgent()" style="width:100%">Add</button></div>
-        </div>
-      </div>
     </section>
 
     <!-- ════ CONFIG ══════════════════════════════════════════════════ -->
@@ -3136,18 +3119,12 @@ async function refreshModels() {
   if (!data) return;
   _providers = data.providers ?? [];
 
-  // Discovered agents section
-  document.getElementById('discovered-agents').innerHTML = data.discovered.length
-    ? data.discovered.map(d => \`<div class="row"><span class="k"><span class="pill purple">\${d.agent}</span> → <span class="pill cyan">\${d.provider}</span> <span class="tag-code">\${d.model || '(none)'}</span></span><span class="v mono" style="color:var(--text-3)" title="\${d.sourcePath}">\${d.apiKey ? '🔑 API key available' : 'no API key found'}</span></div>\`).join('')
-    : '<div class="empty">No agent configs found yet. Install Claude Code / Cursor / Cline / Codex / Aider / Kilo / Roo / OpenCode, or add a custom path below.</div>';
-
   // Provider cards
   document.getElementById('providers-grid').innerHTML = _providers.map(p => {
-    const okClass = p.apiKey ? 'good' : p.id === 'ollama' ? '' : 'warn';
     return \`<div class="card" style="padding:14px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:13px">\${p.displayName}</div><span class="pill \${p.enabled ? 'green' : ''}">\${p.enabled ? 'enabled' : 'off'}</span></div>
-      <div class="field" style="margin-bottom:6px"><label>API Key \${p.source === 'agent-discovered' ? '(from ' + (p.discoveredFrom || 'agent') + ')' : p.source === 'env' ? '(env)' : ''}</label><input type="password" id="pkey-\${p.id}" placeholder="\${p.apiKey ? '••••••••••' : 'sk-...'}" value="\${p.apiKey || ''}"/></div>
-      <div class="field" style="margin-bottom:6px"><label>Default Model</label><input id="pmodel-\${p.id}" value="\${p.defaultModel || ''}"/></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><div style="font-weight:700;font-size:13px">\${htmlEscape(p.displayName)}</div><span class="pill \${p.enabled ? 'green' : ''}">\${p.enabled ? 'enabled' : 'off'}</span></div>
+      <div class="field" style="margin-bottom:6px"><label>API key</label><input type="password" id="pkey-\${p.id}" placeholder="Leave blank to keep the current setting" autocomplete="off"/></div>
+      <div class="field" style="margin-bottom:6px"><label>Default Model</label><input id="pmodel-\${p.id}" value="\${htmlEscape(p.defaultModel)}"/></div>
       <div class="flex gap">
         <button class="btn sm primary" onclick="saveProvider('\${p.id}')">Save</button>
         <button class="btn sm" onclick="testProvider('\${p.id}')">Test</button>
@@ -3161,20 +3138,13 @@ async function refreshModels() {
   const intel = await api('/api/v6/intelligence');
   if (intel) {
     const provSel = document.getElementById('intel-provider');
-    provSel.innerHTML = _providers.map(p => \`<option value="\${p.id}" \${intel.leadProvider === p.id ? 'selected' : ''}>\${p.displayName}</option>\`).join('');
+    provSel.innerHTML = _providers.map(p => \`<option value="\${p.id}" \${intel.leadProvider === p.id ? 'selected' : ''}>\${htmlEscape(p.displayName)}</option>\`).join('');
     // Populate model field
     const modelInput = document.getElementById('intel-model');
-    modelInput.innerHTML = \`<option value="\${intel.leadModel}">\${intel.leadModel}</option>\`;
-    document.getElementById('intel-agent-proxy').checked = intel.useAgentToolModels;
+    modelInput.innerHTML = \`<option value="\${htmlEscape(intel.leadModel)}">\${htmlEscape(intel.leadModel)}</option>\`;
     document.getElementById('intel-local-first').checked = intel.preferLocalFirst;
   }
 
-  // Custom agents
-  const ca = await api('/api/v6/custom-agents');
-  const agents = ca?.agents ?? [];
-  document.getElementById('custom-agents-list').innerHTML = agents.length
-    ? agents.map((a, i) => \`<div class="row"><span class="k"><span class="pill purple">\${a.name}</span> <span class="tag-code">\${a.path}</span></span><span class="v"><button class="btn sm danger" onclick="removeCustomAgent(\${i})">Remove</button></span></div>\`).join('')
-    : '<div class="empty">No custom agent paths yet</div>';
 }
 async function saveProvider(id) {
   const apiKey = document.getElementById('pkey-' + id).value;
@@ -3191,39 +3161,21 @@ async function fetchProviderModels(id) {
   if (!models) return;
   _allModels[id] = models;
   document.getElementById('pmodels-' + id).innerHTML = models.length
-    ? models.slice(0, 50).map(m => \`<div style="padding:3px 0"><span class="tag-code">\${m.id}</span>\${m.tags.length ? ' <span style="color:var(--text-dim)">' + m.tags.join(' · ') + '</span>' : ''}</div>\`).join('')
+    ? models.slice(0, 50).map(m => \`<div style="padding:3px 0"><span class="tag-code">\${htmlEscape(m.id)}</span>\${m.tags.length ? ' <span style="color:var(--text-dim)">' + m.tags.map(htmlEscape).join(' · ') + '</span>' : ''}</div>\`).join('')
     : '<div>No models (check API key + network)</div>';
   toast('Fetched', models.length + ' models from ' + id);
 }
 async function saveIntelligence() {
   const provId = document.getElementById('intel-provider').value;
   const model = document.getElementById('intel-model').value;
-  const useAgent = document.getElementById('intel-agent-proxy').checked;
   const local = document.getElementById('intel-local-first').checked;
   const r = await api('/api/v6/intelligence', {
     leadProvider: provId, leadModel: model,
-    useAgentToolModels: useAgent, preferLocalFirst: local,
+    preferLocalFirst: local,
   });
   document.getElementById('intel-result').textContent = r ? '✓ Intelligence config saved · lead: ' + provId + ' / ' + model : '✗ Save failed';
   if (r) toast('Intelligence updated');
 }
-async function addCustomAgent() {
-  const name = document.getElementById('ca-name').value.trim();
-  const p = document.getElementById('ca-path').value.trim();
-  if (!name || !p) return toast('Missing', 'Name + path required', 'warn');
-  const cur = await api('/api/v6/custom-agents');
-  const agents = [...(cur?.agents || []), { name, path: p }];
-  await api('/api/v6/custom-agents', { agents });
-  document.getElementById('ca-name').value = ''; document.getElementById('ca-path').value = '';
-  toast('Added', name); refreshModels();
-}
-async function removeCustomAgent(i) {
-  const cur = await api('/api/v6/custom-agents');
-  const agents = (cur?.agents || []).filter((_, idx) => idx !== i);
-  await api('/api/v6/custom-agents', { agents });
-  toast('Removed', '', 'warn'); refreshModels();
-}
-
 // ──── Chat with Brain ──────────────────────────────────────────────────
 let currentConversationId = null;
 async function refreshChat() {
@@ -3288,7 +3240,7 @@ document.addEventListener('change', async e => {
     const models = _allModels[id] || await api('/api/v6/provider-models', { provider: id });
     _allModels[id] = models || [];
     const sel = document.getElementById('intel-model');
-    if (sel) sel.innerHTML = (models || []).map(m => \`<option value="\${m.id}">\${m.displayName}</option>\`).join('') || '<option>no models available</option>';
+    if (sel) sel.innerHTML = (models || []).map(m => \`<option value="\${htmlEscape(m.id)}">\${htmlEscape(m.displayName)}</option>\`).join('') || '<option>no models available</option>';
   }
 });
 

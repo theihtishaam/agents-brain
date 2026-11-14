@@ -6,7 +6,9 @@ Agent Shadow Brain 7.1.0 bundles practical guidance for coding agents. It helps 
 
 From the project directory, launch `shadow-brain project workspace . --port 62595` and open `/hub`. Generate the client’s project-local recipe with `shadow-brain project config . --target codex` or the appropriate target. This routes the browser and host to the same project store.
 
-Compatible project-local MCP clients can use `hub_overview`, `hub_room_read`, `hub_room_create`, `hub_room_action`, and `hub_lesson_propose`. Approved PDF passages are available through normal memory and context tools. Confirm the tools the host actually exposes with its tool list. Room actions record the author and accept an operation key for safe retries. Host claims and artifact proposals carry revisions. The operator reviews evidence and controls lesson promotion and rollback. The service handles local state and tool responses. The host decides when to invoke a tool.
+Compatible project-local MCP clients can read and create rooms, exchange recorded evidence, and propose lessons. Use `hub_artifact_read` with the room ID, artifact ID and recorded SHA-256 from `hub_room_read` to retrieve up to 32 KiB of immutable UTF-8 text. Larger or binary artifacts are available through the project workspace. Room actions record the author and accept an operation key for safe retries. Host claims and artifact proposals carry revisions. The operator reviews evidence and controls lesson promotion and rollback.
+
+Project-local recall refreshes committed memory before each call and excludes archived, contested, and superseded records. The timeline and memory inspection retain those records for review. Approved PDF passages can be selected by project memory and context tools.
 
 ```mermaid
 flowchart LR

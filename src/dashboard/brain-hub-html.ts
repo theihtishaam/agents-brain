@@ -1,5 +1,7 @@
 import { BRAIN_HUB_CLIENT } from './brain-hub-client.js';
 import { BRAIN_HUB_GRAPH } from './brain-hub-graph.js';
+import { BRAIN_HUB_EXCHANGES } from './brain-hub-exchanges.js';
+import { BRAIN_HUB_LIVE } from './brain-hub-live.js';
 import { BRAIN_HUB_VIEWS } from './brain-hub-views.js';
 
 export const BRAIN_HUB_HTML = String.raw`<!doctype html>
@@ -16,15 +18,50 @@ export const BRAIN_HUB_HTML = String.raw`<!doctype html>
 @media(max-width:980px){.control-grid{grid-template-columns:145px minmax(0,1fr)}.control-grid>.inspect{grid-column:1/-1}.three{grid-template-columns:minmax(145px,.6fr) minmax(0,1.4fr)}.three>.panel:last-child{grid-column:1/-1}}
 @media(max-width:680px){.frame{padding-inline:10px}.top,.page-head{flex-wrap:wrap}.top .actions{width:100%}.nav{margin-bottom:10px}.strip{grid-template-columns:repeat(2,minmax(0,1fr))}.metric:nth-child(3){border-left:0}.metric:nth-child(n+3){border-top:1px solid var(--border)}.control-grid,.lower,.two,.three{grid-template-columns:minmax(0,1fr)}.graph-panel{grid-row:1}.graph-stage{min-height:320px}.control-grid>.rail{max-height:240px}.event{grid-template-columns:61px minmax(0,1fr)}.event .chip{justify-self:start;grid-column:2}.graph-meta{font-size:.62rem}h1{font-size:1.65rem}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.graph-panel{background:var(--surface)}.graph-stage{background:radial-gradient(circle,#6a84a128 .6px,transparent .9px) 0 0/18px 18px,radial-gradient(ellipse at 50% 55%,#12243b,#0b1527 62%,#080f1c 100%)}
+.graph-meta{font-size:.73rem;color:#bdd0e6;text-transform:none}.graph-foot{padding-block:4px;gap:3px 8px}
+.legend,.graph-camera{display:flex;align-items:center;flex-wrap:wrap;gap:3px}.legend .legend-filter{display:inline-flex;gap:5px;align-items:center;padding:3px 6px;min-height:27px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--muted)}
+.legend .legend-filter[aria-pressed=true]{border-color:var(--strong);background:var(--raised);color:var(--ink)}
+.legend .legend-filter:hover{color:var(--ink);background:var(--raised)}.legend .legend-filter i{width:10px}
+.graph-camera .btn{font-size:.73rem;min-height:26px;padding:2px 7px}.graph-camera .btn[aria-disabled=true]{opacity:.55;cursor:default}.graph-camera output{width:4ch;text-align:center}
+.graph-finder{display:flex;flex-direction:column;border-radius:5px;overflow:hidden;background:#0d182b}
+.graph-find{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px;border-bottom:1px solid var(--border);background:var(--surface)}
+.graph-find input{flex:1;min-width:130px}.graph-results{overflow:auto;flex:1}.graph-search-note{padding:6px 9px}
+.graph-exchanges{border-top:1px solid var(--border);background:var(--surface)}
+.exchange-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 9px}
+.exchange-head h3{font-size:.84rem;font-weight:650;letter-spacing:0}
+.exchange-row{display:grid;width:100%;grid-template-columns:minmax(110px,1.2fr) minmax(96px,1fr) auto;gap:4px 8px;align-items:center;text-align:left;border:0;border-top:1px solid var(--border);background:transparent;color:var(--ink);padding:4px 9px;font-size:.76rem}
+.exchange-row:hover,.exchange-row[aria-pressed=true]{background:var(--raised)}
+.exchange-row:focus-visible{outline-offset:-2px}
+.exchange-route,.exchange-summary{display:flex;align-items:center;gap:5px;min-width:0}
+.exchange-route span:not(.exchange-arrow),.exchange-summary strong{min-width:0;overflow-wrap:anywhere}
+.exchange-route .exchange-workspace{flex:none;white-space:nowrap}
+.exchange-route small{display:inline-block}
+.exchange-summary{color:var(--muted);flex-wrap:wrap}.exchange-summary strong{font:600 .76rem var(--mono);color:var(--ink)}
+.exchange-arrow{position:relative;flex:0 0 18px;height:1px;background:var(--cyan)}
+.exchange-arrow::after{content:"";position:absolute;right:0;top:-2px;width:5px;height:5px;transform:rotate(45deg);border-top:1px solid var(--cyan);border-right:1px solid var(--cyan)}
+.exchange-empty{padding:0 9px 7px}
+.live-path-label{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);max-width:92%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:2px 6px;border-radius:4px;background:var(--ground);color:var(--ink);font-size:.73rem;pointer-events:none}
+@media(min-width:981px){.control-grid{grid-template-rows:576px}}
+@media(max-width:680px){.legend .legend-filter,.graph-camera .btn{min-height:36px}.exchange-row{min-height:40px;padding-block:6px}.graph-panel-empty .graph-stage{min-height:220px}}
+@media(max-width:360px){.exchange-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.exchange-row time{grid-column:1/-1}.graph-find input{flex-basis:100%}}
+.preserve{white-space:pre-wrap;overflow-wrap:anywhere}
+[id^="policy-"][type="range"]{accent-color:var(--cyan)}
+#project-file-body strong{min-width:0;overflow-wrap:anywhere}
+#project-file-pulse{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+.file-fresh{animation:file-observed 1.6s ease-out}
+@keyframes file-observed{0%{color:var(--cyan)}100%{color:var(--muted)}}
 </style></head><body>
 <a class="btn skip" href="#main">Skip to content</a>
 <div class="frame"><header class="top"><div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9Zm0 0v28M4 9l24 14M28 9 4 23" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="3.3" fill="currentColor"/></svg>Agent Shadow Brain</div><div class="actions"><span class="chip" id="connection"><i class="dot" aria-hidden="true"></i> Connecting to workspace</span><label for="project" class="small muted">Project</label><select id="project" disabled><option>Loading…</option></select><button class="btn" id="reload" type="button">Refresh</button></div></header>
 <nav class="nav" id="nav" aria-label="Brain workspace"></nav>
+<span class="chip" id="stream-health" role="status" hidden></span>
 <p class="notice" id="notice" role="status"></p>
 <main id="main" tabindex="-1"><div class="empty"><strong>Opening the workspace</strong><p>Loading the local memory and activity stores.</p></div></main>
 <footer class="footer"><span id="scope-note"></span><span><a href="/workspace">Classic workspace</a> · <a href="/live">Activity diagnostics</a></span></footer>
 </div>
 <script>'use strict';
-` + BRAIN_HUB_CLIENT + BRAIN_HUB_GRAPH + BRAIN_HUB_VIEWS + String.raw`
+` + BRAIN_HUB_CLIENT + BRAIN_HUB_LIVE + BRAIN_HUB_EXCHANGES + BRAIN_HUB_GRAPH + BRAIN_HUB_VIEWS + String.raw`
 start();
 </script></body></html>`;

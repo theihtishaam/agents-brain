@@ -36,6 +36,12 @@ export const FEATURE_DEFINITIONS = [
     description: 'Record bounded tool timing and explicitly reported session phases. Arguments, memory text, and credentials are not captured.',
     defaultEnabled: true,
   },
+  {
+    id: 'projectFileActivity',
+    label: 'Project file activity',
+    description: 'Observe relative paths and raw file change notifications in the open project. Skips private and generated paths.',
+    defaultEnabled: false,
+  },
 ] as const;
 
 export type FeatureId = typeof FEATURE_DEFINITIONS[number]['id'];
@@ -47,6 +53,7 @@ export const DEFAULT_FEATURE_FLAGS: Readonly<FeatureFlags> = Object.freeze({
   automaticBriefing: true,
   liveActivity: true,
   activityRecording: true,
+  projectFileActivity: false,
 });
 
 export const FEATURE_SETTINGS_FILENAME = 'feature-settings.json';
@@ -104,8 +111,7 @@ function parseSnapshot(raw: string): FeatureSettingsSnapshot {
     if (isRecord(data) && data.schemaVersion === 1 && typeof data.revision === 'number' &&
         Number.isSafeInteger(data.revision) && data.revision >= 1 &&
         typeof data.updatedAt === 'string' && Number.isFinite(Date.parse(data.updatedAt)) &&
-        isFeatureMap(data.features) && ORIGINAL_FEATURE_IDS.every(id => Object.hasOwn(data.features as object, id)) &&
-        [FEATURE_IDS.size - 1, FEATURE_IDS.size].includes(Object.keys(data.features).length)) {
+        isFeatureMap(data.features) && ORIGINAL_FEATURE_IDS.every(id => Object.hasOwn(data.features as object, id))) {
       return {
         schemaVersion: 1, revision: data.revision, updatedAt: data.updatedAt,
         features: { ...DEFAULT_FEATURE_FLAGS, ...data.features },

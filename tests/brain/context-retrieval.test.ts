@@ -35,6 +35,18 @@ function relation(id: string, fromId: string, toId: string, type: MemoryRelation
 }
 
 describe('adaptive context retrieval', () => {
+  it('keeps an explicitly termless query separate from a blank general briefing', () => {
+    const existing = add('Checkout retries use the recorded operation key.');
+    const read = vi.spyOn(brain, 'contextEntries');
+    for (const query of ['how to do it?', '…?']) {
+      const pack = assembleContext(brain, { ...options, query });
+      expect(pack).toMatchObject({ entries: [], queryKeywords: [], markdown: '', retrieval: { scanned: 0, candidateCount: 0 } });
+      expect(pack.warnings).toEqual([expect.stringContaining('No searchable terms')]);
+    }
+    expect(read).not.toHaveBeenCalled();
+    expect(assembleContext(brain, { ...options, query: '  ' }).entries.map(entry => entry.id)).toEqual([existing]);
+  });
+
   it('matches exact terms and excludes substring and arbitrary metadata hits without committing pending entries', () => {
     const substring = add('JavaScript compiler notes.', { importance: 1 });
     const metadataOnly = add('Compiler notes.', { metadata: { javaFlag: false } });

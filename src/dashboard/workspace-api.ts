@@ -2,7 +2,10 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { getGlobalBrain, type GlobalBrain } from '../brain/global-brain.js';
 import { getBrainBus } from '../brain/brain-bus.js';
-import { assembleContext } from '../brain/context-assembly.js';
+import { assembleContextWithEfficiency } from '../brain/context-efficiency.js';
+import { ProjectPolicyStore } from '../brain/project-policy.js';
+import { enforceProjectContext } from '../brain/project-policy-delivery.js';
+import { projectPolicyRequest } from './project-policy-api.js';
 import { parseContextRequest } from '../brain/context-request.js';
 import { inspectMemoryHealth } from '../brain/memory-inspection.js';
 import { FEATURE_DEFINITIONS, getFeatureSettings, type FeatureSettingsStore } from '../brain/feature-settings.js';
@@ -17,6 +20,11 @@ import { ProjectFeedbackStore } from '../brain/project-feedback.js';
 import type { AgentTool, BrainTimelineEvent, ScoredGlobalEntry } from '../types.js';
 import { WorkspaceRuntime } from './workspace-status.js';
 import { isProjectHubRoute, handleProjectHubRequest } from './project-hub-api.js';
+import { ModelUsageStore } from '../brain/model-usage.js';
+import { isSourceRoute, sourceRequest } from './project-source-api.js';
+import { isProjectSessionRoute, projectSessionRequest } from './project-session-api.js';
+import { isManagedSkillsRoute, managedSkillsRequest } from './managed-project-skills-api.js';
+import { isNativeCodexRoute, nativeCodexRequest } from './native-codex-api.js';
 import type { ProjectHubService } from '../brain/project-hub.js';
 
 const INVENTORY_LIMIT = 2500;
@@ -105,6 +113,22 @@ function settingsResponse(store: FeatureSettingsStore) {
   return { ...store.get(), definitions: FEATURE_DEFINITIONS };
 }
 
+async function portalActivity(dependencies: WorkspaceDependencies, tool: string, projectId?: string) {
+  const correlationId = randomUUID();
+  const journal = dependencies.journal;
+  const record = async (outcome?: 'success' | 'error', durationMs?: number) => {
+    try {
+      if (!journal || !(dependencies.settings ?? getFeatureSettings()).get().features.activityRecording) return false;
+      await journal.append({ kind: outcome ? 'tool-end' : 'tool-start', source: 'reported', transport: 'host',
+        projectId, agent: 'portal', sessionId: 'project-portal', tool, correlationId, ...(outcome ? { outcome, durationMs } : {}) });
+      return true;
+    } catch { return false; }
+  };
+  if (!await record()) return undefined;
+  const started = performance.now();
+  return (outcome: 'success' | 'error') => record(outcome, Math.max(0, performance.now() - started));
+}
+
 /** The workspace API reads only the memory store and dedicated feature settings. */
 export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerResponse, dependencies: WorkspaceDependencies = {}): Promise<void> {
   const send = (data: unknown, status = 200) => {
@@ -123,23 +147,51 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
     if (route === 'status' && method === 'GET') return send((dependencies.runtime ?? sharedRuntime).status(dependencies.brain, !!dependencies.hub && !storageError, storageError));
     if (storageError) return send({ error: storageError, code: 'WORKSPACE_STORAGE_UNAVAILABLE' }, 503);
     if (isProjectHubRoute(url.pathname)) {
-      const settings = dependencies.settings ?? getFeatureSettings();
-      const journal = dependencies.journal;
-      const correlationId = randomUUID();
-      const projectId = dependencies.runtime?.project?.id;
-      const tool = 'hub-' + (url.pathname.split('/')[4] || 'overview');
-      const record = async (kind: 'tool-start' | 'tool-end') => {
-        if (method !== 'POST' || !journal || !settings.get().features.activityRecording) return;
-        await journal.append({ kind, source: 'reported', transport: 'host', projectId, agent: 'portal', tool, correlationId,
-          ...(kind === 'tool-end' ? { outcome: res.statusCode < 400 ? 'success' as const : 'error' as const } : {}) }).catch(() => {});
-      };
-      await record('tool-start');
-      try { await handleProjectHubRequest(req, res, dependencies.hub, url); }
-      finally { await record('tool-end'); }
+      const section = url.pathname.split('/')[4];
+      const tool = 'hub-' + (['documents', 'rooms', 'lessons'].includes(section) ? section : 'overview');
+      const end = method === 'POST' ? await portalActivity(dependencies, tool, dependencies.runtime?.project?.id) : undefined;
+      let outcome: 'success' | 'error' = 'error';
+      try {
+        await handleProjectHubRequest(req, res, dependencies.hub, url);
+        if (res.writableEnded && res.statusCode < 400) outcome = 'success';
+      } finally { await end?.(outcome); }
       return;
     }
     const local = dependencies.localProject && dependencies.projectDir && dependencies.brain
       ? requireProjectStore(dependencies.projectDir, dependencies.brain) : undefined;
+    if (isManagedSkillsRoute(route)) {
+      if (!local) return send({ error: 'Open a project-local workspace to manage Project Kit skills.', code: 'MANAGED_SKILL_PROJECT_REQUIRED' }, 409);
+      return send(await managedSkillsRequest(req, route, local.root, () => body(req)));
+    }
+    if (route === 'project-policy') {
+      if (!local) return send({ error: 'Open a project-local workspace to use project controls.' }, 409);
+      return send(await projectPolicyRequest(req, local.root, local.projectId, dependencies.brain!, () => body(req)));
+    }
+    if (isProjectSessionRoute(route)) {
+      if (!local) return send({ error: 'Open a project-local workspace to use shared sessions.', code: 'SESSION_LOCAL_PROJECT_REQUIRED' }, 409);
+      if (isNativeCodexRoute(route)) return send(await nativeCodexRequest(req, route, url, local.root, dependencies.brain!, () => body(req)));
+      return send(await projectSessionRequest(req, route, url, local.root, dependencies.brain!, () => body(req)));
+    }
+    if (isSourceRoute(route) || route === 'usage' || route === 'usage-report') {
+      if (!local) return send({ error: 'Open a project-local workspace to use project sources and usage receipts.' }, 409);
+      if (isSourceRoute(route)) {
+        const end = method === 'POST' ? await portalActivity(dependencies, route === 'sources' ? 'source-preview' : 'source-review', local.projectId) : undefined;
+        let result: unknown;
+        try { result = await sourceRequest(req, url, local.root, dependencies.brain!); }
+        catch (error) { await end?.('error'); throw error; }
+        await end?.('success');
+        return send(result);
+      }
+      const settings = dependencies.settings ?? getFeatureSettings();
+      const usage = new ModelUsageStore(local.root, local.projectId);
+      if (route === 'usage' && method === 'GET') return send({ ...usage.read(), recording: settings.get().features.activityRecording });
+      if (route === 'usage-report' && method === 'POST') {
+        if (!settings.get().features.activityRecording) return send({error:'Activity recording is disabled for this project.'},409);
+        if (req.headers['sec-fetch-site'] === 'cross-site') return send({error:'Cross-origin changes are not accepted.'},403);
+        return send({ receipt: usage.report(await body(req)) });
+      }
+      return send({error:'Method not allowed.'},405);
+    }
     const projectRoutes = ['project-profile', 'project-knowledge', 'project-skill-preview', 'project-skill-apply', 'project-feedback'];
     const writes = ['memory-review', 'memory-link', 'memory-unlink'];
     if (!['GET', 'POST'].includes(method) || (method === 'POST' && !['context', 'context-compare', 'features', 'activity-report', ...writes, ...projectRoutes.slice(1)].includes(route))) return send({ error: 'Method not allowed.' }, 405);
@@ -246,11 +298,12 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
       if (local && (options.projectId !== local.projectId || options.includeCrossProject === true)) throw new TypeError('This portal is pinned to its local project.');
       const flags = settings.get().features;
       if (flags.contextAssembly) await refresh();
-      const common = { ...options, features: flags, annotations: flags.contextAssembly ? annotationStore.get() : undefined,
+      const requested = { ...options, features: flags, annotations: flags.contextAssembly ? annotationStore.get() : undefined,
         feedback: flags.contextAssembly && local ? new ProjectFeedbackStore(local.root, brain).get() : undefined };
-      if (route === 'context') return send(assembleContext(brain, common));
-      const legacy = assembleContext(brain, { ...common, profile: 'legacy' });
-      const adaptive = assembleContext(brain, { ...common, profile: 'adaptive' });
+      const common = local ? enforceProjectContext(local.root, brain, new ProjectPolicyStore(local.root, local.projectId).get(), requested) : requested;
+      if (route === 'context') return send(assembleContextWithEfficiency(brain, common));
+      const legacy = assembleContextWithEfficiency(brain, { ...common, profile: 'legacy' });
+      const adaptive = assembleContextWithEfficiency(brain, { ...common, profile: 'adaptive' });
       const oldIds = new Set(legacy.entries.map(entry => entry.id));
       const newIds = new Set(adaptive.entries.map(entry => entry.id));
       return send({ legacy, adaptive, delta: { addedIds: [...newIds].filter(id => !oldIds.has(id)),
@@ -324,7 +377,7 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
         if (sources(entry).length) quality.sourceBacked++;
         if (annotations.reviews[entry.id]?.projectId === entry.projectId) quality.reviewed++;
       }
-      return send({ version: '7.21.0', demo: dependencies.demo === true,
+      return send({ version: '7.22.0', demo: dependencies.demo === true,
         projectKit: local ? { available: true, projectId: local.projectId, projectName: local.projectName, root: local.root, storagePath: local.storagePath } : { available: false },
         totals: { projects: projects.length, memories: local ? inventory.length : brain.getStats().totalEntries, agents: facets.agents.length },
         projects, ...localActivity(), storageHealth: brain.getStorageHealth(),
@@ -348,7 +401,7 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
       const offset = bounded(qs.get('offset'), 0, INVENTORY_LIMIT, 0);
       return send({ items: entries.slice(offset, offset + limit).map(entry => summary(entry, annotations)), total: entries.length, facets, truncated: inventoryTruncated, inventoryLimit: INVENTORY_LIMIT });
     }
-    const limit = bounded(qs.get('limit'), 100, 180);
+  const limit = bounded(qs.get('limit'), 100, 500);
     const nodes: Array<Record<string, unknown>> = [];
     const edges: Array<{ id?: string; source: string; target: string; kind: string; note?: string }> = [];
     const selectedId = query(qs, 'memory');
@@ -386,6 +439,7 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
   } catch (error) {
     const code = (error as { code?: string }).code;
     send({ error: error instanceof Error ? error.message : String(error), ...(code ? { code } : {}) },
+      Number.isInteger((error as {status?:number}).status) ? (error as {status:number}).status :
       code === 'FEATURE_SETTINGS_CONFLICT' || code === 'ANNOTATIONS_CONFLICT' || code?.includes('CONFLICT') || code?.includes('STALE') ? 409 : code === 'ANNOTATIONS_NOT_FOUND' ? 404 :
         code === 'FEATURE_SETTINGS_INVALID_PATCH' || code === 'ANNOTATIONS_INVALID_COMMAND' || code === 'ACTIVITY_JOURNAL_INVALID_EVENT' ||
           code === 'ACTIVITY_JOURNAL_INVALID_CURSOR' || error instanceof TypeError || error instanceof RangeError ? 400 : 500);
