@@ -1,5 +1,10 @@
 # Changelog
 
+## [7.21.0] - 2026-11-14 - Plain download totals
+
+- Show exact, dated npm download totals as text with links to the public source. GitHub refreshes daily; npm retains the count recorded at publication.
+- No feature, dependency, storage, or account-permission changes.
+
 ## [7.1.4] - 2026-11-13 - Brain Hub, shared work, and reviewed learning
 
 - Made the dense Brain Hub the default portal, with an interactive memory graph, recorded-event animation, context comparison, knowledge intake, collaboration rooms, learning controls, and setup. The memory workspace and advanced interfaces remain available.

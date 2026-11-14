@@ -223,7 +223,7 @@ export const LIVE_WORKSPACE_HTML = String.raw`<!doctype html>
   <div class="top-inner">
     <a class="brand" href="/" aria-label="Agent Shadow Brain workspace"><span class="brand-mark" data-icon="brand"></span><span>Agent Shadow Brain</span></a>
     <nav class="main-nav" aria-label="Navigation"><a href="/">Workspace</a><a href="/live" aria-current="page">Live</a></nav>
-    <div class="top-state"><span class="small muted mono top-version">7.1.4</span><span id="demo-tag" class="tag warn" hidden>Synthetic demo</span><span id="stream-tag" class="tag"><span class="dot"></span><span id="stream-label">Connecting</span></span></div>
+    <div class="top-state"><span class="small muted mono top-version">7.21.0</span><span id="demo-tag" class="tag warn" hidden>Synthetic demo</span><span id="stream-tag" class="tag"><span class="dot"></span><span id="stream-label">Connecting</span></span></div>
   </div>
 </header>
 <main id="live-main" tabindex="-1">

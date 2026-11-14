@@ -6,12 +6,16 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img alt="npm latest version" src="https://img.shields.io/npm/v/@theihtisham/agent-shadow-brain/latest?label=npm&amp;color=0f766e"></a>
-  <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img alt="npm downloads per month" src="https://img.shields.io/npm/dm/@theihtisham/agent-shadow-brain?label=downloads%20%2F%20month&amp;color=0f766e"></a>
-  <a href="docs/STATS.md"><img alt="Cumulative npm downloads" src="https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/npm-total-downloads.svg"></a>
   <a href="https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/theihtishaam/agents-brain?color=475569"></a>
   <a href="https://github.com/theihtishaam/agents-brain/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/theihtishaam/agents-brain?style=flat&amp;logo=github&amp;color=475569"></a>
 </p>
+
+<!-- NPM_TOTAL_START -->
+**Total npm downloads: 6,229** · Through **2026-11-13**. [npm data](https://api.npmjs.org/downloads/point/2026-04-10:2026-11-13/@theihtisham/agent-shadow-brain).
+
+GitHub refreshes this number daily. The npm README records the total when this version was published. Downloads include automated installs; they are not unique users.
+<!-- NPM_TOTAL_END -->
 
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
@@ -23,7 +27,7 @@ The Brain Hub brings project memory, cited PDF pages, shared work, and recorded 
 
 ## Try it
 
-Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. This guide describes the 7.1.4 build. Check the installed version before using the Hub steps.
+Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. This guide describes the 7.21.0 build. Check the installed version before using the Hub steps.
 
 ```bash
 npm install -g @theihtisham/agent-shadow-brain@latest

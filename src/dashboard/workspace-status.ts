@@ -10,7 +10,7 @@ export class WorkspaceRuntime {
   status(brain: GlobalBrain | undefined, hub: boolean, error?: string | null) {
     const storageError = error ?? brain?.getStorageHealth().lastError?.message;
     return {
-      version: '7.1.4', serverInstanceId: this.serverInstanceId, startedAt: this.startedAt, checkedAt: new Date().toISOString(),
+      version: '7.21.0', serverInstanceId: this.serverInstanceId, startedAt: this.startedAt, checkedAt: new Date().toISOString(),
       mode: this.mode, project: this.project,
       capabilities: { memory: true, context: true, curation: true, telemetry: true,
         projectKnowledge: this.mode === 'project', projectSkills: this.mode === 'project', projectFeedback: this.mode === 'project',
