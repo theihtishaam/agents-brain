@@ -25,6 +25,7 @@ import { SESSION_MCP_DEFINITIONS, SESSION_MCP_TOOLS, isSessionMcpTool, type Sess
 import { ProjectSessionError } from './project-session-contract.js';
 import { ProjectSessions } from './project-sessions.js';
 import { ProjectPolicyError, ProjectPolicyStore, toolParticipates, type ProjectPolicy } from './project-policy.js';
+import { MCPPresenceStore, startMCPPresence } from './mcp-presence.js';
 import { enforceProjectContext, hiddenProjectMemories, withoutHiddenAnnotations } from './project-policy-delivery.js';
 import type { ProjectHubService } from './project-hub.js';
 import { ProjectHubError } from './project-hub-contract.js';
@@ -63,6 +64,7 @@ export class MCPServer {
   private reportedSessionTool = 'mcp-client';
   private telemetryInitialized = false;
   private telemetryWarning = false;
+  private stopStdioPresence?: () => void;
   private hub?: Promise<ProjectHubService>;
   private hubClosing = false;
   private readonly hubRequests = new Set<Promise<MCPResponse>>();
@@ -1007,7 +1009,18 @@ export class MCPServer {
     }
   }
 
+  /** Activated by a completed stdio handshake, separately from JSON-RPC initialize. */
+  startStdioPresence(): (() => void) | undefined {
+    const { localProject, projectDir, projectId, settings } = this.dependencies;
+    if (!this.telemetryInitialized || !localProject || !projectDir || !projectId || !settings || this.stopStdioPresence) return;
+    const identity = { id: this.telemetrySession, tool: this.reportedSessionTool };
+    const stop = startMCPPresence(new MCPPresenceStore(projectDir, projectId), identity, () => settings.get().features.activityRecording);
+    this.stopStdioPresence = () => { this.stopStdioPresence = undefined; stop(); };
+    return this.stopStdioPresence;
+  }
+
   async finishMemorySession(): Promise<void> {
+    this.stopStdioPresence?.();
     this.hubClosing = true;
     await Promise.allSettled([...this.hubRequests]);
     if (this.hub) {
@@ -1484,10 +1497,11 @@ export class MCPServer {
       { name: 'memory_health', description: 'Inspect a project-first memory attention queue: recorded contradictions, contested state, missing source references, duplicate text, older memories, and unavailable relationship endpoints. No truth score or automatic changes.',
         inputSchema: { type: 'object', additionalProperties: false, required: ['projectId'], properties: {
           projectId: { type: 'string', minLength: 1, maxLength: 256 }, limit: { type: 'integer', minimum: 1, maximum: 100 } } } },
-      { name: 'usage_report', description: 'Record optional host-reported model token counters. No prompts, response text, credentials or costs. Unknown counts must be omitted; identical operation retries count once within the retained window.',
+      { name: 'usage_report', description: 'Record optional host-reported model token counters and reasoning-effort label. No prompts, response text, credentials or costs. Unknown values must be omitted; identical operation retries count once within the retained window.',
         inputSchema: { type: 'object', additionalProperties: false, required: ['operationId', 'projectId', 'sessionId', 'agent'], properties: {
           ...Object.fromEntries(['operationId','projectId','sessionId','agent','provider','requestModel','responseModel'].map(key => [key,{type:'string',maxLength:128}])),
           ...Object.fromEntries(['inputTokens','outputTokens','cacheReadInputTokens','cacheWriteInputTokens','reasoningOutputTokens'].map(key => [key,{type:'integer',minimum:0,maximum:1000000000}])),
+          reasoningEffort: {type:'string',minLength:1,maxLength:32,pattern:'^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$'},
           outcome: {type:'string',enum:['success','error','cancelled']}
         } } },
       { name: 'activity_report', description: 'Explicitly report an agent phase or tool span to the live portal. Writes only bounded activity labels/timing; reports remain labelled host-reported. Do not send request text, arguments, file paths, or secrets.',

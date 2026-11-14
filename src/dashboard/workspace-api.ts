@@ -4,6 +4,7 @@ import { getGlobalBrain, type GlobalBrain } from '../brain/global-brain.js';
 import { getBrainBus } from '../brain/brain-bus.js';
 import { assembleContextWithEfficiency } from '../brain/context-efficiency.js';
 import { ProjectPolicyStore } from '../brain/project-policy.js';
+import { MCPPresenceStore } from '../brain/mcp-presence.js';
 import { enforceProjectContext } from '../brain/project-policy-delivery.js';
 import { projectPolicyRequest } from './project-policy-api.js';
 import { parseContextRequest } from '../brain/context-request.js';
@@ -159,6 +160,14 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
     }
     const local = dependencies.localProject && dependencies.projectDir && dependencies.brain
       ? requireProjectStore(dependencies.projectDir, dependencies.brain) : undefined;
+    if (route === 'presence') {
+      if (method !== 'GET') return send({ error: 'Use GET to inspect project MCP presence.' }, 405);
+      if (!local) return send({ error: 'Open a project-local workspace to inspect MCP connections.' }, 409);
+      if ((req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) ||
+          ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']))) return send({ error: 'MCP presence is available to same-origin requests.' }, 403);
+      const enabled = (dependencies.settings ?? getFeatureSettings()).get().features.activityRecording;
+      return send(new MCPPresenceStore(local.root, local.projectId).read(enabled));
+    }
     if (isManagedSkillsRoute(route)) {
       if (!local) return send({ error: 'Open a project-local workspace to manage Project Kit skills.', code: 'MANAGED_SKILL_PROJECT_REQUIRED' }, 409);
       return send(await managedSkillsRequest(req, route, local.root, () => body(req)));

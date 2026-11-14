@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
 import { ActivityJournal } from '../../src/brain/activity-journal.js';
 import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
+import { MCPPresenceStore, MCP_PRESENCE_LIMITS } from '../../src/brain/mcp-presence.js';
 
 type Portal = Awaited<ReturnType<typeof startProjectWorkspace>>;
 type Message = { id: string; event: string; data: Record<string, unknown> };
@@ -70,6 +71,24 @@ async function connect(workspace: Portal, options: { cursor?: string; headers?: 
 const is = (kind: string) => (event: Message) => event.event === kind;
 
 describe('project live notification stream', () => {
+  it('invalidates only presence on connection heartbeats and does not copy identifiers into live notices', async () => {
+    const workspace = await portal();
+    const stream = await connect(workspace);
+    await stream.wait(is('ready'));
+    let now = Date.now();
+    const store = new MCPPresenceStore(workspace.root, workspace.projectId, () => now);
+    const id = 'mcp-' + randomUUID();
+    store.report({ id, tool: 'codex' });
+    const connected = await stream.wait(is('change'));
+    expect(connected.data.areas).toEqual(['presence']);
+    expect(JSON.stringify(connected)).not.toContain(id);
+    now += MCP_PRESENCE_LIMITS.renewMs;
+    store.report({ id, tool: 'codex' });
+    expect((await stream.wait(is('change'))).data.areas).toEqual(['presence']);
+    store.remove(id);
+    expect((await stream.wait(is('change'))).data.areas).toEqual(['presence']);
+  });
+
   it('sends journal invalidation, replays retained sequence, and resets a foreign instance cursor', async () => {
     const workspace = await portal();
     const primary = await connect(workspace);

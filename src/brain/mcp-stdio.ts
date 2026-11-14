@@ -13,7 +13,7 @@ const record = (value: unknown): value is Record<string, unknown> => !!value && 
 
 /** Newline-delimited MCP, with bounded input and sequential backpressure. */
 export async function serveMCPStdio(
-  server: Pick<MCPServer, 'handleRequest'>,
+  server: Pick<MCPServer, 'handleRequest'> & Partial<Pick<MCPServer, 'startStdioPresence'>>,
   input: Readable,
   output: Writable,
 ): Promise<void> {
@@ -21,6 +21,15 @@ export async function serveMCPStdio(
   let pending = '';
   let initialized = false;
   let ready = false;
+  let transportClosed = false;
+  let stopPresence: (() => void) | undefined;
+  const closePresence = () => {
+    transportClosed = true;
+    stopPresence?.();
+    stopPresence = undefined;
+  };
+  input.once('end', closePresence).once('close', closePresence).once('error', closePresence);
+  output.once('finish', closePresence).once('close', closePresence).once('error', closePresence);
   // Node emits a stream error after invoking a failed write callback. Keep a
   // lifetime listener until those queued events settle, even after send rejects.
   const consumeOutputError = () => {};
@@ -62,7 +71,13 @@ export async function serveMCPStdio(
     if (!valid) { await error(null, -32600, 'Invalid JSON-RPC request.'); return; }
     // Notifications never receive responses and never dispatch mutating tool calls.
     if (request.id === undefined) {
-      if (request.method === 'notifications/initialized' && initialized) ready = true;
+      if (request.method === 'notifications/initialized' && initialized && !ready) {
+        ready = true;
+        if (!transportClosed && !input.destroyed && !input.readableEnded && !output.destroyed && !output.writableEnded) {
+          stopPresence = server.startStdioPresence?.();
+          if (transportClosed) stopPresence?.();
+        }
+      }
       return;
     }
     if (request.method === 'initialize') {
@@ -97,6 +112,9 @@ export async function serveMCPStdio(
   pending += decoder.end();
   if (pending.trim()) await error(null, -32700, 'Connection ended before the message newline.');
   } finally {
+    closePresence();
+    input.off('end', closePresence).off('close', closePresence).off('error', closePresence);
+    output.off('finish', closePresence).off('close', closePresence).off('error', closePresence);
     await new Promise<void>(resolve => setImmediate(resolve));
     output.off('error', consumeOutputError);
   }

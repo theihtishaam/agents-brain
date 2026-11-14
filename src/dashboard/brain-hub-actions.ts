@@ -17,6 +17,7 @@ function handleClick(event){
   const button=event.target.closest('button');
   if(!button||button.disabled)return;
   const data=button.dataset;
+  if(handleAgentDock(button))return;
   if(data.policyTool){void mutation(()=>saveProjectPolicy({kind:'set-tool-participation',tool:data.policyTool,enabled:data.enabled==='true'}),button,'Tool participation saved.');return;}
   if(data.policyChat){void mutation(()=>saveProjectPolicy({kind:'set-chat-sharing',sessionId:data.policyChat,shareContext:data.enabled==='true'}),button,'Conversation sharing saved.');return;}
   if(data.view){openView(data.view);return;}

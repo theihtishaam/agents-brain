@@ -1,8 +1,22 @@
 # Brain Hub 7.22.0 visual guide
 
-These captures are from the running local Hub with an isolated synthetic fixture. The dense fixture contains 580 stored memories, explicit recorded links, and three scripted MCP client sessions. The graph can display up to 500 memories, with project and author nodes in addition to that sample. The animation shows actual measured `context_pack` tool calls against the fixture.
+These captures are from the running local Hub with an isolated synthetic fixture. The dense fixture contains 580 stored memories and explicit recorded links. Scripted MCP clients produce the observed tool activity. The graph can display up to 500 memories, with project and author nodes in addition to that sample. The animation shows actual measured `context_pack` tool calls against the fixture.
 
 ![Hub graph showing recorded memory links and animated MCP requests and results](assets/7.22.0-hub-exchanges.gif)
+
+## Inspect tools and reported workers
+
+The tool activity panel shows recognizable local icons and a separate count of reporting MCP connections. Hover or focus a tool to inspect it; select it to keep its details open. Individual session chips retain different workers and models. A shared conversation receipt is not assigned to one worker by guessing. **Escape** closes the details and returns focus to its tool.
+
+![Running tool panel with a selected Codex session and its explicitly reported model and effort](assets/7.22.0-agent-dock.png)
+
+This additional capture uses four initialized scripted MCP clients, five registered sessions and two synthetic model receipts in an isolated project. The icon identifies the client tool; the provider, model and effort fields retain their host-reported labels. It does not show native application or model execution.
+
+![Brief indicator response to a measured tool event in the test workspace](assets/7.22.0-agent-dock.gif)
+
+Heartbeats renew every ten seconds and expire after thirty seconds. They update only the presence readout and never animate tool work. Missing metadata stays unavailable. Motion stops when paused, hidden or reduced-motion is requested.
+
+<img src="assets/7.22.0-agent-dock-mobile.png" width="390" alt="Tool activity panel and readable session details on a narrow viewport">
 
 ## Explore the memory graph
 

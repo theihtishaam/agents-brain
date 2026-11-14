@@ -1,7 +1,7 @@
 export const BRAIN_HUB_LIVE = String.raw`
 const liveStream={source:null,status:'connecting',cursor:null,instance:null,replaying:false,ready:false,notice:null,areas:new Set(),
   timer:0,files:null,fileError:null,fileEpoch:0,inventoryTimer:0,seen:new Map(),filePulse:null};
-const streamAreas=['telemetry','graph','hub','sources','sessions','usage','features','feedback','policy'];
+const streamAreas=['telemetry','graph','hub','sources','sessions','usage','features','feedback','policy','presence'];
 function streamBadge(){
   const badge=$('stream-health');
   if(!badge||!local)return;

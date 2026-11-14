@@ -22,6 +22,24 @@ Use **Knowledge** to write an ordinary fact, paragraph or plan and click **Add t
 
 Use **Context** to enter a task, set a budget, compare profiles, and copy a pack. Review selected passages, reasons, and citations. The pack size is estimated. Tool timings and model token receipts are separate, and unavailable receipts stay visibly unavailable. [Context Lab](CONTEXT_LAB.md)
 
+## Report optional model usage
+
+A cooperating host can call `usage_report` with counters and metadata it already knows. For example, replace the project and session identifiers with the host's actual labels:
+
+```json
+{
+  "operationId": "example-operation-1",
+  "projectId": "0123456789abcdef",
+  "sessionId": "example-host-session",
+  "agent": "codex",
+  "requestModel": "example-model",
+  "reasoningEffort": "high",
+  "inputTokens": 1200
+}
+```
+
+`reasoningEffort` is an optional short plain label reported by the host, not a value inferred from a model name. Omit it and any unknown counters when they are unavailable; zero means a reported zero. Receipts remain labelled **host-reported**, do not include prompts or credentials, and are not billing records. A receipt can be associated with a project session only when project ID, the host session ID and the agent label match exactly. Reuse the same operation ID for an identical retry.
+
 ## Share a task and its evidence
 
 Create or open a **Collaboration** room. Post a proposal, critique, question, decision, or handoff. Add a task and claim it before attaching a project-relative file. The task’s lease and revision control ownership. Accept the current submitted artifact and record the result with its check and evidence. A participant can acknowledge another participant’s message or artifact. These operations are shared with project-local MCP clients. [Workflow integration](WORKFLOW_INTEGRATION.md)

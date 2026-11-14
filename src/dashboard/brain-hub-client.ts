@@ -17,7 +17,7 @@ const state = {view:'overview',project:'',overview:null,server:null,connection:'
   nativeConnection:null,nativeThreads:null,nativeThread:null,nativeArchived:false,nativeListCursor:null,nativeThreadCursor:null,sessions:null,session:null,sessionBefore:null,sessionCheckpoint:null,usage:null,sources:null,source:null,evidence:null,teachDraft:'',profile:null,feedback:null,hub:null,documents:null,docPage:1,room:null,context:null,contextInput:null,comparison:null,skill:null,skillInput:null,
   picked:null,memory:null,focus:false,inspector:'record',graphMode:'graph',listing:false,events:[],cursor:undefined,journalId:undefined,
   live:false,recording:false,journalGap:false,replayId:null,replayExpired:false,motionPaused:false,motionStarted:0,pulseIds:[],pending:false,message:'',messageError:false,
-  dataEpoch:0,viewEpoch:0,graphEpoch:0,graphFilter:'all',search:null,lessonFrom:null,policy:null,policySelection:null,managedSkills:null,managedSkillPlan:null};
+  dataEpoch:0,viewEpoch:0,graphEpoch:0,graphFilter:'all',search:null,lessonFrom:null,policy:null,policySelection:null,managedSkills:null,managedSkillPlan:null,presence:null};
 let timer, polling=false, pollAgain=false, failures=0, polls=0;
 let controller;
 const list = (content,attributes='',classes='') => '<ul class="list '+classes+'" '+attributes+'>'+content+'</ul>';
@@ -105,6 +105,8 @@ function resetScope(){
   state.skill=null;state.skillInput=null;state.search=null;state.events=[];state.cursor=undefined;state.journalId=undefined;state.lessonFrom=null;
   state.replayId=null;state.replayExpired=false;state.journalGap=false;state.pulseIds=[];state.motionStarted=0;
   state.policy=null;state.policySelection=null;state.managedSkills=null;state.managedSkillPlan=null;
+  if(typeof observedPulses!=='undefined'){observedPulses.clear();dockTool=null;dockSession=null;dockPinned=false;clearTimeout(dockPresenceTimer);}
+  state.presence=null;
   clearTimeout(nativeTimer);state.nativeConnection=null;state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;state.nativeArchived=false;state.sessions=null;state.session=null;state.sessionBefore=null;state.sessionCheckpoint=null;state.usage=null;state.sources=null;state.source=null;state.evidence=null;state.teachDraft='';
   state.graphEpoch++;state.graphFilter='all';state.listing=false;graphCamera=defaultCamera();
 }
@@ -132,6 +134,7 @@ function installTelemetry(page){
   state.journalId=page.journalId;
   if(state.replayId&&!state.events.some(event=>event.id===state.replayId))state.replayExpired=true;
   if(state.suppressLivePulse){state.suppressLivePulse=false;return;}
+  if(hasHistory&&!page.gap&&!page.reset&&!page.hasMore&&typeof noteAgentActivity==='function')noteAgentActivity(added);
   if(hasHistory&&!page.gap&&!page.reset&&!page.hasMore&&state.view==='overview'&&state.graphMode==='graph'&&!state.replayId&&!state.motionPaused&&!reduced.matches){
     const now=Date.now();
     const fresh=added.filter(event=>{
@@ -170,7 +173,7 @@ async function refresh(manual=false,areas=null){
     if(summaryOk){updateOverview(summary.value);delete state.errors.overview;}
     else if(reachable)state.errors.overview=summary.reason?.message??'The workspace returned an invalid overview.';
     renderChrome();
-    if(!reachable){failures++;state.pulseIds=[];drawGraph();if(!$('title'))render();return;}
+    if(!reachable){failures++;state.pulseIds=[];drawGraph();updateAgentDock();if(!$('title'))render();return;}
     failures=0;
     polls++;
     const epoch=state.dataEpoch,graphEpoch=state.graphEpoch;
@@ -179,11 +182,15 @@ async function refresh(manual=false,areas=null){
     if(state.journalId)params.set('journalId',state.journalId);
     const wanted=area=>!areas||areas.has(area);
     const jobs=[];
+    if(local&&wanted('presence')&&dockVisible(scope))jobs.push(['presence',api('presence',options)]);
     if(local&&(wanted('policy')||scope==='setup'&&wanted('sessions'))&&!state.pending&&
-      (['setup','sessions','context'].includes(scope)||state.context))jobs.push(['policy',api('project-policy',options)]);
+      (['setup','sessions','context','overview'].includes(scope)||state.context))jobs.push(['policy',api('project-policy',options)]);
     if(wanted('telemetry'))jobs.push(['telemetry',api('telemetry?'+params,options)]);
-    if(local&&wanted('usage')&&['models','usage','sessions'].includes(scope))jobs.push(['usage',api('usage',options)]);
-    if(local&&wanted('sessions')&&scope==='sessions'&&!state.pending){jobs.push(['sessions',api('sessions',options)]);if(state.session)jobs.push(['session',api('sessions/'+state.session.session.id+(state.sessionBefore?'?before='+encodeURIComponent(state.sessionBefore):''),options)]);}
+    if(local&&wanted('usage')&&['models','usage','sessions','overview'].includes(scope))jobs.push(['usage',api('usage',options)]);
+    if(local&&wanted('sessions')&&dockVisible(scope)&&!state.pending){
+      jobs.push(['sessions',api('sessions',options)]);
+      if(scope==='sessions'&&state.session)jobs.push(['session',api('sessions/'+state.session.session.id+(state.sessionBefore?'?before='+encodeURIComponent(state.sessionBefore):''),options)]);
+    }
     if(local&&wanted('feedback')&&scope==='learning'&&!state.pending)jobs.push(['feedback',api('project-feedback',options)]);
     if(local&&wanted('sources')&&scope==='knowledge'&&!state.pending){
       jobs.push(['sources',api('sources',options)]);
@@ -201,14 +208,15 @@ async function refresh(manual=false,areas=null){
       if(result.status==='rejected'){needsRender ||= state.errors[name]!==result.reason.message;state.errors[name]=result.reason.message;return;}
       needsRender ||= !!state.errors[name];
       delete state.errors[name];
-      if(name==='policy'){const changed=installPolicy(result.value);needsRender ||= changed;return;}
+      if(name==='policy'){const changed=installPolicy(result.value);needsRender ||= scope!=='overview'&&changed;return;}
+      if(name==='presence'){installDockPresence(result.value);scheduleDockExpiry();return;}
       if(name==='session'&&state.session?.session.id!==result.value.session.id)return;
       if(name==='source'){
         if(state.source?.id!==result.value.source.id)return;
         needsRender ||= state.view==='knowledge'&&JSON.stringify(state.source)!==JSON.stringify(result.value.source);
         state.source=result.value.source;return;
       }
-      if(name==='sessions'||name==='session'||name==='sources'){needsRender ||= state.view===scope&&JSON.stringify(state[name])!==JSON.stringify(result.value);state[name]=result.value;}
+      if(name==='sessions'||name==='session'||name==='sources'){needsRender ||= scope!=='overview'&&state.view===scope&&JSON.stringify(state[name])!==JSON.stringify(result.value);state[name]=result.value;}
       else if(name==='feedback'){needsRender ||= state.view==='learning'&&state.feedback?.revision!==result.value.revision;state.feedback=result.value;}
       else if(name==='usage'){needsRender ||= ['models','usage','sessions'].includes(state.view)&&JSON.stringify(state.usage)!==JSON.stringify(result.value);state.usage=result.value;}
       else if(name==='telemetry'){const before=JSON.stringify([state.live,state.recording,state.cursor,state.events.map(event=>event.id)]);installTelemetry(result.value);needsRender ||= ['models','usage'].includes(state.view)&&before!==JSON.stringify([state.live,state.recording,state.cursor,state.events.map(event=>event.id)]);if(result.value.hasMore)pollAgain=true;}
@@ -230,6 +238,7 @@ async function refresh(manual=false,areas=null){
       if(manual||!$('brain-stage')||needsRender)render(true);
       else updateOverviewLive();
     }else if(manual||!$('title')||needsRender)render(true);
+    updateAgentDock();
     if(manual)await loadView();
   } finally {
     polling=false;controller=undefined;
@@ -253,6 +262,10 @@ async function loadView(){
     if(local&&current==='learning')jobs.push(['feedback','project-feedback']);
   }
   if(local&&current==='sessions')jobs.push(['sessions','sessions']);
+  if(local&&current==='overview'&&!state.sessions)jobs.push(['sessions','sessions']);
+  if(local&&current==='overview'&&!state.usage)jobs.push(['usage','usage']);
+  if(local&&current==='overview'&&!state.policy)jobs.push(['policy','project-policy']);
+  if(local&&dockVisible(current))jobs.push(['presence','presence']);
   if(local&&['models','usage','sessions'].includes(current))jobs.push(['usage','usage']);
   if(local&&current==='knowledge')jobs.push(['sources','sources']);
   if(current==='models')jobs.push(['integrations','integrations']);
@@ -260,19 +273,27 @@ async function loadView(){
   if(epoch!==state.viewEpoch||current!==state.view)return;
   results.forEach((result,index)=>{
     const name=jobs[index][0];
-    if(result.status==='fulfilled'){if(name==='policy')installPolicy(result.value);else state[name]=result.value;delete state.errors[name];}
+    if(result.status==='fulfilled'){
+      if(name==='policy')installPolicy(result.value);
+      else if(name==='presence')installDockPresence(result.value);
+      else state[name]=result.value;
+      delete state.errors[name];
+    }
     else state.errors[name]=result.reason.message;
   });
   if(jobs.length)render(true);
+  scheduleDockExpiry();
   if(local&&current==='sessions')void refreshNativeChats();
   if(local&&current==='sessions')void readLiveFiles();
 }
 function openView(next){
   if(!Object.hasOwn(nav,next))return;
   state.view=next;state.message='';state.messageError=false;state.pulseIds=[];
+  scheduleDockExpiry();
   render();window.scrollTo(0,0);$('title')?.focus({preventScroll:true});void loadView();
 }
 function render(restore=false){
+  const dockFocus=$('tool-dock')?.contains(document.activeElement)?document.activeElement:null;
   const policyToolsOpen=$('policy-tools')?.open;
   const finder=$('node-list');
   const finderFocus=finder?.contains(document.activeElement)?document.activeElement:null;
@@ -286,6 +307,10 @@ function render(restore=false){
   renderChrome();
   const viewBody=views[state.view]();
   $('main').innerHTML=viewBody+'<p class="status small" id="view-status" role="status"></p>';
+  updateAgentDock();
+  if(dockFocus?.dataset.dockTool)focusDockTool(dockFocus.dataset.dockTool);
+  else if(dockFocus?.dataset.dockRecord)[...$('tool-dock')?.querySelectorAll('[data-dock-record]')??[]].find(button=>button.dataset.dockRecord===dockFocus.dataset.dockRecord)?.focus({preventScroll:true});
+  else if(dockFocus?.id)$(dockFocus.id)?.focus({preventScroll:true});
   if(policyToolsOpen&&$('policy-tools'))$('policy-tools').open=true;
   status(state.message,state.messageError);
   if(state.view==='overview'){mountGraph();updateLiveFilePulse();}
@@ -385,12 +410,22 @@ function start(){
     state.project=event.target.value;resetScope();render();void refresh(true);
   });
   $('main').addEventListener('input',event=>{if(event.target.id==='replay')setReplay(Number(event.target.value));else reflectPolicySlider(event.target);});
-  $('main').addEventListener('change',event=>{if(event.target.id==='policy-chat'){state.policySelection=event.target.value;render();$('policy-chat')?.focus();}});
+  $('main').addEventListener('change',event=>{
+    if(event.target.id==='policy-chat'){state.policySelection=event.target.value;render();$('policy-chat')?.focus();}
+  });
+  $('main').addEventListener('focusin',event=>previewDockTool(event.target));
+  $('main').addEventListener('pointerover',event=>{if(event.pointerType==='mouse')previewDockTool(event.target);});
+  $('main').addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&dockTool&&event.target.closest('#tool-dock')){
+      const close=$('tool-dock')?.querySelector('[data-dock-close]');
+      if(close){event.preventDefault();handleAgentDock(close);}
+    }
+  });
   document.addEventListener('visibilitychange',()=>{
-    clearTimeout(timer);state.pulseIds=[];drawGraph();
+    clearTimeout(timer);state.pulseIds=[];drawGraph();updateAgentDock();scheduleDockExpiry();
     if(document.hidden){controller?.abort();stopProjectStream();}else {state.suppressLivePulse=!!liveStream.cursor;void refresh(true);}
   });
-  reduced.addEventListener('change',()=>{state.pulseIds=[];updateOverviewLive();});
+  reduced.addEventListener('change',()=>{state.pulseIds=[];updateOverviewLive();updateAgentDock();});
   window.addEventListener('online',()=>void refresh(true));
   document.addEventListener('click',handleClick);
   document.addEventListener('submit',handleSubmit);

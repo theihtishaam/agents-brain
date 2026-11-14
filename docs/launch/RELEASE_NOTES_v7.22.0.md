@@ -21,6 +21,9 @@ This release makes project knowledge easier to add, trace, share and correct. Sa
 
 ## Portal and usage
 
+- A tool activity panel uses locally bundled integration icons and accessible detail controls for reported sessions, models, coordination roles and latest observed actions. Fresh event indicators respect pause and reduced-motion settings.
+- Initialized project MCP transports report bounded presence leases, with ten-second renewals, thirty-second expiry and clean-disconnect removal. Presence refreshes independently of the graph and never substitutes for evidence of model execution.
+- Optional usage receipts accept a bounded `reasoningEffort` label. It remains host-reported, with unknown effort omitted; existing receipts keep their retry identity.
 - The brain-shaped graph lays out actual stored records, with depth cues, quieter membership links, recorded relationship filters, search, pan, zoom and reduced motion.
 - Observed client exchanges remain visible even when the memory graph is empty. Replay does not silently switch to a newer event after the selected record expires.
 - Context shows candidates, selection reasons, exclusions, source navigation and the actual added/removed/shared records in a comparison.

@@ -48,11 +48,11 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 
 ## Inside the Brain Hub
 
-![Brain Hub with stored public documentation, linked references, context estimates, and a measured MCP receipt](docs/assets/7.22.0-hub-graph.png)
+![Running Brain Hub with tool icons, selectable reported workers, model details and a stored memory graph in an isolated test workspace](docs/assets/7.22.0-agent-dock.png)
 
 | View | What you can do |
 | --- | --- |
-| **Brain overview** | Follow stored memory relationships, open a node or its keyboard-accessible list entry, and seek through recorded activity. An empty store has zero graph nodes and edges. |
+| **Brain overview** | Recognize your tools by their icons, inspect reported agents and models, follow stored memory relationships, and seek through recorded activity. An empty store has zero graph nodes and edges. |
 | **Knowledge** | Paste ordinary text and click Add to memory. Review longer notes, inspect original sources, or optionally import a document. Generate a project-specific skill. |
 | **Sessions** | Inspect reported work, original conversation snapshots, saved checkpoints and linked continuations. Connect the supported Codex history API explicitly or select an export from another tool. |
 | **Collaboration** | Open a project room, post a proposal or critique, claim a task, attach a project file, accept evidence, and record the outcome. |
@@ -60,6 +60,20 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 | **Models and Usage** | Inspect client readiness, retained exchanges and optional host-reported model/token receipts. Unknown counts remain unknown; costs are not invented. |
 | **Learning** | Rate memories for a task, pause or remove retrieval feedback, and create a lesson from a recorded outcome. Record a paired evaluation, promote an eligible lesson, or roll back its retrieval influence. |
 | **Setup** | Choose tool participation, chat sharing, context limits and coordination roles. Manage features and verified Project Kit skills. |
+
+### See which tool reported the work
+
+![Actual event-driven indicator and tool details in the running test workspace](docs/assets/7.22.0-agent-dock.gif)
+
+The tool activity panel uses local Codex/OpenAI, Claude, DeepSeek and OpenCode icons. Hover, focus or select a tool to inspect its project, recorded conversations, coordination role, latest observed action and optional model receipts. Separate conversations stay identifiable when one tool has several workers.
+
+Model, provider, effort and token counts come from explicit host reports. Missing values say **Not reported**. Activity indicators respond to new recorded events, respect **Pause motion** and reduced-motion preferences, and do not animate old history as new work. The icon identifies the tool, not the model it may be running.
+
+**Reporting MCP connections** counts initialized project connections with a current heartbeat. Connections renew every ten seconds and expire after thirty seconds without renewal. This reports the memory transport; a connected tool may be idle. It does not count native apps that have not connected to this project.
+
+The panel captures use four scripted MCP clients and synthetic model receipts. They demonstrate the working interface and transport, not four native applications or model inference.
+
+[Activity and session guide](docs/SESSIONS.md) · [Icon sources and license](docs/BRAND_ASSETS.md)
 
 ### Start with ordinary words
 

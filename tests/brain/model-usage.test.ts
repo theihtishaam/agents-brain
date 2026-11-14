@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -32,6 +33,8 @@ it('keeps empty reads and rejected reports side-effect free', () => {
   for (const fields of [
     { operationId: '' }, { agent: 'a user query' }, { provider: 'https://example.test' }, { outcome: 'unknown' },
     { prompt: 'synthetic-explicitly-forbidden' }, { provenance: 'provider-measured' }, { response: 'text' },
+    { reasoningEffort: '' }, { reasoningEffort: 'high with notes' }, { reasoningEffort: 'https://example.test' },
+    { reasoningEffort: 'a'.repeat(33) }, { reasoningEffort: 1 }, { reasoningEffort: { level: 'high' } },
     { inputTokens: -1 }, { inputTokens: 1.25 }, { inputTokens: 1_000_000_001 }, { inputTokens: '42' },
     { inputTokens: 4, cacheReadInputTokens: 3, cacheWriteInputTokens: 2 }, { outputTokens: 4, reasoningOutputTokens: 5 },
   ]) expect(() => store.report({ ...base, ...fields })).toThrow(TypeError);
@@ -55,6 +58,23 @@ it('distinguishes explicit zero, unknown and partial counters and keeps identica
     { agent: 'agent-one', provider: 'host-provider', requestModel: 'requested', responseModel: 'returned', count: 2 },
     { agent: 'agent-two', provider: null, requestModel: null, responseModel: null, count: 1 },
   ]);
+});
+
+
+it('round-trips optional host-reported reasoning effort and preserves legacy retry identities', () => {
+  const legacy = store.report(base);
+  expect(store.report({ agent: base.agent, sessionId: base.sessionId, operationId: base.operationId, projectId: base.projectId })).toEqual(legacy);
+  expect(legacy).not.toHaveProperty('reasoningEffort');
+  const expectedLegacyFingerprint = createHash('sha256').update(JSON.stringify({ operationId: 'operation-1', projectId, sessionId: 'session-a', agent: 'agent-one' })).digest('hex');
+  const db = new DatabaseSync(filename, { readOnly: true, allowExtension: false });
+  try { expect(db.prepare('SELECT fingerprint FROM receipts').get()?.fingerprint).toBe(expectedLegacyFingerprint); } finally { db.close(); }
+  const input = { ...base, operationId: 'effort-fixture', provider: 'fixture-provider', requestModel: 'fixture-model', reasoningEffort: 'xhigh', inputTokens: 7 };
+  const receipt = store.report(input);
+  expect(receipt).toMatchObject({ reasoningEffort: 'xhigh', provenance: 'host-reported' });
+  expect(store.report({ reasoningEffort: 'xhigh', inputTokens: 7, requestModel: 'fixture-model', provider: 'fixture-provider', ...base, operationId: 'effort-fixture' })).toEqual(receipt);
+  expect(() => store.report({ ...input, reasoningEffort: 'high' })).toThrow(expect.objectContaining({ code: 'USAGE_CONFLICT' }));
+  expect(() => store.report({ ...input, reasoningEffort: undefined })).toThrow(expect.objectContaining({ code: 'USAGE_CONFLICT' }));
+  expect(new ModelUsageStore(root, projectId).read().receipts).toEqual([legacy, receipt]);
 });
 
 it('bounds retention and only counts retries whose identities remain in the retained window', () => {

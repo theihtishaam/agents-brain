@@ -2,6 +2,7 @@ import { lstatSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import type { FeatureFlags, FeatureSettingsStore } from '../brain/feature-settings.js';
+import { MCP_PRESENCE_FILE } from '../brain/mcp-presence.js';
 import { ProjectFileWatch, type ObservedProjectFile, type ProjectWatchSummary } from './project-file-watch.js';
 
 const LIMITS = { connections: 8, ring: 128, files: 50, queuedBytes: 96 * 1024, checkMs: 250, heartbeatMs: 14_000 };
@@ -9,13 +10,14 @@ const STORES = [
   ['project-memory.json', ['graph']],
   ['memory-annotations.json', ['graph']],
   ['activity-journal.json', ['telemetry']],
-  ['feature-settings.json', ['features']],
+  ['feature-settings.json', ['features', 'presence']],
   ['memory-feedback.json', ['feedback']],
   ['project-hub.sqlite', ['hub', 'sessions']],
   ['project-hub.sqlite-wal', ['hub', 'sessions']],
   ['project-sources.sqlite', ['sources']],
   ['project-sources.sqlite-wal', ['sources']],
-  ['project-policy.json', ['policy']],
+  ['project-policy.json', ['policy', 'presence']],
+  [MCP_PRESENCE_FILE, ['presence']],
   ['model-usage.sqlite', ['usage']],
   ['model-usage.sqlite-wal', ['usage']],
 ] as const;

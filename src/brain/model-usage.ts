@@ -13,7 +13,7 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{1
 const counters = ['inputTokens', 'outputTokens', 'cacheReadInputTokens', 'cacheWriteInputTokens', 'reasoningOutputTokens'] as const;
 type Counter = typeof counters[number];
 export type UsageInput = { operationId: string; projectId: string; sessionId: string; agent: string;
-  provider?: string; requestModel?: string; responseModel?: string; outcome?: 'success' | 'error' | 'cancelled' } & Partial<Record<Counter, number>>;
+  provider?: string; requestModel?: string; responseModel?: string; reasoningEffort?: string; outcome?: 'success' | 'error' | 'cancelled' } & Partial<Record<Counter, number>>;
 export type UsageReceipt = UsageInput & { id: string; recordedAt: string; provenance: 'host-reported' };
 export class ModelUsageError extends Error {
   constructor(readonly code: string, message: string, readonly status = 400) { super(message); }
@@ -26,13 +26,13 @@ type StoredReceipt = { identity?: unknown; fingerprint?: unknown; data?: unknown
 export function parseUsageInput(value: unknown, projectId: string): UsageInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Send a usage receipt object.');
   const input = value as Record<string, unknown>;
-  const labels = ['operationId', 'projectId', 'sessionId', 'agent', 'provider', 'requestModel', 'responseModel'];
+  const labels = ['operationId', 'projectId', 'sessionId', 'agent', 'provider', 'requestModel', 'responseModel', 'reasoningEffort'];
   if (Object.keys(input).some(key => ![...labels, ...counters, 'outcome'].includes(key))) throw new TypeError('Usage receipts accept labels and token counters only.');
   const result: Record<string, unknown> = {};
   for (const key of labels) {
     const field = input[key];
-    if (field === undefined && ['provider', 'requestModel', 'responseModel'].includes(key)) continue;
-    if (typeof field !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(field) || field.includes('://')) throw new TypeError('Use short plain labels for ' + key + '.');
+    if (field === undefined && ['provider', 'requestModel', 'responseModel', 'reasoningEffort'].includes(key)) continue;
+    if (typeof field !== 'string' || (key === 'reasoningEffort' ? !/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/u.test(field) : !/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u.test(field) || field.includes('://'))) throw new TypeError('Use short plain labels for ' + key + '.');
     result[key] = field;
   }
   if (result.projectId !== projectId) throw new ModelUsageError('USAGE_PROJECT_MISMATCH', 'This receipt belongs to another project.', 409);

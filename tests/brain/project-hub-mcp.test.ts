@@ -11,6 +11,7 @@ import { HUB_OPERATOR } from '../../src/brain/project-hub-contract.js';
 import { ProjectHubService } from '../../src/brain/project-hub.js';
 import { projectStorage } from '../../src/brain/project-memory.js';
 import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
+import { MCPPresenceStore, MCP_PRESENCE_FILE, MCP_PRESENCE_LIMITS } from '../../src/brain/mcp-presence.js';
 import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
 
 const cli = resolve('dist/cli.js');
@@ -111,9 +112,14 @@ class FixtureClient {
     });
   }
 
-  async initialize() {
+  async initialize(ready = true) {
     const handshake = await this.request('initialize', { protocolVersion: '2025-11-25', clientInfo: { name: this.clientName, version: '1' }, capabilities: {} });
     expect(handshake.result.protocolVersion).toBe('2025-11-25');
+    if (!ready) return [];
+    return this.ready();
+  }
+
+  async ready() {
     this.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     return (await this.request('tools/list')).result.tools;
   }
@@ -125,7 +131,68 @@ class FixtureClient {
     const [code] = await this.closed;
     expect(code).toBe(0);
   }
+
+  async kill() { this.child.kill('SIGKILL'); await this.closed; }
 }
+
+it('reports current stdio connections independently of participation, removes on close and expires a killed client', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'hub-mcp-presence-'));
+  const portal = await startProjectWorkspace(root);
+  const clients = [new FixtureClient(root, portal.storagePath, 'codex-fixture'), new FixtureClient(root, portal.storagePath, 'Claude fixture')];
+  const [first, second] = clients;
+  const filename = join(root, '.shadow-brain', MCP_PRESENCE_FILE);
+  const request = async (suffix: string, input?: object) => {
+    const response = await fetch(portal.url + '/api/workspace/' + suffix, input ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) } : undefined);
+    expect(response.status, await response.clone().text()).toBe(200);
+    return response.json();
+  };
+  let killed = false;
+  try {
+    await Promise.all(clients.map(client => client.initialize(false)));
+    expect((await request('presence')).count).toBe(0);
+    expect(existsSync(filename)).toBe(false);
+    await Promise.all(clients.map(client => client.ready()));
+    const full = await request('presence');
+    expect(full).toMatchObject({ projectId: portal.projectId, enabled: true, count: 2,
+      tools: [{ tool: 'claude-code', count: 1 }, { tool: 'codex', count: 1 }] });
+    expect(new Set(full.connections.map((row: { id: string }) => row.id)).size).toBe(2);
+    const foreignRequest = await fetch(portal.url + '/api/workspace/presence', { headers: { origin: 'https://foreign.invalid' } });
+    expect(foreignRequest.status).toBe(403);
+
+    const { policy } = await request('project-policy');
+    await request('project-policy', { kind: 'set-tool-participation', expectedRevision: policy.revision, tool: 'claude-code', enabled: false });
+    expect((await request('presence')).tools).toEqual(full.tools);
+    const blocked = await second.call('global_recall', { keywords: ['fixture'] });
+    expect(blocked.error).toMatchObject({ code: -32003, message: expect.stringContaining('disabled') });
+    const controlled = await second.call('project_policy');
+    expect(controlled.result?.structuredContent).toMatchObject({ tool: 'claude-code', enabled: false });
+    await request('project-policy', { kind: 'set-tool-participation', expectedRevision: policy.revision + 1, tool: 'claude-code', enabled: true });
+    const feature = await request('features');
+    await request('features', { expectedRevision: feature.revision, patch: { activityRecording: false } });
+    expect(await request('presence')).toMatchObject({ enabled: false, count: null, connections: [] });
+    await request('features', { expectedRevision: feature.revision + 1, patch: { activityRecording: true } });
+    await first.stop();
+    const remaining = await request('presence');
+    expect(remaining.tools).toEqual([{ tool: 'claude-code', count: 1 }]);
+    await second.kill();
+    killed = true;
+    expect((await request('presence')).count).toBe(1);
+    const expiredAt = Date.parse(remaining.connections[0].lastSeenAt) + MCP_PRESENCE_LIMITS.ttlMs;
+    expect(new MCPPresenceStore(portal.root, portal.projectId, () => expiredAt).read(true).count).toBe(0);
+    const original = readFileSync(filename);
+    writeFileSync(filename, 'invalid fixture bytes');
+    const invalid = await fetch(portal.url + '/api/workspace/presence');
+    expect(invalid.status).toBe(503);
+    expect(await invalid.json()).toMatchObject({ code: 'MCP_PRESENCE_UNAVAILABLE' });
+    writeFileSync(filename, original);
+  } finally {
+    await Promise.allSettled(killed ? [first.stop()] : clients.map(client => client.stop()));
+    await portal.close();
+    const canonical = realpathSync.native(root);
+    if (dirname(canonical) !== realpathSync.native(tmpdir()) || !basename(canonical).startsWith('hub-mcp-presence-')) throw new Error('Unexpected fixture path.');
+    rmSync(canonical, { recursive: true, force: true });
+  }
+}, 30_000);
 
 it('shares project-local rooms through two independent stdio clients, persists replay and guards identity', async () => {
   const a = mkdtempSync(join(tmpdir(), 'hub-mcp-a-'));
@@ -356,6 +423,7 @@ it('records bounded host usage from two independent MCP clients and shares it wi
   try {
     const definitions = await Promise.all(clients.map(client => client.initialize()));
     expect(definitions[0].find((tool: any) => tool.name === 'usage_report').annotations.readOnlyHint).toBe(false);
+    expect(definitions[0].find((tool: any) => tool.name === 'usage_report').inputSchema.properties.reasoningEffort).toMatchObject({ type: 'string', maxLength: 32 });
     expect(definitions[2].some((tool: any) => tool.name === 'usage_report')).toBe(false);
     const base = { projectId: project.projectId, agent: 'fixture-agent', sessionId: 'fixture-session', requestModel: 'reported-request' };
     expect((await unpinned.call('usage_report', { ...base, operationId: 'unpinned' })).error.code).toBe(-32601);
@@ -365,10 +433,11 @@ it('records bounded host usage from two independent MCP clients and shares it wi
     await settings.update({ activityRecording: true });
     expect((await first.call('usage_report', { ...base, operationId: 'forged', provenance: 'provider-measured' })).error.code).toBe(-32602);
     expect((await first.call('usage_report', { ...base, operationId: 'negative', inputTokens: -1 })).error.code).toBe(-32602);
+    expect((await first.call('usage_report', { ...base, operationId: 'bad-effort', reasoningEffort: 'high with notes' })).error.code).toBe(-32602);
     const foreign = await first.call('usage_report', { ...base, operationId: 'foreign', projectId: 'foreign-project' });
     expect(foreign.result).toMatchObject({ isError: true, structuredContent: { code: 'USAGE_PROJECT_MISMATCH' } });
     expect(existsSync(filename)).toBe(false);
-    const one = { ...base, operationId: 'operation-one', inputTokens: 0 };
+    const one = { ...base, operationId: 'operation-one', inputTokens: 0, reasoningEffort: 'high' };
     const two = { ...base, operationId: 'operation-two', outputTokens: 9, reasoningOutputTokens: 2 };
     const writes = await Promise.all([first.call('usage_report', one), second.call('usage_report', two)]);
     for (const result of writes) {
@@ -376,9 +445,11 @@ it('records bounded host usage from two independent MCP clients and shares it wi
       expect(result.result.isError).toBeUndefined();
       expect(result.result.structuredContent).toMatchObject({ projectId: project.projectId, provenance: 'host-reported' });
     }
+    expect(writes[0].result.structuredContent.reasoningEffort).toBe('high');
+    expect(writes[1].result.structuredContent.reasoningEffort).toBeUndefined();
     const duplicate = await second.call('usage_report', one);
     expect(duplicate.result.structuredContent).toEqual(writes[0].result.structuredContent);
-    const conflicts = await Promise.all([first.call('usage_report', { ...one, inputTokens: 1 }), second.call('usage_report', { ...two, outputTokens: 11 })]);
+    const conflicts = await Promise.all([first.call('usage_report', { ...one, reasoningEffort: 'low' }), second.call('usage_report', { ...two, outputTokens: 11 })]);
     for (const reply of conflicts) expect(reply.result).toMatchObject({ isError: true, structuredContent: { code: 'USAGE_CONFLICT' } });
     portal = await startProjectWorkspace(root);
     const usage = await fetch(portal.url + '/api/workspace/usage');

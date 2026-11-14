@@ -36,14 +36,14 @@ const tarball = path.join(sandbox, pack.filename);
 assert.equal('sha512-' + createHash('sha512').update(fs.readFileSync(tarball)).digest('base64'), pack.integrity);
 assert(pack.files.some(file => file.path === 'dist/brain/global-brain.js'));
 for (const file of ['activity-cli', 'curation-cli', 'project-cli', 'brain/activity-journal', 'brain/memory-annotations', 'brain/mcp-stdio',
-  'brain/context-retrieval', 'brain/context-request', 'brain/client-config', 'brain/memory-inspection', 'brain/memory-mcp-content',
+  'brain/context-retrieval', 'brain/context-request', 'brain/client-config', 'brain/memory-inspection', 'brain/memory-mcp-content', 'brain/mcp-presence',
   'brain/project-kit', 'brain/project-kit-paths', 'brain/project-kit-inspection', 'brain/project-memory', 'brain/project-feedback',
   'brain/project-source-intake', 'brain/project-source-contract', 'brain/model-usage', 'dashboard/project-source-api',
   'brain/project-sessions', 'brain/project-session-mcp', 'brain/native-session-import', 'brain/native-codex', 'brain/project-policy', 'brain/project-policy-delivery',
   'brain/managed-project-skills', 'dashboard/managed-project-skills-api', 'dashboard/brain-hub-managed-skills',
   'dashboard/project-session-api', 'dashboard/native-codex-api', 'dashboard/project-policy-api', 'dashboard/project-live-stream', 'dashboard/project-file-watch',
   'brain/project-hub', 'brain/project-hub-contract', 'brain/project-hub-store', 'brain/project-hub-pdf-worker', 'brain/project-hub-mcp', 'brain/file-identity',
-  'dashboard/project-workspace', 'dashboard/project-hub-api', 'dashboard/brain-hub-html', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
+  'dashboard/project-workspace', 'dashboard/project-hub-api', 'dashboard/brain-hub-html', 'dashboard/brain-hub-agent-dock', 'dashboard/brain-hub-brand-icons', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.js'), 'missing packaged module ' + file);
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.d.ts'), 'missing packaged declaration ' + file);
 }
@@ -52,6 +52,7 @@ const bundledNames = ['shadow-workflow', 'shadow-implement', 'shadow-debug', 'sh
 for (const name of bundledNames) assert(pack.files.some(file => file.path === `skills/${name}/SKILL.md`));
 assert(pack.files.some(file => file.path === 'docs/assets/context-flow-v7.2.png'));
 assert(pack.files.some(file => file.path === 'docs/WORKSPACE.md'));
+assert(pack.files.some(file => file.path === 'docs/BRAND_ASSETS.md'), 'Bundled icon attribution and license must ship with the package');
 assert(!pack.files.some(file => /(^|\/)(tests|node_modules|work|outputs|\.git|\.env|\.npmrc)(\/|$)/.test(file.path)));
 assert(!pack.files.some(file => /(^|\/)(global|project-memory|memory-feedback|memory-annotations|feature-settings|activity-journal)\.json$/.test(file.path)));
 fs.writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module' }));

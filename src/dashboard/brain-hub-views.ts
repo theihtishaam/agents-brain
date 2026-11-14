@@ -1,4 +1,5 @@
 import { BRAIN_HUB_SESSIONS } from './brain-hub-sessions.js';
+import { BRAIN_HUB_AGENT_DOCK } from './brain-hub-agent-dock.js';
 import { BRAIN_HUB_CONTROLS } from './brain-hub-controls.js';
 import { BRAIN_HUB_MANAGED_SKILLS } from './brain-hub-managed-skills.js';
 import { BRAIN_HUB_CONTEXT } from './brain-hub-context.js';
@@ -102,7 +103,7 @@ function overviewPage(){
   const compare=state.comparison;
   const contextBody=pack?'<div class="panel-body stack"><div class="row"><span class="muted">Estimated pack tokens</span><strong class="mono">'+fmt(pack.estimatedTokens)+' / '+fmt(pack.tokenBudget)+'</strong></div><div class="meter"><i style="width:'+Math.min(100,Math.round(100*pack.estimatedTokens/Math.max(1,pack.tokenBudget)))+'%"></i></div>'+(compare?'<p class="small muted">Legacy '+fmt(compare.legacy.budget.estimatedTokens)+' · Adaptive '+fmt(compare.adaptive.budget.estimatedTokens)+' estimated tokens</p>':'')+(state.context?.efficiency?'<p><strong>'+(state.context.efficiency.signedTokenDifference<0?fmt(-state.context.efficiency.signedTokenDifference)+' more estimated tokens':fmt(state.context.efficiency.estimatedTokensAvoided)+' estimated tokens avoided')+'</strong></p><p class="small muted">Compared with the same task using the largest pack permitted by project controls. '+state.context.efficiency.assemblyMs+' ms assembly. Not measured billing savings.</p>':'')+view('context','Open context pack')+'</div>':empty('No context pack for this session','Assemble a pack to inspect estimated tokens and selection reasons.',view('context','Build context pack'));
   return heading('Brain control room','Explore stored memories, inspect tool exchanges, and connect your project.',action('pause',state.motionPaused?'Resume motion':'Pause motion','','id="pause-motion" '+(reduced.matches?'disabled':''))+view('setup','Connection setup'))+
-    telemetryStrip()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
+    telemetryStrip()+agentDock()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
     panel('Activity journal','<div class="replay"><label for="replay" class="small muted">Seek record</label><input id="replay" type="range" min="0" max="'+Math.max(0,state.events.length-1)+'" value="'+Math.max(0,state.events.indexOf(event))+'" '+(state.events.length?'':'disabled')+'><output class="mono small" id="event-time">'+esc(event?time(event.timestamp):state.replayExpired?'Expired':'—')+'</output>'+action('live','Latest','','id="return-live" '+(state.replayId?'':'hidden'))+'</div><div class="timeline" id="timeline">'+timelineMarkup()+'</div>', '<span id="journal-state">'+chip(state.replayId?(state.replayExpired?'Replay expired':'Replay'):state.live?'Recorded activity':'Activity unavailable',state.replayId?'amber':'cyan')+'</span>')+'</div>';
 }
 function updateOverviewLive(){
@@ -131,9 +132,10 @@ function updateOverviewLive(){
   const strip=$('main').querySelector('.strip');if(strip)strip.outerHTML=telemetryStrip();
   if(state.inspector==='event'&&!$('inspector').matches(':focus-within'))renderInspector();
   const pause=$('pause-motion');pause.textContent=state.motionPaused?'Resume motion':'Pause motion';pause.disabled=reduced.matches;
-  updateExchanges();drawGraph();
+  updateExchanges();drawGraph();updateAgentDock();
 }
 ${BRAIN_HUB_CONTEXT}
+${BRAIN_HUB_AGENT_DOCK}
 ${BRAIN_HUB_USAGE}
 ${BRAIN_HUB_SESSIONS}
 ${BRAIN_HUB_CONTROLS}

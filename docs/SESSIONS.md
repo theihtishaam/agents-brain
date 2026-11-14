@@ -41,6 +41,16 @@ Messages come from intentional reports by hosts or the operator. You can also im
 
 The local store retains up to 150 sessions, 200 messages and 40 checkpoints per session. It rejects new records at the relevant limit and preserves existing history. `session_read` returns up to 25 messages and 32 KiB of serialized message data per page. Pass its `nextBefore` value as `before` to read older messages. Use `session_checkpoint_read` to see a checkpoint's contents. Resuming requires its recorded SHA-256. Checkpoint evidence labels are stored as text. Project sessions do not open source paths, start agents, reopen native chat tabs, or capture conversations on their own.
 
+## Understand the tool activity panel
+
+The **Brain overview** and **Sessions** views identify Codex, Claude Code, DeepSeek Harness and OpenCode with locally bundled icons. Hover or focus a tool for details, or select it to keep the details open. Select a conversation or connection to inspect its workspace, exact available title and ID, coordination role, latest recorded action and optional model receipt.
+
+**Reporting MCP connections** counts initialized project MCP transports with a recent heartbeat. Each transport renews every ten seconds; its lease expires after thirty seconds without renewal. A clean disconnect removes it. An abruptly stopped process expires even if it cannot write a final event. The store retains at most 128 current leases. Recording off or unreadable presence data is unavailable, not evidence of zero connections. Tool participation is a separate control: turning it off restricts project operations but does not close the host's transport, so its connection can still report a heartbeat.
+
+A current heartbeat shows that the memory transport is reporting. It does not establish that a model is generating or that a native application tab is open. Registered work sessions, observed tool calls and host-reported model receipts remain separate. If one connection serves several chats, a connection-level action is not attributed to a chat without explicit evidence. A usage receipt shared by several registered sessions is shown at the conversation level rather than assigned to a worker by guessing.
+
+Model, provider, effort and token counts appear only when explicitly reported. These receipts do not prove a proxy's underlying model. Fresh journal events can briefly animate the activity indicator; heartbeat renewals do not animate work or reload the graph. Pause motion and reduced-motion preferences keep the interface still.
+
 ## Connect to Codex project history
 
 In **Sessions**, select **Connect installed Codex**. This starts a separate, read-only local Codex app-server connection for the project open in the Hub. Nothing is connected or read until you select this control. The connector uses the installed CLI; it does not start a model, create a native conversation, read browser data, or request authentication information. Select **Disconnect Codex** to close the connection. It expires automatically after 15 minutes.
