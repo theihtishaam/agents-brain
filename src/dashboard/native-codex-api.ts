@@ -1,16 +1,28 @@
 import type { IncomingMessage } from 'node:http';
+import * as path from 'node:path';
 import type { GlobalBrain } from '../brain/global-brain.js';
 import { requireProjectStore } from '../brain/project-memory.js';
+import { projectRoot } from '../brain/project-kit-paths.js';
 import { NativeCodexConnection, NativeCodexError, type NativeCodexFactory } from '../brain/native-codex.js';
 import { ProjectSessions } from '../brain/project-sessions.js';
 
 export function isNativeCodexRoute(route: string): boolean { return route === 'sessions/codex' || route.startsWith('sessions/codex/'); }
 export function createNativeCodexApi(factory?: NativeCodexFactory) {
   const connections = new Map<string, NativeCodexConnection>();
+  // Remember only spellings already validated for this project. This also permits
+  // shutdown after a project directory has been removed, without guessing paths.
+  const aliases = new Map<string, string>();
+  const pathKey = (value: string) => {
+    const resolved = path.resolve(value);
+    return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+  };
   function service(directory: string, brain: GlobalBrain) {
     const local = requireProjectStore(directory, brain);
-    let connection = connections.get(local.root);
-    if (!connection) { connection = new NativeCodexConnection(local.root, factory); connections.set(local.root, connection); }
+    const key = pathKey(local.root);
+    let connection = connections.get(key);
+    if (!connection) { connection = new NativeCodexConnection(local.root, factory); connections.set(key, connection); }
+    aliases.set(key, key);
+    aliases.set(pathKey(directory), key);
     return { local, connection };
   }
   async function request(req: IncomingMessage, route: string, url: URL, directory: string, brain: GlobalBrain, readBody: () => Promise<Record<string, unknown>>) {
@@ -40,7 +52,16 @@ export function createNativeCodexApi(factory?: NativeCodexFactory) {
     }
     return fail();
   }
-  return { request, close(directory: string) { const connection = connections.get(directory); connection?.close(); connections.delete(directory); } };
+  return { request, close(directory: string) {
+    let key = aliases.get(pathKey(directory));
+    if (!key) {
+      try { key = aliases.get(pathKey(projectRoot(directory))); } catch { /* An unknown or removed path cannot be resolved safely. */ }
+    }
+    if (!key) return;
+    connections.get(key)?.close(); connections.delete(key);
+    for (const [alias, target] of aliases) if (target === key) aliases.delete(alias);
+  } };
+
 }
 const api = createNativeCodexApi();
 export const nativeCodexRequest = api.request;

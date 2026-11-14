@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmdirSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -192,7 +192,7 @@ it('rejects an existing foreign root and a directory link even if it points at t
 });
 
 it.skipIf(process.platform !== 'win32')('accepts an equivalent Windows short spelling without relaxing project scope', async context => {
-  const { root } = fixture();
+  const { root, brain } = fixture();
   const canonical = projectStorage(root).root;
   const query = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("%ASB_NATIVE_ALIAS_FIXTURE%") do @echo %~sI'], {
     env: { ...process.env, ASB_NATIVE_ALIAS_FIXTURE: canonical }, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true, timeout: 5000,
@@ -207,4 +207,20 @@ it.skipIf(process.platform !== 'win32')('accepts an equivalent Windows short spe
     expect((await service.list()).threads[0].cwd.toLowerCase()).toBe(canonical.toLowerCase());
     expect((await service.read('thread-1')).thread.cwd.toLowerCase()).toBe(canonical.toLowerCase());
   } finally { service.close(); }
+  const requestFor = (api: ReturnType<typeof createNativeCodexApi>, directory: string) => api.request(
+    { method: 'POST', headers: { host: 'localhost' } } as IncomingMessage, 'sessions/codex/connect',
+    new URL('http://localhost/api/workspace/sessions/codex/connect'), directory, brain, async () => ({}));
+  const shortRpc = new FakeRpc(alias), first = createNativeCodexApi(() => shortRpc);
+  await requestFor(first, alias); first.close(canonical); expect(shortRpc.open).toBe(false);
+  const longRpc = new FakeRpc(canonical), second = createNativeCodexApi(() => longRpc);
+  await requestFor(second, canonical); second.close(alias); expect(longRpc.open).toBe(false);
+});
+
+it('closes a known connection after its project directory has been removed', async () => {
+  const { root, brain } = fixture(), foreign = fixture(), rpc = new FakeRpc(root), api = createNativeCodexApi(() => rpc);
+  await api.request({ method: 'POST', headers: { host: 'localhost' } } as IncomingMessage, 'sessions/codex/connect',
+    new URL('http://localhost/api/workspace/sessions/codex/connect'), root, brain, async () => ({}));
+  api.close(foreign.root); expect(rpc.open).toBe(true);
+  rmdirSync(root); // The isolated fixture is empty; no project files or links are removed.
+  api.close(root); expect(rpc.open).toBe(false);
 });

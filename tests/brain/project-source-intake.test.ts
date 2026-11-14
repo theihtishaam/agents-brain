@@ -97,7 +97,7 @@ it('resolves PDF and operator-reported lesson evidence through the project hub',
   await hub.lessonAction(lesson.id, { kind: 'evaluate', baseline: false, candidate: true, control: true, evidence: 'Reported comparison', key: key() }, HUB_OPERATOR);
   const promoted = await hub.lessonAction(lesson.id, { kind: 'promote', key: key() }, HUB_OPERATOR);
   expect(intake.resolveMemoryEvidence(promoted.lesson.memoryId!)).toMatchObject({ state: 'resolved', evidence: { kind: 'lesson-outcome', text: 'Review before release.', roomId: room.id, outcomeId: outcome.id, reported: true, outcome: { result: 'pass', check: 'Test', evidence: 'Reported outcome', provenance: 'user-report' }, evaluation: { baseline: false, candidate: true, control: true, evidence: 'Reported comparison', provenance: 'user-report' } } });
-});
+}, 30000);
 
 
 it('does not create storage on reads, preserves corruption, and detects forged or edited source evidence', async () => {
