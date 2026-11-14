@@ -479,7 +479,9 @@ for (const [modulePath, name, marker] of [
 }
 const readme = fs.readFileSync(path.join(installed, 'README.md'), 'utf8');
 const packedPaths = new Set(pack.files.map(file => file.path));
-for (const [, target] of readme.matchAll(/!\[[^\]]*]\((docs\/assets\/[^)]+\.(?:png|gif))\)/g)) {
+const readmeImages = [...readme.matchAll(/!\[[^\]]*]\((?:https:\/\/raw\.githubusercontent\.com\/theihtishaam\/agents-brain\/main\/)?(docs\/assets\/[^)]+\.(?:png|gif))\)/g)];
+assert(readmeImages.length >= 5, 'README visual guide must retain its packaged screenshots');
+for (const [, target] of readmeImages) {
   assert(packedPaths.has(target), 'README image is missing from tarball: ' + target);
   const png = fs.readFileSync(path.join(installed, target));
   if (target.endsWith('.png')) assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');

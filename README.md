@@ -19,7 +19,7 @@ GitHub refreshes this number every two days. The npm README records the total wh
 
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
-![Running Brain Hub with stored synthetic project records and measured MCP calls](docs/assets/7.22.0-hub-exchanges.gif)
+![Running Brain Hub with stored synthetic project records and measured MCP calls](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-hub-exchanges.gif)
 
 [What works and its limits](docs/FEATURES_AND_LIMITS.md)
 
@@ -48,7 +48,7 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 
 ## Inside the Brain Hub
 
-![Running Brain Hub with tool icons, selectable reported workers, model details and a stored memory graph in an isolated test workspace](docs/assets/7.22.0-agent-dock.png)
+![Running Brain Hub with tool icons, selectable reported workers, model details and a stored memory graph in an isolated test workspace](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-agent-dock.png)
 
 | View | What you can do |
 | --- | --- |
@@ -63,7 +63,7 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 
 ### See which tool reported the work
 
-![Actual event-driven indicator and tool details in the running test workspace](docs/assets/7.22.0-agent-dock.gif)
+![Actual event-driven indicator and tool details in the running test workspace](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-agent-dock.gif)
 
 The tool activity panel uses local Codex/OpenAI, Claude, DeepSeek and OpenCode icons. Hover, focus or select a tool to inspect its project, recorded conversations, coordination role, latest observed action and optional model receipts. Separate conversations stay identifiable when one tool has several workers.
 
@@ -77,7 +77,7 @@ The panel captures use four scripted MCP clients and synthetic model receipts. T
 
 ### Start with ordinary words
 
-![Working Teach the brain screen with reviewed project notes](docs/assets/7.22.0-teach-brain.png)
+![Working Teach the brain screen with reviewed project notes](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-teach-brain.png)
 
 1. Open **Knowledge** and type: **“The cupboard is black. Keep its brass handles.”**
 2. Click **Add to memory**. The note and its original wording are saved in this project.
@@ -100,7 +100,7 @@ flowchart LR
 
 ### Continue where another agent stopped
 
-![Running Sessions view with reported history and an immutable handoff](docs/assets/7.22.0-sessions.png)
+![Running Sessions view with reported history and an immutable handoff](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-sessions.png)
 
 An agent records meaningful progress and saves a checkpoint: what is done, decisions, evidence and next steps. Another connected agent calls `session_resume` with that checkpoint's ID and digest. It receives the exact saved handoff in a new linked session; the original remains available. This transfers recorded work, not hidden model state or an application's native running process.
 
@@ -117,7 +117,7 @@ flowchart LR
 
 ### Follow evidence from a PDF to a context pack
 
-![Working PDF intake with extracted text, a page locator, and approved project memory](docs/assets/7.1.4-hub-knowledge.png)
+![Working PDF intake with extracted text, a page locator, and approved project memory](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-hub-knowledge.png)
 
 ```mermaid
 flowchart LR
@@ -146,17 +146,17 @@ flowchart LR
 
 Browser and compatible project-local MCP clients share the same room records. Task claims carry revisions and expire. A recipient acknowledgement references the specific message or artifact. Learning changes project memory and retrieval. The workspace does not run models, train them, or assign work to hosts by itself. [Workspace guide](docs/WORKSPACE.md) · [Workflow integration](docs/WORKFLOW_INTEGRATION.md)
 
-![Actual learning view with a recorded comparison and rolled-back lesson](docs/assets/7.1.4-hub-learning.png)
+![Actual learning view with a recorded comparison and rolled-back lesson](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-hub-learning.png)
 
 ### Browse the original evidence tools
 
 The classic workspace offers memory curation, typed relationships, retrieval feedback, and the full Context Lab. The detailed activity view adds filters and playback controls for the loaded journal.
 
-![Classic Context Lab with selected and excluded evidence](docs/assets/7.1.4-context-lab.png)
+![Classic Context Lab with selected and excluded evidence](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-context-lab.png)
 
-![Memory review with recorded sources and typed links](docs/assets/7.1.4-memory-review.png)
+![Memory review with recorded sources and typed links](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-memory-review.png)
 
-![Activity diagnostics showing a recorded tool timeline](docs/assets/7.1.4-live.png)
+![Activity diagnostics showing a recorded tool timeline](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-live.png)
 
 ## Connect your agent
 
@@ -179,7 +179,7 @@ Preview the skill installation before adding `--apply`. Merge the printed recipe
 
 The Setup page distinguishes installed files, configuration recipes, observed calls and host-reported usage. Tools must connect and request context; installing a package cannot make every application use it automatically. The Codex history adapter completed a real 0.145.0 handshake and an empty-project indexed list. History paging and imports were verified against controlled process fixtures; no personal native history was read for release testing.
 
-![Actual Setup view with project sharing, context limits and feature controls](docs/assets/7.22.0-project-controls.png)
+![Actual Setup view with project sharing, context limits and feature controls](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-project-controls.png)
 
 ### Keep the workspace under your control
 

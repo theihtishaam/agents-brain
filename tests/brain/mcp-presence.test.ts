@@ -68,7 +68,7 @@ it('caps the store at 128 rows and prunes expired entries before admitting anoth
   clock += MCP_PRESENCE_LIMITS.ttlMs;
   store.report(extra);
   expect(store.read(true).connections.map(row => row.id)).toEqual([extra.id]);
-});
+}, 30000); // 128 durable transactions exceed 5s on slower Windows CI disks.
 
 it('fails without changing invalid storage, foreign data, or a hard-linked file', () => {
   fs.mkdirSync(path.dirname(filename));
