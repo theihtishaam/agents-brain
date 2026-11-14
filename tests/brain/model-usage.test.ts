@@ -70,7 +70,9 @@ it('bounds retention and only counts retries whose identities remain in the reta
   expect(store.read().dropped).toBe(1);
   expect(store.report(base).id).not.toBe(first.id);
   expect(store.read().dropped).toBe(2);
-}, 30_000);
+// This is a retention test with 1,001 durable SQLite transactions, not a latency benchmark.
+// Windows hosted runners can spend over 30 seconds flushing the complete fixture.
+}, 90_000);
 
 it('preserves corrupt or foreign databases and rejects unsafe storage links', () => {
   fs.mkdirSync(path.dirname(filename));

@@ -32,4 +32,3 @@ describe('bounded context reduction', () => {
     expect(result.efficiency.note).toContain('not measured model token savings');
   });
 });
-

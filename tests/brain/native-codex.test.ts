@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -177,4 +177,34 @@ it('does not report page completeness when the server omits pagination metadata'
   await service.connect(); await service.list();
   await expect(service.read('thread-1')).rejects.toThrow(/could not complete/u);
   service.close();
+});
+
+it('rejects an existing foreign root and a directory link even if it points at the project', async () => {
+  const { root } = fixture(), foreign = fixture();
+  const mismatch = new NativeCodexConnection(root, () => new FakeRpc(foreign.root));
+  await mismatch.connect(); await expect(mismatch.list()).rejects.toThrow(/project/u); mismatch.close();
+  const alias = join(root, 'linked-project');
+  symlinkSync(root, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  try {
+    const linked = new NativeCodexConnection(root, () => new FakeRpc(alias));
+    await linked.connect(); await expect(linked.list()).rejects.toThrow(/project/u); linked.close();
+  } finally { unlinkSync(alias); }
+});
+
+it.skipIf(process.platform !== 'win32')('accepts an equivalent Windows short spelling without relaxing project scope', async context => {
+  const { root } = fixture();
+  const canonical = projectStorage(root).root;
+  const query = spawnSync('cmd.exe', ['/d', '/c', 'for %I in ("%ASB_NATIVE_ALIAS_FIXTURE%") do @echo %~sI'], {
+    env: { ...process.env, ASB_NATIVE_ALIAS_FIXTURE: canonical }, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true, timeout: 5000,
+  });
+  expect(query.status, query.stderr).toBe(0);
+  const alias = query.stdout.trim();
+  if (alias.toLowerCase() === canonical.toLowerCase()) context.skip('The fixture volume does not provide an 8.3 short path.');
+  expect(realpathSync.native(alias).toLowerCase()).toBe(canonical.toLowerCase());
+  const rpc = new FakeRpc(alias), service = new NativeCodexConnection(canonical, () => rpc);
+  try {
+    await service.connect();
+    expect((await service.list()).threads[0].cwd.toLowerCase()).toBe(canonical.toLowerCase());
+    expect((await service.read('thread-1')).thread.cwd.toLowerCase()).toBe(canonical.toLowerCase());
+  } finally { service.close(); }
 });

@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { lstatSync } from 'node:fs';
 import * as path from 'node:path';
 import { digest } from './project-hub-store.js';
+import { projectRoot } from './project-kit-paths.js';
 import type { NativeSessionSnapshot } from './native-session-import.js';
 
 const MAX_REPLY = 2 * 1024 * 1024;
@@ -23,7 +24,14 @@ const obj = (value: unknown): Record<string, unknown> => value && typeof value =
 const stamp = (value: unknown): string | null => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) < 8640000000000 ? new Date(value * 1000).toISOString() : null;
 function rememberCursor(set: Set<string>, value: string, limit: number): void { set.delete(value); set.add(value); if (set.size > limit) set.delete(set.values().next().value!); }
 const cursorValue = (value: unknown): string | null => value === null || value === undefined ? null : typeof value === 'string' && value.length > 0 && value.length <= 1000 && !controls.test(value) ? value : invalid('Invalid pagination cursor.');
-function sameRoot(a: string, b: string): boolean { const one = path.resolve(a), two = path.resolve(b); return process.platform === 'win32' ? one.toLowerCase() === two.toLowerCase() : one === two; }
+function sameRoot(a: string, b: string): boolean {
+  try {
+    // The project helper validates real directory ancestry before resolving physical spelling.
+    // This accepts Windows 8.3 aliases while rejecting junctions, symlinks and foreign roots.
+    const one = projectRoot(a), two = projectRoot(b);
+    return process.platform === 'win32' ? one.toLowerCase() === two.toLowerCase() : one === two;
+  } catch { return false; }
+}
 function normalizeThread(value: unknown, root: string, archived: boolean): NativeCodexThread {
   const t = obj(value), status = obj(t.status);
   if (typeof t.id !== 'string' || !identifier.test(t.id) || typeof t.cwd !== 'string' || !path.isAbsolute(t.cwd) || !sameRoot(t.cwd, root)) invalid('A returned thread did not match this project.');
