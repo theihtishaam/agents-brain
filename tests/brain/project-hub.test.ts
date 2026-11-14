@@ -109,7 +109,8 @@ describe('project hub', () => {
     expect(revised.pages[0].status).toBe('pending');
     expect(workspace().hub.overview().documents).toEqual([]);
     expect(() => workspace().hub.document(uploaded.document.id)).toThrow(/not found in this project/u);
-  }, 15_000);
+  // Two sequential extraction workers each have a 20-second product limit.
+  }, 60_000);
 
   it('retains failed PDF intake, labels image-only pages, and bounds malformed input', async () => {
     const { hub } = workspace();
@@ -126,7 +127,8 @@ describe('project hub', () => {
     expect(hub.overview().ocr).toBe('unavailable');
     await expect(hub.upload('../broken.pdf', Buffer.from('%PDF-1.7'))).rejects.toMatchObject({ code: 'HUB_INVALID_FILENAME' });
     await expect(hub.upload('oversize.pdf', Buffer.alloc(HUB_LIMITS.pdfBytes + 1))).rejects.toMatchObject({ status: 413 });
-  }, 15_000);
+  // Four sequential extraction workers each have a 20-second product limit.
+  }, 100_000);
 
   it('reopens an interrupted extraction and keeps the source and failure history on retry', async () => {
     const { hub, root, connect } = workspace();

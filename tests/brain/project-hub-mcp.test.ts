@@ -152,7 +152,16 @@ it('reports current stdio connections independently of participation, removes on
     expect((await request('presence')).count).toBe(0);
     expect(existsSync(filename)).toBe(false);
     await Promise.all(clients.map(client => client.ready()));
-    const full = await request('presence');
+    const readPresence = async () => {
+      const response = await fetch(portal.url + '/api/workspace/presence');
+      const value = await response.json();
+      if (response.status === 503 && value.code === 'MCP_PRESENCE_BUSY') return { count: null };
+      expect(response.status, JSON.stringify(value)).toBe(200);
+      return value;
+    };
+    const heartbeatPoll = { timeout: MCP_PRESENCE_LIMITS.renewMs + 2_000, interval: 250 };
+    let full: Awaited<ReturnType<typeof readPresence>>;
+    await expect.poll(async () => (full = await readPresence()).count, heartbeatPoll).toBe(2);
     expect(full).toMatchObject({ projectId: portal.projectId, enabled: true, count: 2,
       tools: [{ tool: 'claude-code', count: 1 }, { tool: 'codex', count: 1 }] });
     expect(new Set(full.connections.map((row: { id: string }) => row.id)).size).toBe(2);
@@ -171,13 +180,17 @@ it('reports current stdio connections independently of participation, removes on
     await request('features', { expectedRevision: feature.revision, patch: { activityRecording: false } });
     expect(await request('presence')).toMatchObject({ enabled: false, count: null, connections: [] });
     await request('features', { expectedRevision: feature.revision + 1, patch: { activityRecording: true } });
+    await expect.poll(async () => (await readPresence()).count, heartbeatPoll).toBe(2);
     await first.stop();
-    const remaining = await request('presence');
+    let remaining: Awaited<ReturnType<typeof readPresence>>;
+    await expect.poll(async () => (remaining = await readPresence()).count, heartbeatPoll).toBe(1);
     expect(remaining.tools).toEqual([{ tool: 'claude-code', count: 1 }]);
     await second.kill();
     killed = true;
-    expect((await request('presence')).count).toBe(1);
-    const expiredAt = Date.parse(remaining.connections[0].lastSeenAt) + MCP_PRESENCE_LIMITS.ttlMs;
+    const afterKill = await request('presence');
+    expect(afterKill.count).toBe(1);
+    expect(afterKill.connections[0].id).toBe(remaining.connections[0].id);
+    const expiredAt = Date.parse(afterKill.connections[0].lastSeenAt) + MCP_PRESENCE_LIMITS.ttlMs;
     expect(new MCPPresenceStore(portal.root, portal.projectId, () => expiredAt).read(true).count).toBe(0);
     const original = readFileSync(filename);
     writeFileSync(filename, 'invalid fixture bytes');
@@ -192,7 +205,7 @@ it('reports current stdio connections independently of participation, removes on
     if (dirname(canonical) !== realpathSync.native(tmpdir()) || !basename(canonical).startsWith('hub-mcp-presence-')) throw new Error('Unexpected fixture path.');
     rmSync(canonical, { recursive: true, force: true });
   }
-}, 30_000);
+}, 60_000);
 
 it('shares project-local rooms through two independent stdio clients, persists replay and guards identity', async () => {
   const a = mkdtempSync(join(tmpdir(), 'hub-mcp-a-'));

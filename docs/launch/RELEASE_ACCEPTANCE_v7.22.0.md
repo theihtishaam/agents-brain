@@ -2,7 +2,7 @@
 
 Checked on 2026-11-14 against the release candidate. The checks below describe observed behavior and its limits. The [CI workflow](https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml) separately runs the build, tests, type checks, retrieval diagnostics, dependency audit and fresh-package checks on Ubuntu and Windows with Node 22, 24 and 26.
 
-The final local full-suite run passed **451 tests in 64 files**. Four public-metrics validation tests also passed. The matching commit's CI remains the authority for the complete current revision and its supported-platform package checks.
+The final local full-suite run passed **452 tests in 64 files**. Four public-metrics validation tests also passed. The matching commit's CI remains the authority for the complete current revision and its supported-platform package checks.
 
 The fresh-consumer package check passed: archive allowlist and integrity, isolated installation, public exports, CLI, all four skill layouts, MCP resources/prompts, PDF extraction, plaintext memory with evidence and retry identity, checkpoint continuation, context ceilings and byte-exact skill restoration. It also verifies that README images are included in the package.
 

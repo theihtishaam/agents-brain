@@ -11,12 +11,14 @@ const identity = /^mcp-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0
 const label = /^[A-Za-z0-9][A-Za-z0-9_. -]{0,63}$/u;
 const time = (value: unknown) => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 8.64e15 - MCP_PRESENCE_LIMITS.ttlMs;
 const pause = new Int32Array(new SharedArrayBuffer(4));
+const startupRetryMs = [100, 300, 900];
 
 export class MCPPresenceError extends Error {
   readonly status = 503;
-  constructor(readonly code: 'MCP_PRESENCE_UNAVAILABLE' | 'MCP_PRESENCE_LIMIT', message: string) { super(message); this.name = 'MCPPresenceError'; }
+  constructor(readonly code: 'MCP_PRESENCE_UNAVAILABLE' | 'MCP_PRESENCE_LIMIT' | 'MCP_PRESENCE_BUSY', message: string) { super(message); this.name = 'MCPPresenceError'; }
 }
 const unavailable = () => new MCPPresenceError('MCP_PRESENCE_UNAVAILABLE', 'MCP connection presence could not be read or updated.');
+const busy = () => new MCPPresenceError('MCP_PRESENCE_BUSY', 'MCP connection presence is busy. Retry shortly.');
 
 export interface MCPConnectionIdentity { id: string; tool: string }
 interface Lease extends MCPConnectionIdentity { startedAt: number; lastSeenAt: number }
@@ -92,14 +94,18 @@ export class MCPPresenceStore {
       return result;
     } catch (error) {
       // Closing a failed transaction rolls it back before returning an unavailable result.
-      throw error instanceof MCPPresenceError ? error : unavailable();
+      if (error instanceof MCPPresenceError) throw error;
+      const sqliteCode = (error as { errcode?: number })?.errcode;
+      if (typeof sqliteCode === 'number' && [5, 6].includes(sqliteCode & 0xff)) throw busy();
+      throw unavailable();
     } finally { db?.close(); }
   }
 
   report(connection: MCPConnectionIdentity): void {
-    const now = this.now();
-    if (!identity.test(connection.id) || !label.test(connection.tool) || !time(now)) throw unavailable();
+    if (!identity.test(connection.id) || !label.test(connection.tool)) throw unavailable();
     this.access('report', undefined, (db, rows) => {
+      const now = this.now();
+      if (!time(now)) throw unavailable();
       const oldest = now - MCP_PRESENCE_LIMITS.ttlMs;
       const retained = rows.filter(row => row.lastSeenAt > oldest);
       const current = retained.find(row => row.id === connection.id);
@@ -118,13 +124,15 @@ export class MCPPresenceStore {
   }
 
   read(enabled: boolean) {
+    const rows = enabled ? this.access<Lease[]>('read', [], (_db, stored) => stored) : [];
+    // Sample the clock after the snapshot, so a parallel write cannot look newer than the read.
     const checkedAt = this.now();
     if (!time(checkedAt)) throw unavailable();
-    const connections = enabled ? this.access<Lease[]>('read', [], (_db, rows) => rows).filter(row =>
+    const connections = rows.filter(row =>
       row.lastSeenAt <= checkedAt && checkedAt - row.lastSeenAt < MCP_PRESENCE_LIMITS.ttlMs)
       .sort((a, b) => a.tool.localeCompare(b.tool) || a.id.localeCompare(b.id)).map(row => ({ id: row.id, tool: row.tool,
         startedAt: new Date(row.startedAt).toISOString(), lastSeenAt: new Date(row.lastSeenAt).toISOString(),
-        expiresAt: new Date(row.lastSeenAt + MCP_PRESENCE_LIMITS.ttlMs).toISOString(), ageMs: checkedAt - row.lastSeenAt })) : [];
+        expiresAt: new Date(row.lastSeenAt + MCP_PRESENCE_LIMITS.ttlMs).toISOString(), ageMs: checkedAt - row.lastSeenAt }));
     const counts = new Map<string, number>();
     for (const connection of connections) counts.set(connection.tool, (counts.get(connection.tool) ?? 0) + 1);
     return { projectId: this.projectId, enabled, count: enabled ? connections.length : null, checkedAt: new Date(checkedAt).toISOString(),
@@ -134,6 +142,7 @@ export class MCPPresenceStore {
 
 export function startMCPPresence(store: MCPPresenceStore, connection: MCPConnectionIdentity, enabled: () => boolean): () => void {
   let recorded = false;
+  let retry: NodeJS.Timeout | undefined;
   const remove = () => {
     if (!recorded) return;
     try { store.remove(connection.id); recorded = false; } catch { /* Expiry remains the fallback. */ }
@@ -145,9 +154,17 @@ export function startMCPPresence(store: MCPPresenceStore, connection: MCPConnect
       if (!active) { remove(); return; }
       store.report(connection);
       recorded = true;
-    } catch { /* Presence must not affect the MCP transport. */ }
+    } catch (error) {
+      // Presence must not affect the MCP transport.
+      return error instanceof MCPPresenceError && error.code === 'MCP_PRESENCE_BUSY';
+    }
   };
-  renew();
+  const start = (attempt: number) => {
+    if (renew() && attempt < startupRetryMs.length) {
+      retry = setTimeout(() => start(attempt + 1), startupRetryMs[attempt]).unref();
+    }
+  };
+  start(0);
   const timer = setInterval(renew, MCP_PRESENCE_LIMITS.renewMs).unref();
-  return () => { clearInterval(timer); remove(); };
+  return () => { clearInterval(timer); clearTimeout(retry); remove(); };
 }

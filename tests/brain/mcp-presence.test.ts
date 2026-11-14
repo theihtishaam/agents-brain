@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
+import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MCP_PRESENCE_FILE, MCP_PRESENCE_LIMITS, MCPPresenceStore, startMCPPresence } from '../../src/brain/mcp-presence.js';
 import { serveMCPStdio } from '../../src/brain/mcp-stdio.js';
@@ -58,6 +59,35 @@ it('renews connection rows, removes them on a recording pause, and never renews 
   stop();
   vi.advanceTimersByTime(100_000);
   expect(store.read(true).count).toBe(0);
+});
+
+it('recovers a transient write lock shortly after startup without retrying invalid storage', () => {
+  vi.useFakeTimers();
+  const existing = identity(), next = identity('opencode');
+  store.report(existing);
+  const blocker = new DatabaseSync(filename);
+  let stop: (() => void) | undefined;
+  const report = vi.spyOn(store, 'report');
+  try {
+    blocker.exec('BEGIN IMMEDIATE;');
+    stop = startMCPPresence(store, next, () => true);
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(store.read(true).count).toBe(1);
+    blocker.exec('ROLLBACK;');
+    clock += 100;
+    vi.advanceTimersByTime(100);
+    expect(report).toHaveBeenCalledTimes(2);
+    expect(store.read(true).count).toBe(2);
+  } finally { stop?.(); blocker.close(); }
+  const corrupt = Buffer.from('invalid fixture store');
+  fs.writeFileSync(filename, corrupt);
+  report.mockClear();
+  stop = startMCPPresence(store, next, () => true);
+  try {
+    vi.advanceTimersByTime(2000);
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(fs.readFileSync(filename)).toEqual(corrupt);
+  } finally { stop(); }
 });
 
 it('caps the store at 128 rows and prunes expired entries before admitting another connection', () => {
