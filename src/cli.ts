@@ -19,7 +19,7 @@ import { registerIntegrationCommands } from './integration-cli.js';
 import { registerActivityCommands } from './activity-cli.js';
 import { registerProjectCommands } from './project-cli.js';
 
-const VERSION = '7.22.1';
+const VERSION = '7.22.2';
 
 // Defer config reads until a command actually needs provider settings.
 let savedConfig: Conf | undefined;

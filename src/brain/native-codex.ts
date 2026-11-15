@@ -123,7 +123,7 @@ export class NativeCodexConnection {
     if (this.rpc) { if (!this.connectedAt) throw new NativeCodexError('CODEX_CONNECTING', 'The Codex connection is still starting.', 409); return this.status(); }
     const rpc = this.factory(); this.rpc = rpc;
     try {
-      await rpc.request('initialize', { clientInfo: { name: 'shadow_brain', title: 'Agent Shadow Brain', version: '7.22.1' }, capabilities: { experimentalApi: true, requestAttestation: false } });
+      await rpc.request('initialize', { clientInfo: { name: 'shadow_brain', title: 'Agent Shadow Brain', version: '7.22.2' }, capabilities: { experimentalApi: true, requestAttestation: false } });
       if (this.rpc !== rpc) throw failed();
       rpc.notify('initialized', {}); this.connectedAt = new Date(this.now()).toISOString();
       this.expires = setTimeout(() => this.close(), LIFETIME); this.expires.unref(); return this.status();

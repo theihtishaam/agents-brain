@@ -1,5 +1,10 @@
 # Changelog
 
+## [7.22.2] - 2026-11-15 - Live download badge
+
+- Removed scheduled README download-counter commits and the dated inline counter. The Shields.io badge retrieves the latest available npm total automatically, subject to caching.
+- Kept the creator, repository, and dashboard links from 7.22.1.
+
 ## [7.22.1] - 2026-11-15 - Creator and repository links
 
 - Added visible creator and repository star links to the Brain Hub footer and both public READMEs.

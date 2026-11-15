@@ -386,7 +386,7 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
         if (sources(entry).length) quality.sourceBacked++;
         if (annotations.reviews[entry.id]?.projectId === entry.projectId) quality.reviewed++;
       }
-      return send({ version: '7.22.1', demo: dependencies.demo === true,
+      return send({ version: '7.22.2', demo: dependencies.demo === true,
         projectKit: local ? { available: true, projectId: local.projectId, projectName: local.projectName, root: local.root, storagePath: local.storagePath } : { available: false },
         totals: { projects: projects.length, memories: local ? inventory.length : brain.getStats().totalEntries, agents: facets.agents.length },
         projects, ...localActivity(), storageHealth: brain.getStorageHealth(),

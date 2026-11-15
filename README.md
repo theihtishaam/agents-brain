@@ -15,12 +15,6 @@
   <a href="https://github.com/theihtishaam/agents-brain"><img src="https://img.shields.io/github/stars/theihtishaam/agents-brain?label=Star%20on%20GitHub&amp;style=social" alt="Star agents-brain on GitHub" /></a>
 </p>
 
-<!-- NPM_TOTAL_START -->
-**Total npm downloads: 6,229** · Through **2026-11-13**. [npm data](https://github.com/theihtishaam/agents-brain/blob/main/docs/npm-metrics.json).
-
-GitHub refreshes this number every two days. The npm README records the total when this version was published. Downloads include automated installs; they are not unique users.
-<!-- NPM_TOTAL_END -->
-
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
 ![Running Brain Hub with stored synthetic project records and measured MCP calls](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-hub-exchanges.gif)
@@ -34,7 +28,7 @@ The Brain Hub brings reviewed notes, cited documents, shared work, and recorded 
 Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. From your project directory, one command installs the requested version in npm's cache and starts its local portal:
 
 ```bash
-npx --yes --package @theihtisham/agent-shadow-brain@7.22.1 shadow-brain project workspace . --port 62595
+npx --yes --package @theihtisham/agent-shadow-brain@7.22.2 shadow-brain project workspace . --port 62595
 ```
 
 For a reusable global command:
