@@ -115,7 +115,7 @@ describe('Brain Hub project runtime', () => {
     const statusResponse = await read(portal, 'status');
     expect(statusResponse.status).toBe(200);
     const status = await statusResponse.json();
-    expect(status).toMatchObject({ version: '7.22.0', mode: 'project', project: { id: portal.projectId, root: portal.root },
+    expect(status).toMatchObject({ version: '7.22.1', mode: 'project', project: { id: portal.projectId, root: portal.root },
       storage: { status: 'ready' }, capabilities: { hub: true, pdf: true, modelUsage: true, sourceIntake: true, managedExecution: false } });
     expect(status.serverInstanceId).toMatch(/^[0-9a-f-]{36}$/u);
     expect((await (await read(portal, 'status')).json()).serverInstanceId).toBe(status.serverInstanceId);

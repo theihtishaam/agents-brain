@@ -77,7 +77,7 @@ export const BRAIN_HUB_HTML = String.raw`<!doctype html>
 <span class="chip" id="stream-health" role="status" hidden></span>
 <p class="notice" id="notice" role="status"></p>
 <main id="main" tabindex="-1"><div class="empty"><strong>Opening the workspace</strong><p>Loading the local memory and activity stores.</p></div></main>
-<footer class="footer"><span id="scope-note"></span><span><a href="/workspace">Classic workspace</a> · <a href="/live">Activity diagnostics</a></span></footer>
+<footer class="footer"><span id="scope-note"></span><span>Created by <a href="https://github.com/theihtishaam" target="_blank" rel="noopener noreferrer">@theihtishaam</a> · <a href="https://github.com/theihtishaam/agents-brain" target="_blank" rel="noopener noreferrer">Star Agent Shadow Brain on GitHub</a></span><span><a href="/workspace">Classic workspace</a> · <a href="/live">Activity diagnostics</a></span></footer>
 </div>
 <script>'use strict';
 ` + BRAIN_HUB_CLIENT + BRAIN_HUB_LIVE + BRAIN_HUB_EXCHANGES + BRAIN_HUB_GRAPH + BRAIN_HUB_VIEWS + String.raw`

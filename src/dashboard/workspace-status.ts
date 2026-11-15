@@ -11,7 +11,7 @@ export class WorkspaceRuntime {
     const storageError = error ?? brain?.getStorageHealth().lastError?.message;
     const projectMode = this.mode === 'project';
     return {
-      version: '7.22.0', serverInstanceId: this.serverInstanceId, startedAt: this.startedAt, checkedAt: new Date().toISOString(),
+      version: '7.22.1', serverInstanceId: this.serverInstanceId, startedAt: this.startedAt, checkedAt: new Date().toISOString(),
       mode: this.mode, project: this.project,
       capabilities: { memory: true, context: true, curation: true, telemetry: true,
         projectKnowledge: projectMode, projectSkills: projectMode, projectFeedback: projectMode,

@@ -1,5 +1,11 @@
 # Changelog
 
+## [7.22.1] - 2026-11-15 - Creator and repository links
+
+- Added visible creator and repository star links to the Brain Hub footer and both public READMEs.
+- Added a live total npm downloads badge near the top of the README and a GitHub profile URL in npm author metadata.
+- Updated release version labels; memory, context, and agent behavior are unchanged.
+
 ## [7.22.0] - 2026-11-14 - Shared project memory and resumable work
 
 - Added ordinary text/Markdown, knowledge JSON and simple conversation intake, editable review, immutable originals and typed evidence resolution through HTTP and MCP.

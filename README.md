@@ -1,14 +1,18 @@
 <h1 align="center">Agent Shadow Brain</h1>
 
-[![Follow Ihtisham on GitHub](https://img.shields.io/badge/Follow-Ihtisham%20on%20GitHub-181717?logo=github&logoColor=white)](https://github.com/theihtishaam)
+<p align="center">Created by <a href="https://github.com/theihtishaam">Ihtisham (@theihtishaam)</a> · <a href="https://github.com/theihtishaam/agents-brain">Explore the source and star Agent Shadow Brain</a></p>
 <p align="center"><strong>Your project memory. Shared across your AI tools.</strong></p>
 <p align="center">Save a fact once. Find useful context. Hand off work with its evidence intact.</p>
 
+<p align="center"><a href="https://trendshift.io"><img src="https://img.shields.io/badge/Trendshift-Explore%20trending%20projects-6366f1?style=for-the-badge" alt="Explore trending projects on Trendshift" /></a></p>
+
 <p align="center">
+  <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img src="https://img.shields.io/npm/dt/%40theihtisham%2Fagent-shadow-brain?label=Total%20Downloads&amp;color=brightgreen" alt="Total npm downloads (all time)" /></a>
+  <a href="https://github.com/theihtishaam"><img src="https://img.shields.io/github/followers/theihtishaam?label=Follow%20%40theihtishaam&amp;style=social" alt="Follow @theihtishaam on GitHub" /></a>
   <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img alt="npm latest version" src="https://img.shields.io/npm/v/@theihtisham/agent-shadow-brain/latest?label=npm&amp;color=0f766e"></a>
   <a href="https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/theihtishaam/agents-brain?color=475569"></a>
-  <a href="https://github.com/theihtishaam/agents-brain/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/theihtishaam/agents-brain?style=flat&amp;logo=github&amp;color=475569"></a>
+  <a href="https://github.com/theihtishaam/agents-brain"><img src="https://img.shields.io/github/stars/theihtishaam/agents-brain?label=Star%20on%20GitHub&amp;style=social" alt="Star agents-brain on GitHub" /></a>
 </p>
 
 <!-- NPM_TOTAL_START -->
@@ -30,7 +34,7 @@ The Brain Hub brings reviewed notes, cited documents, shared work, and recorded 
 Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. From your project directory, one command installs the requested version in npm's cache and starts its local portal:
 
 ```bash
-npx --yes --package @theihtisham/agent-shadow-brain@7.22.0 shadow-brain project workspace . --port 62595
+npx --yes --package @theihtisham/agent-shadow-brain@7.22.1 shadow-brain project workspace . --port 62595
 ```
 
 For a reusable global command:

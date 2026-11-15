@@ -1,6 +1,6 @@
 {
   "name": "@theihtisham/agent-shadow-brain",
-  "version": "7.22.0",
+  "version": "7.22.1",
   "description": "Local memory, focused skills, and a visual context workspace for coding agents. Explore memories, build project-scoped context, and control briefings across Codex, Claude Code, OpenCode, and DeepSeek Harness.",
   "main": "dist/index.js",
   "exports": {
@@ -50,7 +50,10 @@
     "typescript",
     "cli"
   ],
-  "author": "ihtisham",
+  "author": {
+    "name": "Ihtisham (@theihtishaam)",
+    "url": "https://github.com/theihtishaam"
+  },
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^1.8.0",
@@ -118,7 +121,8 @@
     "docs/launch/RESEARCH_AND_PLAN_v7.1.4.md",
     "docs/launch/COMPONENT_MAP_v7.1.4.md",
     "docs/launch/PROJECT_KIT_PLAN_v7.1.4.md",
-    "docs/launch/PROJECT_LEARNING_PLAN_v7.1.4.md"
+    "docs/launch/PROJECT_LEARNING_PLAN_v7.1.4.md",
+    "docs/launch/RELEASE_NOTES_v7.22.1.md"
   ],
   "publishConfig": {
     "access": "public"

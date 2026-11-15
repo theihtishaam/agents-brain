@@ -662,7 +662,7 @@ export class DashboardServer {
         const tokenReport = await tokens.report();
         const runtime = this.getRuntimeContext();
         return send({
-          version: '7.22.0',
+          version: '7.22.1',
           localFirst: true,
           runtime,
           totalAgentsConnected: brain.getStats().totalAgents,
