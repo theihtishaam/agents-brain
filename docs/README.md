@@ -1,13 +1,13 @@
 # Agent Shadow Brain documentation
 
-Agent Shadow Brain 7.22.0 provides a local workspace, CLI, and standalone MCP service for project memory, task context, and generated project skills.
+Agent Shadow Brain 7.25.0 provides a local workspace, CLI, and standalone MCP service for project memory, task context, and generated project skills.
 
 ## Start and use the workspace
 
 | Guide | Use it to |
 | --- | --- |
 | [Source intake](SOURCE_INTAKE.md) | Paste notes, review corrections, import simple conversations and inspect original evidence. |
-| [Visual guide](VISUAL_GUIDE_v7.22.0.md) | See actual browser captures and their fixture provenance. |
+| [Visual guide](VISUAL_GUIDE_v7.25.0.md) | See the latest browser captures and reproduce the shared briefing comparison. |
 | [Quickstart](QUICKSTART.md) | Install the exact version, launch the synthetic demo, and open your project workspace. |
 | [Project Kit](PROJECT_KIT.md) | Inspect one project, save local knowledge, and preview and apply a tailored skill. |
 | [Context Lab](CONTEXT_LAB.md) | Assemble, inspect, compare, and copy a task brief. |
@@ -27,7 +27,7 @@ Agent Shadow Brain 7.22.0 provides a local workspace, CLI, and standalone MCP se
 
 ## Release and support
 
-- [7.22.0 release notes](launch/RELEASE_NOTES_v7.22.0.md) cover shared sessions, native history, project controls and compatibility.
+- [7.25.0 release notes](launch/RELEASE_NOTES_v7.25.0.md) cover the live topology, shared briefing, file explorer and usage filtering.
 - [Verification record](launch/RELEASE_ACCEPTANCE_v7.22.0.md) separates tested behavior, local measurements and native-client coverage.
 - [Changelog](../CHANGELOG.md) · [Historical versions](versions/README.md) · [7.0 migration notes](launch/RELEASE_NOTES_v7.0.0.md)
 - [Troubleshooting](TROUBLESHOOTING.md) covers installation, storage, context, and local activity checks.

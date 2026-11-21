@@ -1,0 +1,110 @@
+{
+  "fixture": "Atlas release checklist",
+  "query": "What does the Atlas release checklist require?",
+  "facts": [
+    {
+      "title": "Retry budget",
+      "content": "The Atlas release checklist allows three attempts in the retry ledger.",
+      "source": "docs/atlas/retry.md"
+    },
+    {
+      "title": "Migration approval",
+      "content": "The Atlas release checklist requires a reviewed migration before rollout.",
+      "source": "docs/atlas/migration.md"
+    },
+    {
+      "title": "Canary region",
+      "content": "The Atlas release checklist starts the canary in the Toronto region.",
+      "source": "docs/atlas/canary.md"
+    },
+    {
+      "title": "Rollback owner",
+      "content": "The Atlas release checklist names the release lead as rollback owner.",
+      "source": "docs/atlas/rollback.md"
+    }
+  ],
+  "isolated": {
+    "requests": 4,
+    "successfulMeasuredPairs": 4,
+    "citedFactSlots": 4,
+    "possibleFactSlots": 16,
+    "receipts": [
+      {
+        "client": "codex",
+        "citedFacts": [
+          "docs/atlas/retry.md"
+        ],
+        "successfulMeasuredPair": true
+      },
+      {
+        "client": "claude-code",
+        "citedFacts": [
+          "docs/atlas/migration.md"
+        ],
+        "successfulMeasuredPair": true
+      },
+      {
+        "client": "opencode",
+        "citedFacts": [
+          "docs/atlas/canary.md"
+        ],
+        "successfulMeasuredPair": true
+      },
+      {
+        "client": "deepseek-harness",
+        "citedFacts": [
+          "docs/atlas/rollback.md"
+        ],
+        "successfulMeasuredPair": true
+      }
+    ]
+  },
+  "shared": {
+    "requests": 4,
+    "successfulMeasuredPairs": 4,
+    "citedFactSlots": 16,
+    "possibleFactSlots": 16,
+    "receipts": [
+      {
+        "client": "codex",
+        "citedFacts": [
+          "docs/atlas/retry.md",
+          "docs/atlas/migration.md",
+          "docs/atlas/canary.md",
+          "docs/atlas/rollback.md"
+        ],
+        "successfulMeasuredPair": true
+      },
+      {
+        "client": "claude-code",
+        "citedFacts": [
+          "docs/atlas/retry.md",
+          "docs/atlas/migration.md",
+          "docs/atlas/canary.md",
+          "docs/atlas/rollback.md"
+        ],
+        "successfulMeasuredPair": true
+      },
+      {
+        "client": "opencode",
+        "citedFacts": [
+          "docs/atlas/retry.md",
+          "docs/atlas/migration.md",
+          "docs/atlas/canary.md",
+          "docs/atlas/rollback.md"
+        ],
+        "successfulMeasuredPair": true
+      },
+      {
+        "client": "deepseek-harness",
+        "citedFacts": [
+          "docs/atlas/retry.md",
+          "docs/atlas/migration.md",
+          "docs/atlas/canary.md",
+          "docs/atlas/rollback.md"
+        ],
+        "successfulMeasuredPair": true
+      }
+    ]
+  }
+}

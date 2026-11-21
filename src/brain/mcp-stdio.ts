@@ -1,3 +1,4 @@
+import { isDiscoverableHost } from './host-discovery.js';
 import type { Readable, Writable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
 import * as path from 'node:path';
@@ -121,16 +122,19 @@ export async function serveMCPStdio(
 }
 
 /** Provider-free entry point: no orchestrator, client-profile scan, or config merge. */
-export async function runMemoryMCPStdio(options: { dbPath?: string; settingsPath?: string; projectDir?: string; projectId?: string } = {}): Promise<void> {
+export async function runMemoryMCPStdio(options: { clientId?: string; dbPath?: string; settingsPath?: string; projectDir?: string; projectId?: string } = {}): Promise<void> {
   if (options.projectId !== undefined && !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(options.projectId)) throw new TypeError('Project ID must be a bounded identifier.');
   const dbPath = options.dbPath ? path.resolve(options.dbPath) : undefined;
   const local = options.projectDir ? resolveProjectStore(options.projectDir, dbPath) : undefined;
+  if (options.clientId !== undefined && (!local || !isDiscoverableHost(options.clientId))) {
+    throw new TypeError('Use a supported client ID with an initialized project-local stdio connection.');
+  }
   if (local && options.projectId && options.projectId !== local.projectId) throw new TypeError('A project-local MCP service must use its pinned project identifier.');
   const storagePath = local?.storagePath ?? dbPath;
   const brain = storagePath ? GlobalBrain.createIsolated({ dbPath: storagePath }) : getGlobalBrain();
   const settings = new FeatureSettingsStore({ filePath: options.settingsPath ??
     (storagePath ? path.join(path.dirname(storagePath), 'feature-settings.json') : undefined) });
-  const server = new MCPServer(null, { authToken: '', toolProfile: 'memory' }, { brain, settings, projectDir: local?.root ?? options.projectDir, projectId: local?.projectId ?? options.projectId, localProject: !!local });
+  const server = new MCPServer(null, { authToken: '', toolProfile: 'memory' }, { brain, settings, clientId: options.clientId, projectDir: local?.root ?? options.projectDir, projectId: local?.projectId ?? options.projectId, localProject: !!local });
   try { await serveMCPStdio(server, process.stdin, process.stdout); }
   finally { await server.finishMemorySession(); await brain.shutdown(); }
 }

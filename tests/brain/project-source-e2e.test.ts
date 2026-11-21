@@ -91,11 +91,20 @@ it('shares reviewed source evidence, artifacts, lessons and feedback across two 
     expect(catalogs[1].find((tool: any) => tool.name === 'memory_evidence').annotations.readOnlyHint).toBe(true);
     expect(await recall(a)).toHaveLength(0); expect(await recall(b)).toHaveLength(0);
     const cupboard = (await post('sources/remember', 'The cupboard is black. Keep its brass handles.', 'text/plain')).source;
+    expect(catalogs[0].find((tool: any) => tool.name === 'project_brief')?.inputSchema.required).toEqual(['query']);
     for (const client of [a, b]) {
+      const brief = await client.call('project_brief', { query: 'What colour is the cupboard?' });
+      expect(brief.result.content).toHaveLength(1);
+      expect(brief.result.content[0].text).toContain('black');
+      expect(brief.result.content[0].text).toContain(cupboard.items[0].memoryId);
+      expect(brief.result.structuredContent).toBeUndefined();
       const remembered = await call(client, 'context_pack', { projectId: portal.projectId, query: 'What colour is the cupboard?', profile: 'adaptive' });
       expect(remembered.entries.some((entry: any) => entry.id === cupboard.items[0].memoryId && entry.excerpt.includes('black'))).toBe(true);
     }
     expect(await call(foreign, 'global_recall', { keywords: ['cupboard'] })).toHaveLength(0);
+    const other = await foreign.call('project_brief', { query: 'cupboard' });
+    expect(other.result.content[0].text).not.toContain(cupboard.items[0].memoryId);
+    expect((await foreign.call('project_brief', { query: 'cupboard', projectId: portal.projectId })).error.code).toBe(-32602);
     const pdf = await post('hub/documents?name=source.pdf', pdfFixture(), 'application/pdf');
     const knowledge = json({ schemaVersion: 1, kind: 'knowledge', title: 'Fixture', records: [{ title: 'ProbeIntake knowledge', content: 'ProbeIntake JSON approved source.' }, { title: 'Rejected', content: 'ProbeIntake rejected hidden sentinel.' }, { title: 'Pending', content: 'ProbeIntake pending hidden sentinel.' }] });
     const source = (await post('sources?name=source.json', knowledge)).source;

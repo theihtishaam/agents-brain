@@ -14,6 +14,23 @@ shadow-brain project config . --target codex
 
 The portal stores knowledge in `.shadow-brain/project-memory.json`. The generated recipe pins MCP to that same project and file, so a saved note can be recalled by the agent and its tool calls appear in the matching portal's **Live** view. The recipe is printed, not installed. Merge the entry with your existing host settings, then reconnect the client.
 
+## Connect a detected host from Setup
+
+**Setup → Host connections** shows installation evidence, project configuration, tool admission, and current MCP presence. **Connect** can create a new configuration in this project for a detected supported host. Automatic connections are off initially. Enable them to configure detected, supported hosts when the portal starts or refreshes its host scan. Host trust and approval still apply.
+
+| Host | Workspace setup |
+| --- | --- |
+| VS Code with current GitHub Copilot | Shared `.mcp.json` using the Copilot harness format. [VS Code MCP reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration) |
+| Claude Code | Shared `.mcp.json`. Claude Code can ask for project server approval. [Claude Code project scope](https://code.claude.com/docs/en/mcp#project-scope) |
+| Codex | `.codex/config.toml` in a trusted project. [Codex MCP](https://learn.chatgpt.com/docs/extend/mcp?surface=cli) |
+| OpenCode V2 | `opencode.json` using `mcp.servers`. [OpenCode MCP](https://opencode.ai/docs/mcp-servers/) |
+| Kilo Code | `kilo.json` using `mcp`. [Kilo MCP](https://kilo.ai/docs/automate/mcp/using-in-kilo-code) |
+| Cline | Copy the recipe into its MCP setup, or point the CLI at a separate file via `CLINE_MCP_SETTINGS_PATH`. [Cline MCP](https://docs.cline.bot/mcp/mcp-overview) |
+| OpenClaw | Copy the recipe into the intended Gateway's MCP settings. [OpenClaw MCP](https://docs.openclaw.ai/gateway/config-extensions#mcp) |
+| DeepSeek Harness | Copy the MCP client plugin entry into the selected Harness profile. [Harness MCP client](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md) |
+
+The portal uses file metadata to detect a conflict and preserves existing or changed configuration. **Disconnect** blocks that host’s project tool access and removes a file only while its recorded identity and timestamps match. If both Copilot and Claude Code were configured through the portal, the shared file stays until both disconnect. A file whose creation completed without a recorded receipt remains available for manual review. Generated launch paths refer to this machine and installation.
+
 ![Native configuration recipes](assets/7.1.4-integrations.png)
 
 ## Choose a client
@@ -55,6 +72,8 @@ Ask the connected host to call `workflow_skills`, then `context_pack` with the s
 The memory profile offers scoped tools, resources and task/handoff prompt templates. A project-local MCP launch additionally exposes Project Kit, reviewed source evidence, collaboration, sessions and optional host-reported usage. Use the current `tools/list` response for available tools. Resource references are saved labels; the service does not open their targets. Project tool participation and conversation sharing apply to agent delivery through tools, resources and prompts.
 
 `activity_report` records explicitly reported phases or spans. Reported activity is labelled separately from measured MCP calls. Neither exposes a model's hidden reasoning.
+
+When activity recording is enabled, a measured project MCP request can include `argumentBytes`, the UTF-8 byte count of the original argument object serialized as compact JSON. Omitted arguments count as `{}`. A successful measured return can include `resultTextBytes`, the UTF-8 byte count of the first text content item delivered to the client. The counts exclude the JSON-RPC envelope and structured content. Rejected requests and other record types can omit these measurements. The journal retains the numeric sizes and standard event metadata.
 
 ## Keep an existing shared store
 

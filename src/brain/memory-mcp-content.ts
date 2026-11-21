@@ -7,6 +7,8 @@ import { listBundledSkills } from './workflow-skills.js';
 
 const GUIDE = `# Agent Shadow Brain
 
+In a project-local connection, call project_brief with a question for a compact shared-memory briefing with original record IDs. Use memory_evidence to trace a record to its approved source.
+
 Use workflow_analyze for proportionate task guidance. For project memory, request context_pack with an explicit projectId, query, profile: "adaptive", and tokenBudget. The legacy profile remains the default for compatibility.
 
 Inspect the returned candidate decisions and warnings. Use memory_inspect for bounded details and recorded references, or memory_health to find review hints. In a project-local session, memory_evidence resolves supported reviewed source records from that project; ordinary source labels remain references only. The service does not open arbitrary targets or verify claims. Scores are retrieval heuristics, not probabilities of correctness.

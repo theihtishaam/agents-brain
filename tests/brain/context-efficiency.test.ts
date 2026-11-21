@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { GlobalBrain } from '../../src/brain/global-brain.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { assembleContextWithEfficiency } from '../../src/brain/context-efficiency.js';
 
 describe('bounded context reduction', () => {
@@ -30,5 +30,14 @@ describe('bounded context reduction', () => {
     expect(result.efficiency.assemblyMs).toBeGreaterThanOrEqual(0);
     expect(result.efficiency.referenceComparisonMs).toBeGreaterThanOrEqual(0);
     expect(result.efficiency.note).toContain('not measured model token savings');
+  });
+  it('reuses the focused pack when the comparison has the same limits', () => {
+    const recallScored = vi.fn(() => []);
+    const result = assembleContextWithEfficiency({ recallScored }, {
+      projectId: 'fixture', tokenBudget: 400, maxEntries: 4,
+      policy: { revision: 1, maxTokens: 400, maxEntries: 4, hiddenMemories: 0 },
+    });
+    expect(recallScored).toHaveBeenCalledTimes(1);
+    expect(result.efficiency).toMatchObject({ signedTokenDifference: 0, referenceComparisonMs: 0 });
   });
 });

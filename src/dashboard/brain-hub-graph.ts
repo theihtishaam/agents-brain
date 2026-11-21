@@ -97,6 +97,12 @@ function mountGraph(){
     }
     return best;
   }
+  canvas.addEventListener('contextmenu',event=>{
+    const point=hit(event);
+    if(!point)return;
+    event.preventDefault();
+    canvas.dispatchEvent(new CustomEvent('hub-record-menu',{bubbles:true,detail:point.id}));
+  });
   canvas.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.pointerType==='touch'||graphCamera.scale===1)return;
     surface.drag={id:event.pointerId,x:event.clientX,y:event.clientY,

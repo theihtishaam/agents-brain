@@ -17,7 +17,11 @@ function handleClick(event){
   const button=event.target.closest('button');
   if(!button||button.disabled)return;
   const data=button.dataset;
+  if(data.filePath!==undefined){void openProjectFiles(data.filePath,Number(data.fileOffset??0));return;}
+  if(data.fileSelect){selectProjectFile(data.fileSelect);return;}
+  if(data.fileContext){openFileContext(data.fileContext);return;}
   if(handleAgentDock(button))return;
+  if(data.connectionAction&&handleWorkspaceConnection(button))return;
   if(data.policyTool){void mutation(()=>saveProjectPolicy({kind:'set-tool-participation',tool:data.policyTool,enabled:data.enabled==='true'}),button,'Tool participation saved.');return;}
   if(data.policyChat){void mutation(()=>saveProjectPolicy({kind:'set-chat-sharing',sessionId:data.policyChat,shareContext:data.enabled==='true'}),button,'Conversation sharing saved.');return;}
   if(data.view){openView(data.view);return;}
@@ -87,6 +91,8 @@ function handleClick(event){
     void clipboard(copies[data.action]).catch(failure=>status(failure.message,true));return;
   }
   switch(data.action){
+    case 'usage-page':moveUsagePage(Number(data.usagePage));break;
+    case 'context-use-profile':useContextProfile(data.profile);break;
     case 'managed-skill-preview':void mutation(async()=>{state.managedSkillPlan=await api('managed-skills/preview',json({id:data.id,action:data.kind}));},button,'Review the exact skill paths before applying.');break;
     case 'managed-skill-cancel':state.managedSkillPlan=null;render(true);break;
     case 'managed-skill-apply':void mutation(async()=>{const plan=state.managedSkillPlan;if(!plan||arr(plan.conflicts).length)return;
@@ -161,6 +167,7 @@ function handleSubmit(event){
   if(!kind)return;
   event.preventDefault();
   const form=new FormData(target,event.submitter),button=event.submitter;
+  if(kind==='usage-filter'){applyUsageFilters(form);return;}
   const tasks={
     'policy-context':()=>saveProjectPolicy({kind:'set-context-limits',context:{maxTokens:Number(form.get('maxTokens')),maxEntries:Number(form.get('maxEntries'))}}),
     'policy-role':()=>saveProjectPolicy({kind:'set-session-role',sessionId:target.dataset.id,role:field(form,'role')||null}),
@@ -191,10 +198,14 @@ function handleSubmit(event){
       state.feedback=await api('project-feedback',json({kind:'upsert',memoryId:field(form,'memoryId'),task:field(form,'task'),rating:field(form,'rating'),reason:field(form,'reason'),expectedRevision:state.feedback.revision}));
     },
     context:async()=>{
-      const input={projectId:state.project,query:field(form,'query'),tokenBudget:Number(form.get('tokenBudget')),profile:field(form,'profile'),expandRelated:form.has('expandRelated')};
+      const input={projectId:state.project,query:field(form,'query'),tokenBudget:Number(form.get('tokenBudget')),maxEntries:Number(form.get('maxEntries')),profile:field(form,'profile'),expandRelated:form.has('expandRelated')};
+      const compare=form.get('compare')==='yes';
+      const result=await api(compare?'context-compare':'context',json(input));
+      const pack=compare?result[input.profile]:result;
+      if(pack.policy?.revision<state.policy?.policy.revision)throw new Error('Project controls changed. Build a fresh context pack.');
       state.contextInput=input;
-      if(form.get('compare')==='yes'){state.comparison=await api('context-compare',json(input));state.context=state.comparison[input.profile];}
-      else {state.context=await api('context',json(input));state.comparison=null;}
+      state.comparison=compare?result:null;
+      state.context=pack;
     },
     upload:async()=>{
       const pdf=form.get('pdf');

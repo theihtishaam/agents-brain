@@ -22,13 +22,14 @@ const revision = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER - 1);
 const key = z.string().regex(/^(?:session|source|native):[0-9a-f-]{36,64}$/u);
 const policy = z.strictObject({
   schemaVersion: z.literal(1), projectId: z.string().regex(/^[a-f0-9]{16}$/u), revision,
-  updatedAt: z.iso.datetime().nullable(), context,
+  updatedAt: z.iso.datetime().nullable(), context, participationEnabled: z.boolean().optional(),
   tools: z.array(z.strictObject({ tool: label, enabled: z.boolean() })).max(maximumOverrides),
   chats: z.array(z.strictObject({ key, shareContext: z.boolean() })).max(maximumOverrides),
   roles: z.array(z.strictObject({ sessionId: id, role })).max(maximumOverrides),
 });
 const base = { expectedRevision: revision };
 export const projectPolicyCommand = z.discriminatedUnion('kind', [
+  z.strictObject({ ...base, kind: z.literal('set-project-participation'), enabled: z.boolean() }),
   z.strictObject({ ...base, kind: z.literal('set-context-limits'), context }),
   z.strictObject({ ...base, kind: z.literal('set-tool-participation'), tool: label, enabled: z.boolean() }),
   z.strictObject({ ...base, kind: z.literal('set-chat-sharing'), sessionId: id, shareContext: z.boolean() }),
@@ -71,7 +72,7 @@ function reclaimAbandonedLock(filename: string): boolean {
 
 export const toolPolicyLabel = (tool: string) => tool.toLowerCase().trim();
 export function toolParticipates(snapshot: ProjectPolicy, tool: string): boolean {
-  return snapshot.tools.find(item => item.tool === toolPolicyLabel(tool))?.enabled !== false;
+  return snapshot.participationEnabled !== false && snapshot.tools.find(item => item.tool === toolPolicyLabel(tool))?.enabled !== false;
 }
 export function nativeChatKey(tool: string, sessionId: string): string {
   return 'native:' + createHash('sha256').update(JSON.stringify([toolPolicyLabel(tool), sessionId])).digest('hex');
@@ -169,7 +170,10 @@ export class ProjectPolicyStore {
       const current = this.get();
       if (command.expectedRevision !== current.revision) throw conflict();
       let next: ProjectPolicy = { ...current };
-      if (command.kind === 'set-context-limits') next.context = command.context;
+      if (command.kind === 'set-project-participation') {
+        if (command.enabled) delete next.participationEnabled;
+        else next.participationEnabled = false;
+      } else if (command.kind === 'set-context-limits') next.context = command.context;
       else if (command.kind === 'set-tool-participation') next.tools = [
         ...current.tools.filter(item => item.tool !== command.tool), ...(!command.enabled ? [{ tool: command.tool, enabled: false }] : []),
       ].sort((a, b) => a.tool.localeCompare(b.tool));

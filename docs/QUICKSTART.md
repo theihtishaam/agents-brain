@@ -1,13 +1,13 @@
 # Quickstart
 
-This guide covers the 7.22.0 Brain Hub. Use Node.js 22.13 or later in the 22.x line, 24.x, or 26 and later.
+This guide covers the 7.25.0 Brain Hub. Use Node.js 22.13 or later in the 22.x line, 24.x, or 26 and later.
 
 ## Install and open a project
 
 From the project directory, you can start with one command:
 
 ```bash
-npx --yes --package @theihtisham/agent-shadow-brain@7.22.0 shadow-brain project workspace . --port 62595
+npx --yes --package @theihtisham/agent-shadow-brain@7.25.0 shadow-brain project workspace . --port 62595
 ```
 
 Or install the reusable CLI:
@@ -19,11 +19,11 @@ cd your-project
 shadow-brain project workspace . --port 62595
 ```
 
-Check that the CLI prints `7.22.0` for these steps. Keep the command running and open [the Brain Hub](http://127.0.0.1:62595/hub). The process writes project data inside the selected project’s `.shadow-brain` directory. On restart, run the same command from the same project directory. If you use `--port 0`, open the URL printed by the current process.
+Check that the CLI prints `7.25.0` for these steps. Keep the command running and open [the Brain Hub](http://127.0.0.1:62595/hub). The process writes project data inside the selected project’s `.shadow-brain` directory. On restart, run the same command from the same project directory. If you use `--port 0`, open the URL printed by the current process.
 
 From a source checkout, use `npm ci` and `npm run build`, then replace `shadow-brain` with `node dist/cli.js` from the checkout. Pass the intended project directory as the workspace argument.
 
-![Running Brain Hub control room](assets/7.22.0-hub-graph.png)
+![Running Brain Hub control room](assets/7.25.0-brain-network.png)
 
 ## Save a fact in ordinary words
 
@@ -38,6 +38,12 @@ For longer notes, choose **Review first** and save the useful parts. Optional PD
 
 ## Connect a host
 
+Open **Setup → Host connections**. Choose **Connect** on a detected host that supports project setup. For a manual host, expand its guide and copy the entry into the host’s MCP settings. Reload the host, approve the project server if prompted, and ask it to call `project_brief`. The connection count shows a live MCP transport. The exchange appears when the host actually calls a tool.
+
+**Automatic connections** lets the running portal check every minute for supported installations and prepare available project configurations. **Project tool participation** pauses agent access for every participating tool in this project. Each host also has an admission switch. [Host compatibility](INTEGRATIONS.md)
+
+For manual CLI setup:
+
 ```bash
 shadow-brain project config . --target codex
 shadow-brain skills install . --target codex
@@ -51,7 +57,7 @@ Create a room in **Collaboration**, add a task, and record a proposal or critiqu
 
 The classic workspace at `/workspace` provides detailed memory review, context selection, and retrieval feedback. `/live` opens the detailed journal. `shadow-brain demo workspace --port 0` runs a separate synthetic tour.
 
-[Visual guide](VISUAL_GUIDE_v7.22.0.md) · [Troubleshooting](TROUBLESHOOTING.md)
+[Visual guide](VISUAL_GUIDE_v7.25.0.md) · [Troubleshooting](TROUBLESHOOTING.md)
 
 ## Plain-language notes, sessions, and live files
 

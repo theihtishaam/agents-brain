@@ -26,6 +26,8 @@ export interface ActivityEventInput {
   correlationId?: string;
   outcome?: typeof OUTCOMES[number];
   durationMs?: number;
+  argumentBytes?: number;
+  resultTextBytes?: number;
 }
 
 export interface ActivityJournalEvent extends ActivityEventInput {
@@ -82,6 +84,7 @@ export class ActivityJournalError extends Error {
 
 const INPUT_KEYS = new Set([
   'kind', 'source', 'transport', 'projectId', 'sessionId', 'agent', 'phase', 'tool', 'correlationId', 'outcome', 'durationMs',
+  'argumentBytes', 'resultTextBytes',
 ]);
 const SNAPSHOT_KEYS = new Set(['schemaVersion', 'journalId', 'revision', 'nextSequence', 'events']);
 const LOCK_TIMEOUT_MS = 3000;
@@ -127,8 +130,12 @@ function eventInput(value: unknown): ActivityEventInput | undefined {
       (input.agent !== undefined && !label(input.agent, 64)) ||
       (input.outcome !== undefined && !member(OUTCOMES, input.outcome))) return undefined;
 
-  const { kind, source, transport, phase, tool, correlationId, outcome, durationMs } = input;
+  const { kind, source, transport, projectId, phase, tool, correlationId, outcome, durationMs, argumentBytes, resultTextBytes } = input;
   if ((source === 'reported') !== (transport === 'host')) return undefined;
+  const exactBytes = (count: unknown) => source === 'measured' && transport === 'mcp' && projectId !== undefined &&
+    typeof count === 'number' && Number.isSafeInteger(count) && count >= 0;
+  if (argumentBytes !== undefined && (kind !== 'tool-start' || !exactBytes(argumentBytes))) return undefined;
+  if (resultTextBytes !== undefined && (kind !== 'tool-end' || outcome !== 'success' || !exactBytes(resultTextBytes))) return undefined;
   if (kind === 'tool-start' || kind === 'tool-end') {
     if (phase !== undefined || !label(tool, 64) || !label(correlationId)) return undefined;
     if (kind === 'tool-start' && (outcome !== undefined || durationMs !== undefined)) return undefined;

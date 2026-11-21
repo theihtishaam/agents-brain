@@ -11,6 +11,8 @@ import { BRAIN_HUB_HTML } from './brain-hub-html.js';
 import { WorkspaceRuntime } from './workspace-status.js';
 import { ProjectHubService } from '../brain/project-hub.js';
 import { ProjectLiveStream } from './project-live-stream.js';
+import { WorkspaceConnectionsApi } from './workspace-connections-api.js';
+import { ProjectFileExplorer } from './project-file-explorer.js';
 import { closeNativeCodex } from './native-codex-api.js';
 
 /** Persistent, provider-free project portal. Closing never deletes project files. */
@@ -25,6 +27,8 @@ export async function startProjectWorkspace(directory: string, options: { port?:
   const requests = new Set<Promise<void>>();
   const runtime = new WorkspaceRuntime('project', { id: store.projectId, name: store.projectName, root: store.root });
   const live = new ProjectLiveStream(store.root, runtime.serverInstanceId, settings);
+  const files = new ProjectFileExplorer(store.root);
+  const connections = new WorkspaceConnectionsApi(store.root, store.projectId, () => settings.get().features.activityRecording);
   let hub: ProjectHubService | undefined;
   const prepareStorage = async (): Promise<string | null> => {
     try {
@@ -39,6 +43,7 @@ export async function startProjectWorkspace(directory: string, options: { port?:
   let listener: http.Server | undefined;
   let closing: Promise<void> | undefined;
   const close = () => closing ??= (async () => {
+    connections.close();
     live.close();
     closeNativeCodex(store.root);
     if (listener?.listening) {
@@ -62,7 +67,7 @@ export async function startProjectWorkspace(directory: string, options: { port?:
         catch { res.writeHead(400); res.end('Invalid request URL.'); return; }
         if (ProjectLiveStream.route(url.pathname)) { live.handle(req, res, url); return; }
         const task = handleWorkspaceRequest(req, res, { brain, settings, annotations, journal, projectDir: store.root, localProject: true,
-          runtime, get hub() { return hub; }, prepareStorage });
+          runtime, files, connections, get hub() { return hub; }, prepareStorage });
         requests.add(task); void task.finally(() => requests.delete(task)); return;
       }
       if (req.method !== 'GET') { res.writeHead(405); res.end('Method not allowed.'); return; }
@@ -79,6 +84,7 @@ export async function startProjectWorkspace(directory: string, options: { port?:
       listener!.once('error', reject);
       listener!.listen(port, '127.0.0.1', () => { listener!.off('error', reject); resolve(); });
     });
+    connections.start();
     return { ...store, url: 'http://127.0.0.1:' + (listener.address() as { port: number }).port, close };
   } catch (error) { await close(); throw error; }
 }

@@ -133,6 +133,8 @@ it('enforces sharing, lineage, and context ceilings across a warm MCP client and
   expect(pack).toMatchObject({ budget: { tokenBudget: 330 }, policy: { revision: 4, effectiveMaxEntries: 1, hiddenMemories: 3 },
     entries: [{ id: allowed, sourceReferences: [{ memoryId: allowed, source: 'docs/public.md' }] }] });
   expect(JSON.stringify(pack)).not.toMatch(/HiddenPolicy/u);
+  const brief = (await call('project_brief', { query: 'policyneedle', tokenBudget: 12000 })).result;
+  expect(brief?.content).toEqual([{ type: 'text', text: pack.markdown }]);
   const prompt = await rpc('prompts/get', { name: 'shadow-task', arguments: { projectId: id, request: 'policyneedle' } });
   expect(result(prompt)).toContain('330 estimated tokens, limit 1 entries');
   expect(result(prompt)).not.toMatch(/HiddenPolicy/u);
@@ -151,4 +153,56 @@ it('enforces sharing, lineage, and context ceilings across a warm MCP client and
   expect((await call('global_recall')).error?.code).toBe(-32003);
   expect((await fetch(portal.url + '/api/workspace/project-policy')).status).toBe(503);
   expect((await fetch(portal.url + '/api/workspace/sessions/' + parent.id)).status).toBe(200);
+});
+
+
+it('applies host and workspace controls to connected clients on their next request', async () => {
+  const { root, brain, settings, store } = await fixture();
+  const portal = await startProjectWorkspace(root);
+  cleanup.push(portal.close);
+  const route = portal.url + '/api/workspace/connections';
+  const send = (input: Record<string, unknown>, headers: Record<string, string> = {}) => fetch(route, { method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(input) });
+  const pinned = { 'X-Shadow-Brain-Project': store.projectId };
+  const initial = await fetch(route).then(response => response.json());
+  expect(initial).toMatchObject({ revision: 0, policyRevision: 0, participationEnabled: true, autoConnect: false });
+  expect(initial.hosts).toHaveLength(8);
+  const blocked = { action: 'disconnect', host: 'kilo-code', expectedRevision: 0, expectedPolicyRevision: 0 };
+  expect((await send(blocked)).status).toBe(409);
+  expect((await send(blocked, { ...pinned, Origin: 'https://other.example' })).status).toBe(403);
+  expect((await fetch(route, { headers: { 'Sec-Fetch-Site': 'cross-site' } })).status).toBe(403);
+
+  const client = async (name: string, clientId?: string) => {
+    const server = new MCPServer(null, { toolProfile: 'memory', authToken: '' }, {
+      brain, settings, projectDir: root, projectId: store.projectId, localProject: true, clientId });
+    cleanup.push(() => server.finishMemorySession());
+    await server.handleRequest({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientInfo: { name, version: '1' } } });
+    return () => server.handleRequest({ jsonrpc: '2.0', id: 2, method: 'tools/call',
+      params: { name: 'project_brief', arguments: { query: 'known project facts' } } });
+  };
+  const kilo = await client('Generic IDE', 'kilo-code'), cline = await client('Cline');
+  expect((await kilo()).error).toBeUndefined();
+  expect((await send(blocked, pinned)).status).toBe(200);
+  expect((await kilo()).error?.code).toBe(-32003);
+  expect((await cline()).error).toBeUndefined();
+  expect((await send(blocked, pinned)).status).toBe(409);
+  const change = async (command: Record<string, unknown>) => {
+    const current = await fetch(route).then(response => response.json());
+    const response = await send({ ...command, expectedRevision: current.revision, expectedPolicyRevision: current.policyRevision }, pinned);
+    expect(response.status).toBe(200);
+    return response.json();
+  };
+  await change({ action: 'participation', enabled: false });
+  expect((await cline()).error?.code).toBe(-32003);
+  await change({ action: 'admission', host: 'kilo-code', enabled: true });
+  expect((await kilo()).error?.code).toBe(-32003);
+  await change({ action: 'participation', enabled: true });
+  expect((await kilo()).error).toBeUndefined();
+  expect((await cline()).error).toBeUndefined();
+  const configured = await change({ action: 'connect', host: 'opencode' });
+  expect(configured.hosts).toContainEqual(expect.objectContaining({ id: 'opencode', configuration: 'managed' }));
+  const configPath = path.join(root, 'opencode.json');
+  expect(fs.readFileSync(configPath, 'utf8')).toContain('--client-id');
+  await change({ action: 'disconnect', host: 'opencode' });
+  expect(fs.existsSync(configPath)).toBe(false);
 });

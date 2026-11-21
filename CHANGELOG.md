@@ -1,5 +1,9 @@
 # Changelog
 
+## 7.25.0
+
+Added opt-in project host discovery and configuration, immediate project and tool admission controls, measured payload sizes, a live agent topology, a compact shared project briefing for MCP clients, project file navigation and context lookup, usage coverage and filters, and accessible theme and context actions. [Release guide](docs/launch/RELEASE_NOTES_v7.25.0.md)
+
 ## [7.22.2] - 2026-11-15 - Live download badge
 
 - Removed scheduled README download-counter commits and the dated inline counter. The Shields.io badge retrieves the latest available npm total automatically, subject to caching.

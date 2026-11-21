@@ -1,6 +1,6 @@
 {
   "name": "@theihtisham/agent-shadow-brain",
-  "version": "7.22.2",
+  "version": "7.25.0",
   "description": "Local memory, focused skills, and a visual context workspace for coding agents. Explore memories, build project-scoped context, and control briefings across Codex, Claude Code, OpenCode, and DeepSeek Harness.",
   "main": "dist/index.js",
   "exports": {
@@ -98,6 +98,8 @@
     "docs/launch/RELEASE_NOTES_v6.2.0.md",
     "tools/export-resume-pack.mjs",
     "tools/record-global-memory.mjs",
+    "tools/measure-shared-brief.mjs",
+    "tools/plot-shared-brief.py",
     "docs/launch/RELEASE_NOTES_v7.0.0.md",
     "docs/launch/RELEASE_CHECKLIST_v7.0.0.md",
     "skills/**/*",
@@ -106,6 +108,7 @@
     "docs/assets/*.png",
     "docs/assets/7.22.0-hub-exchanges.gif",
     "docs/assets/7.22.0-agent-dock.gif",
+    "docs/assets/7.25.0-agent-traffic.gif",
     "docs/launch/RESEARCH_AND_PLAN_v7.22.0.md",
     "docs/launch/RELEASE_NOTES_v7.22.0.md",
     "docs/launch/RELEASE_ACCEPTANCE_v7.22.0.md",
@@ -123,6 +126,8 @@
     "docs/launch/PROJECT_KIT_PLAN_v7.1.4.md",
     "docs/launch/PROJECT_LEARNING_PLAN_v7.1.4.md",
     "docs/launch/RELEASE_NOTES_v7.22.1.md",
+    "docs/launch/RESEARCH_AND_PLAN_v7.25.0.md",
+    "docs/launch/RELEASE_NOTES_v7.25.0.md",
     "docs/launch/RELEASE_NOTES_v7.22.2.md"
   ],
   "publishConfig": {

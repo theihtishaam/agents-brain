@@ -67,8 +67,8 @@ describe('durable local activity journal', () => {
 
   it('durably distinguishes measured tool execution from explicitly reported phases', async () => {
     await journal.append({ ...session, projectId: 'alpha' });
-    const began = await journal.append({ ...tool, kind: 'tool-start', projectId: 'alpha' });
-    const ended = await journal.append({ ...tool, kind: 'tool-end', projectId: 'alpha', outcome: 'success', durationMs: 17.25 });
+    const began = await journal.append({ ...tool, kind: 'tool-start', projectId: 'alpha', argumentBytes: 22 });
+    const ended = await journal.append({ ...tool, kind: 'tool-end', projectId: 'alpha', outcome: 'success', durationMs: 17.25, resultTextBytes: 0 });
     const phase = await journal.append({ ...reported, projectId: 'alpha' });
     const externalTool = await journal.append({
       ...tool, source: 'reported', transport: 'host', kind: 'tool-end', tool: 'read_file',
@@ -81,8 +81,9 @@ describe('durable local activity journal', () => {
     expect(new Set(reopened.events.map(event => event.id)).size).toBe(5);
     expect(new Date(ended.timestamp).toISOString()).toBe(ended.timestamp);
     expect(ended.correlationId).toBe(began.correlationId);
+    expect(reopened.events[1]).toMatchObject({ argumentBytes: 22 });
     expect(reopened.events.filter(event => event.source === 'measured' && event.kind === 'tool-end'))
-      .toMatchObject([{ durationMs: 17.25, outcome: 'success', transport: 'mcp' }]);
+      .toMatchObject([{ durationMs: 17.25, outcome: 'success', transport: 'mcp', resultTextBytes: 0 }]);
     expect(phase).toMatchObject({ source: 'reported', transport: 'host', phase: 'verify' });
     expect(phase).not.toHaveProperty('durationMs');
     expect(externalTool).toMatchObject({ source: 'reported', transport: 'host', durationMs: 42 });
@@ -104,6 +105,14 @@ describe('durable local activity journal', () => {
       { ...tool, kind: 'tool-start', transport: 'host' },
       { ...tool, kind: 'tool-start', source: 'reported', transport: 'host', arguments: ['fixture'] },
       { ...tool, kind: 'tool-start', outcome: 'success' },
+      { ...tool, kind: 'tool-start', projectId: 'alpha', argumentBytes: -1 },
+      { ...tool, kind: 'tool-start', projectId: 'alpha', argumentBytes: 1.25 },
+      { ...tool, kind: 'tool-start', projectId: 'alpha', argumentBytes: '2' },
+      { ...tool, kind: 'tool-start', projectId: 'alpha', resultTextBytes: 2 },
+      { ...tool, kind: 'tool-start', projectId: 'alpha', source: 'reported', transport: 'host', argumentBytes: 2 },
+      { ...tool, kind: 'tool-end', projectId: 'alpha', outcome: 'success', durationMs: 1, argumentBytes: 2 },
+      { ...tool, kind: 'tool-end', projectId: 'alpha', outcome: 'error', durationMs: 1, resultTextBytes: 2 },
+      { ...tool, kind: 'tool-end', projectId: 'alpha', outcome: 'success', durationMs: 1, resultTextBytes: Number.MAX_SAFE_INTEGER + 1 },
       { ...tool, kind: 'tool-end', durationMs: -1, outcome: 'error' },
       { ...tool, kind: 'tool-end', durationMs: Infinity, outcome: 'error' },
       { ...tool, kind: 'tool-end', outcome: 'error' },

@@ -19,7 +19,7 @@ import { registerIntegrationCommands } from './integration-cli.js';
 import { registerActivityCommands } from './activity-cli.js';
 import { registerProjectCommands } from './project-cli.js';
 
-const VERSION = '7.22.2';
+const VERSION = '7.25.0';
 
 // Defer config reads until a command actually needs provider settings.
 let savedConfig: Conf | undefined;
@@ -994,6 +994,7 @@ const mcpCmd = new Command('mcp')
   .argument('[project-dir]', 'Project directory', process.cwd())
   .option('--stdio', 'Serve the provider-free memory and workflow tools over standard input/output')
   .option('--project-id <id>', 'Use an existing project ID for stdio activity attribution')
+  .option('--client-id <id>', 'Identify the host in its project-local stdio configuration')
   .option('--db <path>', 'Memory store for the standalone stdio service')
   .option('--settings <path>', 'Feature settings for the standalone stdio service')
   .option('--port <port>', 'MCP server port', '7342')
@@ -1005,7 +1006,7 @@ const mcpCmd = new Command('mcp')
   .action(async (projectDir: string, opts: any) => {
     if (opts.stdio) {
       const { runMemoryMCPStdio } = await import('./brain/mcp-stdio.js');
-      await runMemoryMCPStdio({ dbPath: opts.db, settingsPath: opts.settings, projectDir, projectId: opts.projectId });
+      await runMemoryMCPStdio({ clientId: opts.clientId, dbPath: opts.db, settingsPath: opts.settings, projectDir, projectId: opts.projectId });
       return;
     }
     const brainConfig = mergeConfig({ ...opts, projectDir, watchMode: false });

@@ -345,6 +345,7 @@ const projectInput = [
   { jsonrpc: '2.0', id: 6, method: 'prompts/get', params: { name: 'shadow-task', arguments: { projectId: observed.projectId, request: 'checkout retry idempotency' } } },
   call(7, 'project_feedback'),
   call(8, 'project_feedback', { kind: 'record', expectedRevision: learned.revision, memoryId: known.memoryId, task: 'checkout retry idempotency', rating: 'useful', reason: 'Explicit synthetic host report.' }),
+  call(9, 'project_brief', { query: 'checkout retry idempotency' }),
 ].map(value => JSON.stringify(value)).join('\n') + '\n';
 const projectReplies = runNode(launch.args, 0, projectInput, guardConfig).trim().split(/\r?\n/).map(line => JSON.parse(line));
 assert(projectReplies.every(reply => !reply.error && !reply.result?.isError), JSON.stringify(projectReplies));
@@ -353,6 +354,7 @@ assert.equal(projectReplies[2].result.structuredContent.entries[0].id, known.mem
 assert.equal(projectReplies[3].result.structuredContent.projectId, observed.projectId);
 assert.equal(projectReplies[4].result.resources.length, 2);
 assert(projectReplies[5].result.messages[0].content.text.includes('idempotency'));
+assert(projectReplies.find(reply => reply.id === 9).result.content[0].text.includes(known.memoryId));
 assert(projectReplies[7].result.structuredContent.records.some(record => record.reporter === 'agent'));
 runNode([cli, 'project', 'feedback', 'set', 'off', '--project', localProject]);
 const disabledContext = JSON.parse(runNode([cli, 'context-pack', 'checkout retry idempotency', '--project', contextProject, '--db', localDb, '--profile', 'adaptive', '--json']));
@@ -479,7 +481,12 @@ for (const [modulePath, name, marker] of [
 }
 const readme = fs.readFileSync(path.join(installed, 'README.md'), 'utf8');
 const packedPaths = new Set(pack.files.map(file => file.path));
-const readmeImages = [...readme.matchAll(/!\[[^\]]*]\((?:https:\/\/raw\.githubusercontent\.com\/theihtishaam\/agents-brain\/main\/)?(docs\/assets\/[^)]+\.(?:png|gif))\)/g)];
+for (const artifact of ['docs/VISUAL_GUIDE_v7.25.0.md', 'docs/evaluation/SHARED_BRIEF_v7.25.0.json', 'tools/measure-shared-brief.mjs',
+  'tools/plot-shared-brief.py', ...['agent-traffic.gif', 'brain-network.png', 'files.png', 'setup.png', 'context.png', 'usage.png', 'workflow.png',
+    'shared-brief-comparison.png'].map(asset => 'docs/assets/7.25.0-' + asset)]) {
+  assert(packedPaths.has(artifact), 'Release visual guide file is missing from the tarball: ' + artifact);
+}
+const readmeImages = [...readme.matchAll(/!\[[^\]]*]\((?:https:\/\/raw\.githubusercontent\.com\/theihtishaam\/agents-brain\/(?:main|v\d+\.\d+\.\d+)\/)?(docs\/assets\/[^)]+\.(?:png|gif))\)/g)];
 assert(readmeImages.length >= 5, 'README visual guide must retain its packaged screenshots');
 for (const [, target] of readmeImages) {
   assert(packedPaths.has(target), 'README image is missing from tarball: ' + target);
@@ -500,5 +507,5 @@ console.log(JSON.stringify({
     'project inspection without script execution', 'local knowledge and protected skill apply', 'reversible task feedback and reporter attribution',
     'fresh MCP project recipe, resources and prompts', 'persistent project portal and isolated demo teardown', 'packed PDF extraction and approval',
     'plain text recall with exact source evidence and retry identity', 'immutable session checkpoint and resume', 'effective project context ceilings',
-    'managed skill disable and byte-exact restoration', 'demo CLI invalid-port validation'],
+    'compact shared briefing from a packaged MCP service', 'managed skill disable and byte-exact restoration', 'demo CLI invalid-port validation'],
 }, null, 2));

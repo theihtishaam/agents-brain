@@ -67,6 +67,14 @@ describe('adaptive context retrieval', () => {
     expect(fs.existsSync(brain.dbPath)).toBe(false);
   });
 
+  it('recalls a code identifier from a multiword task across project authors', () => {
+    const entry = add('The connection uses HTTPRetryLedger before replay.', { agentTool: 'claude-code' });
+    const pack = assembleContext(brain, { ...options, query: 'retry ledger' });
+    expect(pack.entries.map(record => record.id)).toEqual([entry]);
+    expect(pack.retrieval?.candidates[0].matchedTerms).toEqual(['retry', 'ledger']);
+    expect(assembleContext(brain, { ...options, query: 'retry' }).entries).toHaveLength(0);
+  });
+
   it('keeps Unicode, filenames, code identifiers and evidence fields searchable', () => {
     const late = add('General boilerplate. '.repeat(65) + 'ParserSealError caused retry exhaustion.');
     const source = add('Review the documented transport fix.', { metadata: { sourceFile: 'docs\\retry-plan.ts' } });

@@ -7,14 +7,20 @@ let dockPresenceTimer=0,dockPresenceReceived=0;
 const dockVisible=scope=>scope==='overview'||scope==='sessions';
 const rosterTool=label=>typeof label==='string'&&label&&label!=='user'&&label!=='portal';
 const toolKey=value=>JSON.stringify([value.projectId,value.tool,value.kind,value.identity]);
+const dockConnectionKey=(projectId,connectionId)=>JSON.stringify([projectId,connectionId]);
 const toolOrder=['codex','claude-code','deepseek-harness','opencode'];
 const presenceClock=()=>Date.parse(state.presence?.checkedAt)+(performance.now()-dockPresenceReceived);
 function currentDockConnections(){
-  if(!state.presence?.enabled||state.errors?.presence||state.connection!=='reachable')return [];
+  if(!state.presence?.enabled||state.errors?.presence||state.connection!=='reachable'||state.project&&state.presence.projectId!==state.project)return [];
   const now=presenceClock();
   return arr(state.presence.connections).filter(item=>Date.parse(item.expiresAt)>now);
 }
+function dockEventTool(event,connections){
+  return event.source==='measured'&&event.transport==='mcp'&&event.agent==='mcp-client'?
+    connections.get(dockConnectionKey(event.projectId,event.sessionId))??event.agent:event.agent;
+}
 function noteAgentActivity(events){
+  noteTopologyActivity(events);
   if(document.hidden||reduced.matches||state.motionPaused||state.replayId||!dockVisible(state.view))return;
   const now=Date.now();
   for(const event of events)if(rosterTool(event.agent)&&event.projectId&&event.sessionId){
@@ -34,7 +40,6 @@ function rosterState(){
     return record;
   }
   const connections=new Map(),hostChats=new Map();
-  const connectionKey=(projectId,connectionId)=>JSON.stringify([projectId,connectionId]);
   for(const session of arr(state.sessions?.sessions)){
     const projectId=state.sessions.projectId,tool=session.native?.tool??session.actor?.tool;
     const hostId=session.hostSessionId,connection=session.actor?.kind==='agent'&&session.actor?.id?.startsWith(tool+':mcp-')
@@ -48,20 +53,20 @@ function rosterState(){
       list.push(record);hostChats.set(key,list);
     }
     if(connection){
-      const key=connectionKey(projectId,connection);
+      const key=dockConnectionKey(projectId,connection);
       connections.set(key,connections.has(key)&&connections.get(key)!==tool?null:tool);
     }
   }
   for(const connection of currentDockConnections()){
     const projectId=state.presence.projectId;
     if(!accepts(projectId,connection.tool))continue;
-    connections.set(connectionKey(projectId,connection.id),connection.tool);
+    connections.set(dockConnectionKey(projectId,connection.id),connection.tool);
     group(projectId,connection.tool,'connection',connection.id).presence=connection;
   }
   for(const event of state.events){
     if(!event.sessionId||!accepts(event.projectId,event.agent))continue;
     const measured=event.source==='measured'&&event.transport==='mcp';
-    const tool=measured&&event.agent==='mcp-client'?connections.get(connectionKey(event.projectId,event.sessionId))??event.agent:event.agent;
+    const tool=dockEventTool(event,connections);
     const record=group(event.projectId,tool,measured?'connection':'report',event.sessionId);
     if(!record.event||event.sequence>record.event.sequence)record.event=event;
   }
@@ -85,7 +90,7 @@ function rosterState(){
   for(const rows of tools.values())rows.sort((a,b)=>String(b.latest??'').localeCompare(String(a.latest??'')));
   const order=tool=>toolOrder.includes(tool)?toolOrder.indexOf(tool):toolOrder.length;
   const sorted=[...tools].sort((a,b)=>order(a[0])-order(b[0])||a[0].localeCompare(b[0]));
-  return {tools:sorted,groups,models:models.size};
+  return {tools:sorted,groups,models:models.size,connections};
 }
 function toolMark(tool){
   const icon=Object.hasOwn(brainBrandMarks,tool)?brainBrandMarks[tool]:'<span>'+esc(hostName(tool).slice(0,2).toUpperCase())+'</span>';
@@ -120,9 +125,11 @@ function toolDockInspector(record,records){
       esc(labelFor(item))+'</strong>'+(model?'<small class="muted">'+esc(model)+'</small>':'')+'</button></li>';
   }).join(''),'aria-label="Chats and connection evidence"','tool-dock-record-list'):'';
   const idLabel=record.kind==='connection'?'MCP connection ID':record.kind==='report'?'Reported session ID':record.kind==='project-session'?'Project session ID':'Host chat ID';
+  const isExchange=exchangeKey(event);
   return '<section class="tool-dock-details" id="tool-dock-details" aria-label="'+esc(hostName(record.tool))+' activity details">'+
     '<div class="row"><h3>'+esc(hostName(record.tool))+'</h3><div class="actions">'+
     (session?btn('Open session','data-dock-open="'+esc(session.id)+'"','quiet'):'')+
+    (isExchange&&state.view==='overview'?btn('Inspect exchange','data-event="'+esc(event.id)+'"','quiet'):'')+
     btn('Close details','data-dock-close','quiet')+'</div></div>'+chooser+
     '<div class="tool-evidence-grid"><dl class="facts">'+fact('Workspace',workspace)+fact('Conversation',actualTitle)+
     fact(idLabel,record.identity)+(session?.hostSessionId?fact('Host chat ID',session.hostSessionId):'')+
@@ -130,6 +137,7 @@ function toolDockInspector(record,records){
     fact('Coordination role',role)+fact('Participation',availability===null?'Unavailable':availability?'Enabled':'Disabled')+'</dl>'+
     '<dl class="facts">'+fact('Latest recorded action',actionLabel)+fact('Evidence',provenance)+fact('Last seen',isoTime(record.latest))+
     (record.presence?fact('MCP heartbeat',isoTime(record.presence.lastSeenAt)): '')+
+    (isExchange?fact('Direction',exchangeDirection(event)): '')+
     fact('Latest tool duration',Number.isFinite(event?.durationMs)?fmt(event.durationMs)+' ms · '+evidence(event):'Not recorded')+'</dl>'+
     '<dl class="facts">'+fact('Model',receipt?.responseModel??receipt?.requestModel??'Not reported')+fact('Provider',receipt?.provider??'Not reported')+
     fact('Host-reported effort',receipt?.reasoningEffort??'Not reported')+fact('Reported input tokens',counter(receipt?.inputTokens))+
@@ -139,12 +147,24 @@ function toolDockInspector(record,records){
 function pickDockRecord(){
   if(!dockTool)return;
   const records=rosterState().tools.find(([tool])=>tool===dockTool)?.[1]??[];
-  dockSession=(records.find(item=>item.session)??records[0])?.key??null;
+  dockSession=defaultDockRecord(records)?.key??null;
 }
-function agentDockMarkup(){
-  const {tools,groups,models}=rosterState();
-  const visible=tools.slice(0,12);
+function defaultDockRecord(records){
+  if(state.view==='overview'){
+    const transport=records.find(item=>item.presence)??records.find(item=>item.kind==='connection'&&item.event);
+    if(transport)return transport;
+  }
+  return records.find(item=>item.session)??records[0];
+}
+function agentDockMarkup(roster=rosterState()){
+  const {tools,groups,models}=roster;
+  const isTopology=state.view==='overview';
+  const visible=isTopology?tools:tools.slice(0,12);
   if(dockTool&&!visible.some(([tool])=>tool===dockTool)){dockTool=null;dockSession=null;dockPinned=false;}
+  const selection=tools.find(([tool])=>tool===dockTool)?.[1]??[];
+  const row=selection.find(item=>item.key===dockSession)??defaultDockRecord(selection);
+  const inspector=row?toolDockInspector(row,selection):'<div id="tool-dock-details" hidden></div>';
+  if(isTopology)return topologyMarkup(roster)+inspector;
   const controls=visible.map(([tool,records])=>{
     const availability=toolEnabled(tool);
     const latestEvent=records.map(item=>item.event).filter(Boolean).sort((a,b)=>b.sequence-a.sequence)[0];
@@ -157,8 +177,6 @@ function agentDockMarkup(){
       toolMark(tool)+'<span class="tool-dock-text"><strong>'+esc(hostName(tool))+'</strong><small>'+esc(description)+
       '</small></span><span class="tool-dock-indicator" data-observed="'+esc(latestEvent?.id)+'" title="'+esc(reporting?reporting+' reporting MCP connections':'No current transport heartbeat')+'" aria-hidden="true"></span></button></li>';
   }).join('');
-  const selection=tools.find(([tool])=>tool===dockTool)?.[1]??[];
-  const row=selection.find(item=>item.key===dockSession)??selection.find(item=>item.session)??selection[0];
   const conversations=new Set([...groups.values()].filter(item=>item.session).map(item=>JSON.stringify([item.projectId,item.tool,item.session.hostSessionId??item.identity]))).size;
   const agents=[...groups.values()].filter(item=>item.session?.actor?.kind==='agent').length;
   const connections=[...groups.values()].filter(item=>item.kind==='connection').length;
@@ -171,7 +189,7 @@ function agentDockMarkup(){
     fmt(tools.length)+' tools <span aria-hidden="true">·</span> '+fmt(agents)+' agent sessions <span aria-hidden="true">·</span> '+fmt(conversations)+' registered chats <span aria-hidden="true">·</span> '+esc(presence)+' <span aria-hidden="true">·</span> '+fmt(models)+' reported models'+
     (tools.length>visible.length?' · '+visible.length+' shown':'')+'</p></div>'+
     (controls?list(controls,'aria-label="Tools with project evidence"','tool-dock-list'):'<p class="tool-dock-empty small muted">Tool records appear after a measured exchange or explicit host report.</p>')+
-    (row?toolDockInspector(row,selection):'<div id="tool-dock-details" hidden></div>')+'<p class="tool-dock-caption small muted">'+esc(sourceState)+
+    inspector+'<p class="tool-dock-caption small muted">'+esc(sourceState)+
     ' · Retained evidence'+(state.presence?.enabled&&!state.errors.presence?' · MCP heartbeat window '+Math.round(state.presence.expiresAfterMs/1000)+'s':'')+
     (state.errors.sessions?' · Sessions unavailable':'')+(state.errors.usage?' · Usage unavailable':'')+(state.errors.policy?' · Controls unavailable':'')+'</p>';
 }
@@ -182,11 +200,14 @@ function scheduleDockExpiry(){
   clearTimeout(dockPresenceTimer);
   if(document.hidden||!dockVisible(state.view)||!state.presence?.enabled||state.errors.presence)return;
   const now=presenceClock();
-  const dates=arr(state.presence.connections).map(item=>Date.parse(item.expiresAt)).filter(time=>Number.isFinite(time));
+  const dates=arr(state.presence.connections).map(item=>Date.parse(item.expiresAt)).filter(time=>time>now);
   if(!dates.length||!Number.isFinite(now))return;
   dockPresenceTimer=setTimeout(()=>{updateAgentDock();queueLive(['presence']);},Math.max(150,Math.min(...dates)-now+100));
 }
-function agentDock(){return '<section class="panel tool-dock" id="tool-dock" aria-label="Tool activity">'+agentDockMarkup()+'</section>';}
+function agentDock(){
+  const topology=state.view==='overview';
+  return '<section class="panel tool-dock'+(topology?' topology-dock':'')+'" id="tool-dock" aria-label="'+(topology?'MCP topology':'Tool activity')+'">'+agentDockMarkup()+'</section>';
+}
 function updateAgentDock(){
   const dock=$('tool-dock');
   if(!dock)return;
@@ -195,14 +216,23 @@ function updateAgentDock(){
   const recordKey=dock.contains(focus)?focus?.dataset.dockRecord:null;
   const focused=dock.contains(focus);
   const id=focused?focus?.id:null;
-  const markup=agentDockMarkup();
+  const eventId=focused?focus?.dataset.event:null;
+  const summaryFocus=focused&&focus?.parentElement?.id==='topology-more';
+  const moreOpen=$('topology-more')?.open;
+  const roster=rosterState();
+  const markup=agentDockMarkup(roster);
   if(dock.dataset.markup!==markup){
     dock.innerHTML=markup;dock.dataset.markup=markup;
+    if(moreOpen&&$('topology-more'))$('topology-more').open=true;
     if(key)focusDockTool(key);
     else if(recordKey)[...dock.querySelectorAll('[data-dock-record]')].find(button=>button.dataset.dockRecord===recordKey)?.focus({preventScroll:true});
+    else if(eventId)dock.querySelector('.topology-latest')?.focus({preventScroll:true});
+    else if(summaryFocus)$('topology-more')?.querySelector('summary')?.focus({preventScroll:true});
     else if(id)$(id)?.focus({preventScroll:true});
     else if(focused)focusDockTool(dockTool);
   }
+  updateTopologyActivity(roster);
+  if(state.view==='overview')return;
   const now=Date.now();
   if(document.hidden||reduced.matches||state.motionPaused||state.replayId||state.connection!=='reachable'||!state.live){
     observedPulses.clear();
@@ -224,11 +254,16 @@ function updateAgentDock(){
 let dockFocusRestore=false;
 function focusDockTool(tool){
   dockFocusRestore=true;
-  [...$('tool-dock')?.querySelectorAll('[data-dock-tool]')??[]].find(button=>button.dataset.dockTool===tool)?.focus({preventScroll:true});
+  const button=[...$('tool-dock')?.querySelectorAll('[data-dock-tool]')??[]].find(item=>item.dataset.dockTool===tool);
+  const details=button?.closest('#topology-more');
+  if(details)details.open=true;
+  button?.focus({preventScroll:true});
   dockFocusRestore=false;
 }
 function previewDockTool(target){
-  const tool=target.closest?.('[data-dock-tool]')?.dataset.dockTool;
+  const button=target.closest?.('[data-dock-tool]');
+  if(button?.hasAttribute('data-topology-tool'))return;
+  const tool=button?.dataset.dockTool;
   if(!tool||dockPinned||dockFocusRestore||tool===dockTool)return;
   dockTool=tool;pickDockRecord();updateAgentDock();
 }

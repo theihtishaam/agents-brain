@@ -1,3 +1,7 @@
+import { BRAIN_HUB_SIGNALS_CSS } from './brain-hub-signals.js';
+import { BRAIN_HUB_TOPOLOGY_CSS } from './brain-hub-topology.js';
+import { BRAIN_HUB_CONNECTIONS_CSS } from './brain-hub-connections.js';
+import { HUB_MENU, HUB_SHELL_CLIENT, HUB_SHELL_STYLE } from './brain-hub-shell.js';
 import { BRAIN_HUB_CLIENT } from './brain-hub-client.js';
 import { BRAIN_HUB_GRAPH } from './brain-hub-graph.js';
 import { BRAIN_HUB_EXCHANGES } from './brain-hub-exchanges.js';
@@ -5,7 +9,7 @@ import { BRAIN_HUB_LIVE } from './brain-hub-live.js';
 import { BRAIN_HUB_VIEWS } from './brain-hub-views.js';
 
 export const BRAIN_HUB_HTML = String.raw`<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><title>Agent Shadow Brain</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark light"><title>Agent Shadow Brain</title>
 <style>
 :root{color-scheme:dark;--ground:#080e19;--surface:#0e1828;--raised:#142237;--border:#263a50;--strong:#425d78;--ink:#ecf5ff;--muted:#a9bed3;--cyan:#78e9e5;--blue:#afc7ff;--pink:#ecb0fc;--amber:#f9d28b;--green:#a0e7be;--red:#ffacb6;--sans:Inter,"Segoe UI",system-ui,sans-serif;--mono:"IBM Plex Mono","Cascadia Mono",Consolas,monospace;font:14px/1.45 var(--sans)}
 *,*::before,*::after{box-sizing:border-box}body{margin:0;background:var(--ground);color:var(--ink)}[hidden]{display:none!important}a{color:var(--cyan)}button,input,select,textarea{font:inherit}button,select{cursor:pointer}button:disabled{cursor:default;opacity:.52}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}h1,h2,h3,p,ul,ol,dl,dd{margin:0}h1,h2,h3{letter-spacing:-.022em;line-height:1.25}h1{font-size:1.95rem}h2{font-size:1.06rem}h3{font-size:.95rem}p,dd,li,pre,td{overflow-wrap:anywhere}small,.small{font-size:.81rem}.muted{color:var(--muted)}.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}.cyan{color:var(--cyan)}.pink{color:var(--pink)}.amber{color:var(--amber)}.green{color:var(--green)}.red{color:var(--red)}.skip{position:fixed;left:12px;top:8px;z-index:4;transform:translateY(-150%)}.skip:focus{transform:none}
@@ -70,16 +74,22 @@ export const BRAIN_HUB_HTML = String.raw`<!doctype html>
 #project-file-pulse{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .file-fresh{animation:file-observed 1.6s ease-out}
 @keyframes file-observed{0%{color:var(--cyan)}100%{color:var(--muted)}}
+${HUB_SHELL_STYLE}
+${BRAIN_HUB_TOPOLOGY_CSS}
+${BRAIN_HUB_CONNECTIONS_CSS}
+${BRAIN_HUB_SIGNALS_CSS}
 </style></head><body>
 <a class="btn skip" href="#main">Skip to content</a>
-<div class="frame"><header class="top"><div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9Zm0 0v28M4 9l24 14M28 9 4 23" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="3.3" fill="currentColor"/></svg>Agent Shadow Brain</div><div class="actions"><span class="chip" id="connection"><i class="dot" aria-hidden="true"></i> Connecting to workspace</span><label for="project" class="small muted">Project</label><select id="project" disabled><option>Loading…</option></select><button class="btn" id="reload" type="button">Refresh</button></div></header>
+<div class="frame"><header class="top"><div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9Zm0 0v28M4 9l24 14M28 9 4 23" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="3.3" fill="currentColor"/></svg>Agent Shadow Brain</div><div class="actions"><span class="chip" id="connection"><i class="dot" aria-hidden="true"></i> Connecting to workspace</span><label for="project" class="small muted">Project</label><select id="project" disabled><option>Loading…</option></select><button class="btn" id="reload" type="button">Refresh</button><button class="btn" id="menu-launch" type="button" aria-haspopup="dialog" title="Workspace actions (Ctrl or Command + K)">Actions</button><label class="hub-theme">Theme <select id="hub-theme"><option value="midnight">Midnight</option><option value="daylight">Daylight</option><option value="contrast">High contrast</option></select></label></div></header>
 <nav class="nav" id="nav" aria-label="Brain workspace"></nav>
 <span class="chip" id="stream-health" role="status" hidden></span>
 <p class="notice" id="notice" role="status"></p>
 <main id="main" tabindex="-1"><div class="empty"><strong>Opening the workspace</strong><p>Loading the local memory and activity stores.</p></div></main>
-<footer class="footer"><span id="scope-note"></span><span>Created by <a href="https://github.com/theihtishaam" target="_blank" rel="noopener noreferrer">@theihtishaam</a> · <a href="https://github.com/theihtishaam/agents-brain" target="_blank" rel="noopener noreferrer">Star Agent Shadow Brain on GitHub</a></span><span><a href="/workspace">Classic workspace</a> · <a href="/live">Activity diagnostics</a></span></footer>
+<footer class="footer"><span id="scope-note"></span><span>Created by <a href="https://github.com/theihtishaam" target="_blank" rel="noopener noreferrer">@theihtishaam</a> · <a href="https://www.linkedin.com/in/ihtishamdeveloper/" target="_blank" rel="noopener noreferrer">LinkedIn</a> · <a href="https://github.com/theihtishaam/agents-brain" target="_blank" rel="noopener noreferrer">Repository</a></span><span><a href="/workspace">Classic workspace</a> · <a href="/live">Activity diagnostics</a></span></footer>
 </div>
+${HUB_MENU}
 <script>'use strict';
-` + BRAIN_HUB_CLIENT + BRAIN_HUB_LIVE + BRAIN_HUB_EXCHANGES + BRAIN_HUB_GRAPH + BRAIN_HUB_VIEWS + String.raw`
+` + BRAIN_HUB_CLIENT + BRAIN_HUB_LIVE + BRAIN_HUB_EXCHANGES + BRAIN_HUB_GRAPH + HUB_SHELL_CLIENT + BRAIN_HUB_VIEWS + String.raw`
+installHubShell();
 start();
 </script></body></html>`;

@@ -16,6 +16,7 @@ const STORES = [
   ['project-hub.sqlite-wal', ['hub', 'sessions']],
   ['project-sources.sqlite', ['sources']],
   ['project-sources.sqlite-wal', ['sources']],
+  ['workspace-connections.sqlite', ['connections']],
   ['project-policy.json', ['policy', 'presence']],
   [MCP_PRESENCE_FILE, ['presence']],
   ['model-usage.sqlite', ['usage']],

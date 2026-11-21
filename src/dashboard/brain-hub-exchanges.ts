@@ -73,7 +73,7 @@ function pairedExchangeMarkup(event){
   if(!exchangeKey(event))return '';
   const other=observedExchanges().pairs.get(event.id);
   const isRequest=event.kind==='tool-start';
-  return '<dl class="facts">'+fact('Boundary',exchangeDirection(event))+fact('Observation',exchangeLabel(event))+fact('Project',exchangeProject(event))+'</dl>'+
+  return '<dl class="facts">'+fact('Boundary',exchangeDirection(event))+fact('Observation',exchangeLabel(event))+fact('Project',exchangeProject(event))+(Number.isSafeInteger(event.argumentBytes)?fact('Request argument bytes',fmt(event.argumentBytes)):'')+(Number.isSafeInteger(event.resultTextBytes)?fact('Result text bytes',fmt(event.resultTextBytes)):'')+'</dl>'+
     (other?'<button class="btn quiet" type="button" data-event="'+esc(other.id)+'">'+(isRequest?'Inspect paired result':'Inspect paired request')+'</button>':
     '<p class="small muted">'+(isRequest?'A matching result is absent from loaded records.':'A matching request is absent from loaded records.')+'</p>')+
     '<p class="small muted">The journal records the tool boundary. Model consumption is unobserved.</p>';

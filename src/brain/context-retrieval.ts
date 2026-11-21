@@ -115,16 +115,16 @@ export function contextSearchMemory(entry: GlobalEntry): ContextSearchMemory {
   };
 }
 
-function* tokens(text: string): IterableIterator<{ term: string; at: number }> {
+function* tokens(text: string): IterableIterator<{ term: string; raw: string; at: number }> {
   const pattern = /[\p{L}\p{N}][\p{L}\p{N}\p{M}_]*(?:(?:[./\\:-])[\p{L}\p{N}\p{M}_]+)*(?:\+\+|#)?/gu;
   for (const match of text.matchAll(pattern)) {
     const raw = match[0];
     if (SEGMENTED_SCRIPT.test(raw)) {
       for (const part of wordSegmenter.segment(raw)) {
-        if (part.isWordLike) yield { term: canonical(part.segment), at: match.index + part.index };
+        if (part.isWordLike) yield { term: canonical(part.segment), raw: part.segment, at: match.index + part.index };
       }
     } else {
-      yield { term: canonical(raw), at: match.index };
+      yield { term: canonical(raw), raw, at: match.index };
     }
   }
 }
@@ -176,10 +176,22 @@ function matchDocument(document: MemoryDocument, terms: ReadonlySet<string>, com
     hits.set(term, hit);
   };
   const scan = (value: string, field: ContextMatchField) => {
-    for (const { term, at } of tokens(value)) {
+    for (const { term, raw, at } of tokens(value)) {
       if (field === 'content') length++;
       record(term, field, at, true);
       const aliases = tokenAliases(term);
+      // A phrase like "retry ledger" can refer to retryLedger in another tool's note.
+      // Require two distinct matching words so "java" alone never matches JavaScript.
+      if (terms.size >= 2 && raw.length <= 256 && /[A-Z]/.test(raw)) {
+        const words = raw
+          .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+          .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+          .toLowerCase().split(/[^a-z0-9]+/);
+        const matching = new Set(words.filter(word => terms.has(word)));
+        if (matching.size >= 2) {
+          for (const word of matching) if (word !== term && !aliases.includes(word)) aliases.push(word);
+        }
+      }
       for (const alias of aliases) record(alias, field, at, false);
       const compact = COMPOUND_IDENTIFIER.test(term) ? term.replace(/[_-]/g, '') : term;
       for (const query of compactQueries.get(compact) ?? []) {

@@ -1,11 +1,15 @@
+import { BRAIN_HUB_SIGNALS } from './brain-hub-signals.js';
+import { BRAIN_HUB_FILES } from './brain-hub-files.js';
 import { BRAIN_HUB_SESSIONS } from './brain-hub-sessions.js';
 import { BRAIN_HUB_AGENT_DOCK } from './brain-hub-agent-dock.js';
+import { BRAIN_HUB_TOPOLOGY } from './brain-hub-topology.js';
 import { BRAIN_HUB_CONTROLS } from './brain-hub-controls.js';
 import { BRAIN_HUB_MANAGED_SKILLS } from './brain-hub-managed-skills.js';
 import { BRAIN_HUB_CONTEXT } from './brain-hub-context.js';
 import { BRAIN_HUB_USAGE } from './brain-hub-usage.js';
 import { BRAIN_HUB_PROJECT_VIEWS } from './brain-hub-project-views.js';
 import { BRAIN_HUB_ACTIONS } from './brain-hub-actions.js';
+import { BRAIN_HUB_CONNECTIONS } from './brain-hub-connections.js';
 
 export const BRAIN_HUB_VIEWS = String.raw`
 function eventLabel(event){
@@ -33,7 +37,13 @@ function telemetryStrip(){
   const observed=new Set(state.events.filter(event=>event.agent&&event.agent!=='user'&&event.agent!=='portal').map(event=>event.agent));
   const memories=state.graph?.totalMemories??state.overview?.quality?.total;
   const pack=state.context?.budget;
-  return '<dl class="strip"><div class="metric"><dt>Stored memories in scope</dt><dd class="mono cyan">'+fmt(memories)+'</dd><small>'+esc(scopeName())+'</small></div><div class="metric">'+trace(durations.slice(-16))+'<dt>Measured tool returns</dt><dd class="mono">'+(state.live?fmt(measured.length):'Unavailable')+'</dd><small>'+esc(state.errors.telemetry?'Activity unavailable':state.live?fmt(observed.size)+' client labels in retained activity':'Activity display off')+'</small></div><div class="metric"><dt>Model usage receipts</dt><dd class="mono">'+(state.usage?fmt(arr(state.usage.receipts).length):'Not loaded')+'</dd><small>'+(state.usage?'Host-reported · retained window':'Open Usage to inspect host reports')+'</small></div><div class="metric"><dt>Latest context pack estimate</dt><dd class="mono pink">'+(pack?fmt(pack.estimatedTokens)+' / '+fmt(pack.tokenBudget):'No pack built')+'</dd><small>'+esc(pack?arr(state.context.entries).length+' selected memories':'Assemble a scoped pack in Context')+'</small></div></dl>';
+  const tokenReport=usageTotals(arr(state.usage?.receipts)).pairedTokens;
+  const count=state.errors.usage||state.connection==='offline'?'Unavailable':tokenReport.known?fmt(tokenReport.total):'Not reported';
+  const coverage=fmt(tokenReport.known)+' of '+fmt(tokenReport.receipts)+' retained reports include input and output';
+  return '<dl class="strip"><div class="metric"><dt>Project memories</dt><dd class="mono cyan">'+fmt(memories)+'</dd><small>'+esc(scopeName())+'</small></div>'+
+    '<div class="metric">'+trace(durations.slice(-16))+'<dt>Measured tool returns</dt><dd class="mono">'+(state.live?fmt(measured.length):'Unavailable')+'</dd><small>'+esc(state.errors.telemetry?'Activity unavailable':state.live?fmt(observed.size)+' tool labels in recent activity':'Activity display off')+'</small></div>'+
+    '<div class="metric"><dt>Reported tokens · input + output</dt><dd class="mono">'+count+'</dd><small>'+esc(state.usage?coverage:'Waiting for host reports')+'</small></div>'+
+    '<div class="metric"><dt>Context preview in this tab</dt><dd class="mono pink">'+(pack?fmt(pack.estimatedTokens)+' / '+fmt(pack.tokenBudget):'No preview yet')+'</dd><small>'+esc(pack?arr(state.context.entries).length+' selected memories':'Build a preview in Context')+'</small></div></dl>';
 }
 function rail(){
   const graph=arr(state.graph?.nodes);
@@ -101,9 +111,11 @@ function overviewPage(){
   const event=displayEvent();
   const pack=state.context?.budget;
   const compare=state.comparison;
-  const contextBody=pack?'<div class="panel-body stack"><div class="row"><span class="muted">Estimated pack tokens</span><strong class="mono">'+fmt(pack.estimatedTokens)+' / '+fmt(pack.tokenBudget)+'</strong></div><div class="meter"><i style="width:'+Math.min(100,Math.round(100*pack.estimatedTokens/Math.max(1,pack.tokenBudget)))+'%"></i></div>'+(compare?'<p class="small muted">Legacy '+fmt(compare.legacy.budget.estimatedTokens)+' · Adaptive '+fmt(compare.adaptive.budget.estimatedTokens)+' estimated tokens</p>':'')+(state.context?.efficiency?'<p><strong>'+(state.context.efficiency.signedTokenDifference<0?fmt(-state.context.efficiency.signedTokenDifference)+' more estimated tokens':fmt(state.context.efficiency.estimatedTokensAvoided)+' estimated tokens avoided')+'</strong></p><p class="small muted">Compared with the same task using the largest pack permitted by project controls. '+state.context.efficiency.assemblyMs+' ms assembly. Not measured billing savings.</p>':'')+view('context','Open context pack')+'</div>':empty('No context pack for this session','Assemble a pack to inspect estimated tokens and selection reasons.',view('context','Build context pack'));
+  const contextBody=pack?'<div class="panel-body stack">'+contextBudget(state.context,state.contextInput??{})+
+    (compare?'<p class="small muted">Legacy '+fmt(contextBytes(compare.legacy))+' bytes · Adaptive '+fmt(contextBytes(compare.adaptive))+' bytes</p>':'')+
+    view('context','Open context pack')+'</div>':empty('No context pack built','Build a pack to inspect size, sources, and selection reasons.',view('context','Build context pack'));
   return heading('Brain control room','Explore stored memories, inspect tool exchanges, and connect your project.',action('pause',state.motionPaused?'Resume motion':'Pause motion','','id="pause-motion" '+(reduced.matches?'disabled':''))+view('setup','Connection setup'))+
-    telemetryStrip()+agentDock()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
+    telemetryStrip()+agentDock()+signalMonitor()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
     panel('Activity journal','<div class="replay"><label for="replay" class="small muted">Seek record</label><input id="replay" type="range" min="0" max="'+Math.max(0,state.events.length-1)+'" value="'+Math.max(0,state.events.indexOf(event))+'" '+(state.events.length?'':'disabled')+'><output class="mono small" id="event-time">'+esc(event?time(event.timestamp):state.replayExpired?'Expired':'—')+'</output>'+action('live','Latest','','id="return-live" '+(state.replayId?'':'hidden'))+'</div><div class="timeline" id="timeline">'+timelineMarkup()+'</div>', '<span id="journal-state">'+chip(state.replayId?(state.replayExpired?'Replay expired':'Replay'):state.live?'Recorded activity':'Activity unavailable',state.replayId?'amber':'cyan')+'</span>')+'</div>';
 }
 function updateOverviewLive(){
@@ -132,14 +144,18 @@ function updateOverviewLive(){
   const strip=$('main').querySelector('.strip');if(strip)strip.outerHTML=telemetryStrip();
   if(state.inspector==='event'&&!$('inspector').matches(':focus-within'))renderInspector();
   const pause=$('pause-motion');pause.textContent=state.motionPaused?'Resume motion':'Pause motion';pause.disabled=reduced.matches;
-  updateExchanges();drawGraph();updateAgentDock();
+  updateSignalMonitor();updateExchanges();drawGraph();updateAgentDock();
 }
 ${BRAIN_HUB_CONTEXT}
 ${BRAIN_HUB_AGENT_DOCK}
+${BRAIN_HUB_TOPOLOGY}
 ${BRAIN_HUB_USAGE}
 ${BRAIN_HUB_SESSIONS}
+${BRAIN_HUB_FILES}
+${BRAIN_HUB_SIGNALS}
 ${BRAIN_HUB_CONTROLS}
 ${BRAIN_HUB_MANAGED_SKILLS}
+${BRAIN_HUB_CONNECTIONS}
 function setupPage(){
   const features=state.features;
   const flags=features?list(arr(features.definitions).map(item=>{
@@ -149,7 +165,12 @@ function setupPage(){
   const hosts=arr(state.integrations?.agents);
   const recipes=hosts.length?list(hosts.map(host=>'<li class="item"><div class="row"><h3>'+esc(host.label)+'</h3>'+chip(host.installation)+'</div><p class="small muted">'+esc(host.detail)+'</p><details><summary>Connection recipe</summary><div class="stack"><pre>'+esc(host.config?.content)+'</pre>'+arr(host.config?.notes).map(note=>'<p class="small muted">'+esc(note)+'</p>').join('')+'<div class="actions">'+action('copy-host','Copy configuration','','data-host="'+esc(host.id)+'"')+action('copy-command','Copy skill command','','data-host="'+esc(host.id)+'"')+'</div></div></details></li>').join('')):error('integrations','host recipes')||empty('Loading host recipes','Configuration recipes are generated locally.');
   const checks=arr(state.integrations?.checks);
-  return heading('Workspace setup','Configure host access and manage the workspace’s real feature switches.',action('refresh','Refresh checks'))+projectControls()+managedSkillControls()+'<div class="two">'+panel('Features',flags,features?chip('Revision '+features.revision):'')+panel('Client configuration',recipes,chip('Local recipes','cyan'))+'</div>'+panel('Local checks',checks.length?list(checks.map(check=>'<li class="item"><div class="row"><strong>'+esc(check.label)+'</strong>'+chip(check.status,check.status==='pass'?'green':check.status==='error'?'red':'')+'</div><p class="small muted">'+esc(check.detail)+'</p></li>').join('')):empty('No checks loaded','Refresh to retry host and storage checks.'),checks.length?action('copy-diagnostics','Copy diagnostics'):'');
+  const featurePanel=panel('Features',flags,features?chip('Revision '+features.revision):'');
+  const checkPanel=panel('Local checks',checks.length?list(checks.map(check=>'<li class="item"><div class="row"><strong>'+esc(check.label)+'</strong>'+chip(check.status,check.status==='pass'?'green':check.status==='error'?'red':'')+'</div><p class="small muted">'+esc(check.detail)+'</p></li>').join('')):empty('No checks loaded','Refresh to retry host and storage checks.'),checks.length?action('copy-diagnostics','Copy diagnostics'):'');
+  const settings=local?'<div class="two">'+featurePanel+checkPanel+'</div>':
+    '<div class="two">'+featurePanel+panel('Client configuration',recipes,chip('Local recipes','cyan'))+'</div>'+checkPanel;
+  return heading('Workspace setup','Manage host connections, project access, and features.',action('refresh','Refresh checks'))+
+    workspaceConnections()+projectControls()+managedSkillControls()+settings;
 }
-const views={overview:overviewPage,sessions:sessionsPage,context:contextPage,models:modelsPage,usage:usagePage,setup:setupPage,knowledge:knowledgePage,room:roomPage,learning:learningPage};
+const views={overview:overviewPage,files:filesPage,sessions:sessionsPage,context:contextPage,models:modelsPage,usage:usagePage,setup:setupPage,knowledge:knowledgePage,room:roomPage,learning:learningPage};
 ` + BRAIN_HUB_PROJECT_VIEWS + BRAIN_HUB_ACTIONS;

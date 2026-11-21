@@ -11,10 +11,10 @@ export class WorkspaceRuntime {
     const storageError = error ?? brain?.getStorageHealth().lastError?.message;
     const projectMode = this.mode === 'project';
     return {
-      version: '7.22.2', serverInstanceId: this.serverInstanceId, startedAt: this.startedAt, checkedAt: new Date().toISOString(),
+      version: '7.25.0', serverInstanceId: this.serverInstanceId, startedAt: this.startedAt, checkedAt: new Date().toISOString(),
       mode: this.mode, project: this.project,
       capabilities: { memory: true, context: true, curation: true, telemetry: true,
-        projectKnowledge: projectMode, projectSkills: projectMode, projectFeedback: projectMode,
+        projectKnowledge: projectMode, projectSkills: projectMode, projectFeedback: projectMode, projectFiles: projectMode,
         hub, pdf: hub, modelUsage: projectMode, sourceIntake: projectMode, sessions: projectMode, liveStream: projectMode, managedExecution: false },
       storage: storageError ? { status: 'error' as const, error: storageError } : { status: 'ready' as const },
     };

@@ -8,7 +8,7 @@ shadow-brain project workspace . --port 62595
 
 Open [the project Hub](http://127.0.0.1:62595/hub). Keep the process running and reuse the same directory and port after restarting. `/workspace` opens the classic memory workspace; `/live` opens detailed activity diagnostics. The shared-store `shadow-brain dash . --no-analysis` opens an all-project view. Project-local PDF review, rooms, skills, and lesson promotion require the project workspace.
 
-![Running Brain Hub with stored memories and observed tool exchanges](assets/7.22.0-hub-graph.png)
+![Running Brain Hub with stored memories and observed tool exchanges](assets/7.25.0-brain-network.png)
 
 ## Inspect records and activity
 
@@ -16,11 +16,13 @@ Select a project, agent, or memory node. **Find node** lists the displayed graph
 
 **MCP exchanges** shows recent measured client sessions even in a project with no stored memories. The request arrow points from client to workspace. The result arrow points from workspace to client when a handler completes, with the outcome shown on the receipt. A result-ready event records tool completion. Model consumption is unobserved. Select a lane, or open **Trace** and choose a journal record. The inspector links an exact matching request or result when both are retained in the loaded history. **Latest** returns to incoming activity. **Pause motion** and reduced-motion settings keep the display still.
 
+**Payload traffic** plots up to 16 retained exchanges with paired byte measurements. Each column represents one completed call. Hover, focus or select a column to inspect the request’s argument bytes, the returned text bytes, the tool and the time. **Workspace activity** shows the latest host-reported work phase and an observed file path when the optional watcher is enabled. Each entry identifies its source. A filesystem notification has no reliable author field.
+
 ## Review and use knowledge
 
 Use **Knowledge** to write an ordinary fact, paragraph or plan and click **Add to memory**. For longer notes or corrections, choose **Review first**. Optional PDFs provide extracted pages with source citations; image-only pages require OCR. You can also inspect project markers or preview and apply a project skill. [Plain-text guide](SOURCE_INTAKE.md) · [Project Kit](PROJECT_KIT.md)
 
-Use **Context** to enter a task, set a budget, compare profiles, and copy a pack. Review selected passages, reasons, and citations. The pack size is estimated. Tool timings and model token receipts are separate, and unavailable receipts stay visibly unavailable. [Context Lab](CONTEXT_LAB.md)
+Use **Context** to enter a task and set token and memory limits. **Size and limits** shows the effective project limits, estimated tokens, and exact UTF-8 size. Preview either retrieval profile after a comparison and review shortened excerpts, selection reasons, and omissions before copying the exact pack. [Context Lab](CONTEXT_LAB.md)
 
 ## Report optional model usage
 
@@ -39,6 +41,8 @@ A cooperating host can call `usage_report` with counters and metadata it already
 ```
 
 `reasoningEffort` is an optional short plain label reported by the host, not a value inferred from a model name. Omit it and any unknown counters when they are unavailable; zero means a reported zero. Receipts remain labelled **host-reported**, do not include prompts or credentials, and are not billing records. A receipt can be associated with a project session only when project ID, the host session ID and the agent label match exactly. Reuse the same operation ID for an identical retry.
+
+Use **Usage** to filter retained reports by time, host, model label, and outcome. The totals show how many matching reports supplied each counter. The paired input-plus-output total uses only reports that supplied both counters. Expand an individual report to see its metadata, and check **Report retention** for the oldest and newest retained receipts.
 
 ## Share a task and its evidence
 

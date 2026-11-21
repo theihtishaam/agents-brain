@@ -135,6 +135,45 @@ class FixtureClient {
   async kill() { this.child.kill('SIGKILL'); await this.closed; }
 }
 
+it('measures exact original JSON arguments and delivered UTF-8 text without retaining payloads', async () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'hub-mcp-byte-fixture-')));
+  const store = projectStorage(root);
+  const client = new FixtureClient(root, store.storagePath, 'codex-fixture');
+  try {
+    await client.initialize();
+    const marker = 'Métrique Unicode 🌍';
+    const input = { title: marker, content: 'The Unicode fixture distinguishes UTF-8 size from JS text length.' };
+    const calls = [
+      ['project_knowledge', input],
+      ['global_recall', { keywords: ['Métrique'] }],
+      ['project_brief', { query: marker }],
+      ['hub_overview', {}],
+    ] as const;
+    const results = [];
+    for (const [name, args] of calls) {
+      const response = await client.call(name, args);
+      expect(response.result?.isError).not.toBe(true);
+      const text = response.result.content[0].text;
+      expect(typeof text).toBe('string');
+      results.push({ name, inBytes: Buffer.byteLength(JSON.stringify(args), 'utf8'), outBytes: Buffer.byteLength(text, 'utf8') });
+    }
+    await client.stop();
+    const raw = readFileSync(store.journalPath, 'utf8');
+    expect(raw).not.toContain(marker);
+    expect(raw).not.toContain(input.content);
+    const { events } = JSON.parse(raw);
+    for (const { name, inBytes, outBytes } of results) {
+      const [start, end] = events.filter((event: { tool?: string }) => event.tool === name);
+      expect(start).toMatchObject({ kind: 'tool-start', source: 'measured', transport: 'mcp', projectId: store.projectId, argumentBytes: inBytes });
+      expect(end).toMatchObject({ kind: 'tool-end', correlationId: start.correlationId, projectId: store.projectId, outcome: 'success', resultTextBytes: outBytes });
+    }
+  } finally {
+    await client.stop();
+    if (dirname(root) !== realpathSync.native(tmpdir()) || !basename(root).startsWith('hub-mcp-byte-fixture-')) throw new Error('Unexpected MCP fixture path.');
+    rmSync(root, { recursive: true, force: true });
+  }
+}, 20_000);
+
 it('reports current stdio connections independently of participation, removes on close and expires a killed client', async () => {
   const root = mkdtempSync(join(tmpdir(), 'hub-mcp-presence-'));
   const portal = await startProjectWorkspace(root);

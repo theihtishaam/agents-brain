@@ -8,8 +8,11 @@ export function assembleContextWithEfficiency(brain: Parameters<typeof assembleC
   const assembled = performance.now();
   const referenceTokenBudget = options.policy?.maxTokens ?? 12000;
   const referenceEntryLimit = options.policy?.maxEntries ?? 30;
-  const reference = assembleContext(brain, { ...options, tokenBudget: referenceTokenBudget, maxChars: referenceTokenBudget * 4,
-    maxEntries: referenceEntryLimit });
+  const referenceMaxChars = referenceTokenBudget * 4;
+  const reuseFocused = !focused.enabled || (focused.budget.tokenBudget === referenceTokenBudget &&
+    focused.budget.maxChars === referenceMaxChars && options.maxEntries === referenceEntryLimit);
+  const reference = reuseFocused ? focused : assembleContext(brain, { ...options, tokenBudget: referenceTokenBudget,
+    maxChars: referenceMaxChars, maxEntries: referenceEntryLimit });
   const completed = performance.now();
   const difference = reference.budget.estimatedTokens - focused.budget.estimatedTokens;
   return { ...focused, efficiency: {
@@ -24,7 +27,7 @@ export function assembleContextWithEfficiency(brain: Parameters<typeof assembleC
     referenceMemoryCount: reference.entries.length, focusedMemoryCount: focused.entries.length,
     omittedFromReference: reference.entries.filter(entry => !focused.entries.some(selected => selected.id === entry.id)).map(entry => entry.id),
     assemblyMs: Math.round((assembled - start) * 1000) / 1000,
-    referenceComparisonMs: Math.round((completed - assembled) * 1000) / 1000,
+    referenceComparisonMs: reuseFocused ? 0 : Math.round((completed - assembled) * 1000) / 1000,
     referenceLimited: isLimited(reference),
     note: 'Estimated context reduction only. This is not measured model token savings, faster model execution, or a billing discount.',
   } };

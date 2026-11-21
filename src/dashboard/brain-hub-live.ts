@@ -1,7 +1,7 @@
 export const BRAIN_HUB_LIVE = String.raw`
 const liveStream={source:null,status:'connecting',cursor:null,instance:null,replaying:false,ready:false,notice:null,areas:new Set(),
   timer:0,files:null,fileError:null,fileEpoch:0,inventoryTimer:0,seen:new Map(),filePulse:null};
-const streamAreas=['telemetry','graph','hub','sources','sessions','usage','features','feedback','policy','presence'];
+const streamAreas=['telemetry','graph','hub','sources','sessions','usage','features','feedback','policy','presence','connections'];
 function streamBadge(){
   const badge=$('stream-health');
   if(!badge||!local)return;
@@ -128,6 +128,7 @@ function liveFilePanel(){
   return '<section class="panel" aria-label="Project file activity"><div class="panel-head"><h2>Project file activity</h2></div><div id="project-file-body">'+liveFileBody()+'</div></section>';
 }
 function updateLiveFilePanel(){
+  if(typeof updateSignalMonitor==='function')updateSignalMonitor();
   const region=$('project-file-body');
   if(!region)return;
   const markup=liveFileBody();

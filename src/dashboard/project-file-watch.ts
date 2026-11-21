@@ -1,15 +1,9 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { lstat, opendir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { projectFileNameAllowed, projectFileRootAllowed } from './project-file-paths.js';
 
 const LIMITS = { directories: 64, entries: 1600, inventory: 180, queued: 96, pathBytes: 320, depth: 8, debounceMs: 140 };
-const ignored = new Set(['node_modules', 'vendor', 'dist', 'build', 'target', 'out', 'coverage', 'cache', 'caches', 'temp', 'tmp',
-  'appdata', 'programdata', 'library', 'applications', 'windows', 'system32', 'system volume information', 'downloads',
-  'config', 'configs', 'configuration', 'settings', 'secrets', 'private', 'profiles', 'browser', 'browsers', 'logs',
-  'application support', 'keychains', 'certificates', 'credentials', 'program files', 'program files (x86)']);
-const safeName = (name: string) => !!name && !name.startsWith('.') && !ignored.has(name.toLowerCase()) &&
-  !/[\\/:*?"<>|\p{Cc}\p{Cf}]/u.test(name) && !/(?:credential|password|passwd|secret|cookie|history|keychain|token|session|wallet|vault|config|settings|profile|auth|api[-_]?key|private[-_]?key|ssh[-_]?key)/iu.test(name) &&
-  !/\.(?:pem|key|pfx|p12|crt|cer|kdbx|env|sqlite[23]?|db|log|lock|swp|tmp|bak)$/iu.test(name);
 
 export interface ObservedProjectFile {
   path: string;
@@ -55,6 +49,11 @@ export class ProjectFileWatch {
     this.active = true;
     this.scanning = true;
     const generation = ++this.generation;
+    if (!projectFileRootAllowed(this.root)) {
+      this.scanning = false;
+      this.limit();
+      return;
+    }
     void this.discover('', 0, generation).finally(() => {
       if (generation !== this.generation) return;
       this.scanning = false;
@@ -82,7 +81,7 @@ export class ProjectFileWatch {
   }
 
   private validPath(path: string) {
-    return Buffer.byteLength(path) <= LIMITS.pathBytes && path.split('/').every(safeName);
+    return Buffer.byteLength(path) <= LIMITS.pathBytes && path.split('/').every(projectFileNameAllowed);
   }
 
   private async actual(directory: string) {
@@ -105,7 +104,7 @@ export class ProjectFileWatch {
     if (this.watchers.size >= LIMITS.directories) { this.limit(); return; }
     try {
       const handle = watch(absolute, { persistent: false }, (operation, name) => {
-        if (!name || generation !== this.generation || !safeName(name)) return;
+        if (!name || generation !== this.generation || !projectFileNameAllowed(name)) return;
         const path = directory ? directory + '/' + name : name;
         if (!this.validPath(path)) return;
         const prior = this.pending.get(path);
@@ -123,7 +122,7 @@ export class ProjectFileWatch {
       for await (const entry of entries) {
         if (generation !== this.generation) break;
         if (++this.scanned > LIMITS.entries) { this.limit(); break; }
-        if (!safeName(entry.name) || entry.isSymbolicLink()) continue;
+        if (!projectFileNameAllowed(entry.name) || entry.isSymbolicLink()) continue;
         const path = directory ? directory + '/' + entry.name : entry.name;
         if (!this.validPath(path)) continue;
         if (entry.isDirectory()) {
