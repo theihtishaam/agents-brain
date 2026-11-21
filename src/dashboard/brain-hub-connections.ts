@@ -6,6 +6,7 @@ const connectionDetection={
 };
 const connectionConfiguration={
   managed:['Configured for this project','cyan'],
+  shared:['Shared project configuration','cyan'],
   available:['Not configured',''],
   conflict:['Configuration needs review','amber'],
   manual:['Manual setup',''],
@@ -17,8 +18,8 @@ function connectionGuide(host){
   return '<details class="host-guide" data-keep-open id="host-guide-'+key+'"><summary>Setup guide</summary>'+
     '<div class="stack">'+(host.notes?'<p class="small muted preserve">'+esc(host.notes)+'</p>':'')+
     (host.configurationPath?'<p class="small muted">Project configuration file <code>'+esc(host.configurationPath)+'</code></p>':'')+
-    (host.recipe?'<pre tabindex="0" aria-label="'+esc(host.label)+' setup commands">'+esc(host.recipe)+'</pre>':'')+
-    '<div class="actions">'+(host.recipe?btn('Copy setup commands','id="host-copy-'+key+'" data-connection-action="copy" data-host="'+key+'"','quiet'):'')+
+    (host.recipe?'<pre tabindex="0" aria-label="'+esc(host.label)+' configuration">'+esc(host.recipe)+'</pre>':'')+
+    '<div class="actions">'+(host.recipe?btn('Copy configuration','id="host-copy-'+key+'" data-connection-action="copy" data-host="'+key+'"','quiet'):'')+
     (docs?'<a class="btn quiet" id="host-docs-'+key+'" href="'+esc(docs)+'" target="_blank" rel="noopener noreferrer">Official host documentation</a>':'')+'</div></div></details>';
 }
 function connectionCard(host,snapshot,disabled){
@@ -29,11 +30,13 @@ function connectionCard(host,snapshot,disabled){
   const admission=admitted===null||admitted===undefined?'Unavailable':admitted?'Allowed':'Blocked';
   const active=Number.isSafeInteger(host.connected)&&host.connected>=0&&state.connection==='reachable';
   const presence=active?(host.connected?fmt(host.connected)+(host.connected===1?' current connection':' current connections'):'No current connection'):'Unavailable';
-  const workspace=host.mode==='workspace',configured=host.configuration==='managed';
+  const workspace=host.mode==='workspace',configured=host.configuration==='managed'||host.configuration==='shared';
+  const reconnect=host.configuration==='shared'&&host.locallyAllowed===false;
+  const disconnect=configured&&!reconnect;
   const ready=workspace&&host.installation==='detected'&&host.configuration==='available';
-  const management=configured||ready?btn(configured?'Disconnect':'Connect',
-    'id="host-manage-'+key+'" data-connection-action="'+(configured?'disconnect':'connect')+'" data-host="'+key+'" aria-label="'+
-    (configured?'Disconnect ':'Connect ')+name+'"'+disabled,configured?'':'primary'):'';
+  const management=disconnect||ready||reconnect?btn(disconnect?'Disconnect':'Connect',
+    'id="host-manage-'+key+'" data-connection-action="'+(disconnect?'disconnect':'connect')+'" data-host="'+key+'" aria-label="'+
+    (disconnect?'Disconnect ':'Connect ')+name+'"'+disabled,disconnect?'':'primary'):'';
   const canToggle=admitted!=null&&snapshot.participationEnabled!==false;
   const control=canToggle?btn(admitted?'Allowed':'Blocked','id="host-admission-'+key+'" data-connection-action="admission" data-host="'+key+'" data-enabled="'+!admitted+
     '" role="switch" aria-checked="'+admitted+'" aria-label="Allow '+name+' to use project tools"'+disabled,'quiet'):'<span>'+admission+'</span>';
@@ -42,7 +45,7 @@ function connectionCard(host,snapshot,disabled){
     '<dl class="host-facts"><div><dt>Project setup</dt><dd>'+chip(...configuration)+'</dd></div>'+
     '<div><dt>Tool admission</dt><dd>'+control+'</dd></div><div><dt>MCP presence</dt><dd'+
     (active&&host.connected?' class="green"':'')+'>'+presence+'</dd></div></dl>'+
-    (configured&&active&&!host.connected?'<p class="small muted">Reload the host to start its MCP connection.</p>':'')+
+    (configured&&!reconnect&&active&&!host.connected?'<p class="small muted">Reload the host to start its MCP connection.</p>':'')+
     (management?'<div class="actions">'+management+'</div>':'')+connectionGuide(host)+'</article>';
 }
 function workspaceConnections(){
@@ -66,7 +69,7 @@ function workspaceConnections(){
   const rank=host=>state.connection==='reachable'&&host.connected>0?2:host.installation==='detected'?1:0;
   const hosts=[...arr(snapshot.hosts)].sort((a,b)=>rank(b)-rank(a));
   const issue=snapshot.refreshIssue?'<p class="host-notice small amber" role="status">'+esc(snapshot.refreshIssue)+'</p>':'';
-  const limited=snapshot.detectionLimited?'<p class="host-notice small muted">Discovery checks supported local commands and extensions. Some locations could not be checked.</p>':'';
+  const limited=snapshot.detectionLimited?'<p class="host-notice small muted">Discovery checks known launchers and extensions. Some locations could not be checked.</p>':'';
   return '<section class="panel host-panel" id="host-connections">'+
     '<div class="panel-head"><h2>Host connections</h2>'+retry+'</div>'+
     '<div class="host-settings">'+participation+automatic+'</div>'+issue+limited+
@@ -88,7 +91,7 @@ function handleWorkspaceConnection(button){
   }
   const host=arr(state.connections?.hosts).find(item=>item.id===hostId);
   if(connectionAction==='copy'){
-    void clipboard(host?.recipe).catch(()=>status('Clipboard unavailable. Select and copy the setup commands from the guide.',true));
+    void clipboard(host?.recipe).catch(()=>status('Clipboard unavailable. Select and copy the configuration from the guide.',true));
     return true;
   }
   const settings=['automatic','participation'].includes(connectionAction);

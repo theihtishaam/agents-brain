@@ -7,9 +7,14 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GlobalBrain } from '../../src/brain/global-brain.js';
 import { assembleContext } from '../../src/brain/context-assembly.js';
 import { memoryAnnotationsFor } from '../../src/brain/memory-annotations.js';
+import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
 import { ProjectHubService } from '../../src/brain/project-hub.js';
 import { HUB_LIMITS, HUB_OPERATOR, type HubActor } from '../../src/brain/project-hub-contract.js';
 import { projectStorage } from '../../src/brain/project-memory.js';
+import { ProjectPolicyStore } from '../../src/brain/project-policy.js';
+import { enforceProjectContext } from '../../src/brain/project-policy-delivery.js';
+import { ProjectSessions } from '../../src/brain/project-sessions.js';
+import { SESSION_TRANSCRIPT_LIMITS } from '../../src/brain/project-session-contract.js';
 
 const cleanups: Array<() => void | Promise<void>> = [];
 const planner: HubActor = { id: 'fixture-planner', kind: 'agent' };
@@ -234,10 +239,73 @@ describe('project hub', () => {
     expect(assembleContext(restarted.brain, { projectId: store.projectId, query: 'stable checkout idempotency', annotations }).entries).toHaveLength(0);
   });
 
+  it('drafts once from a passing shared agent check, then delivers only after operator review', async () => {
+    const { root, hub, brain, store, connect } = workspace();
+    const settings = new FeatureSettingsStore({ filePath: store.settingsPath });
+    const policy = new ProjectPolicyStore(root, store.projectId);
+    const id = hub.createRoom({ goal: 'Validate reliable idempotency', ...key() }, HUB_OPERATOR).room.id;
+    const taskId = hub.roomAction(id, { kind: 'task', title: 'Check checkout retries', ...key() }, HUB_OPERATOR).tasks[0].id;
+    const session = new ProjectSessions(root, brain).open({ title: 'Checkout fixture', goal: 'Use a stable key', ...key() },
+      { kind: 'agent', id: worker.id, tool: 'codex' }).session;
+    const reporter = { tool: 'codex', sessionActorId: worker.id };
+    const command = { kind: 'outcome', taskId, sessionId: session.id, result: 'pass', check: 'Idempotency retry test', evidence: 'Fixture: both retries shared the same receipt.', ...key() };
+    const report = (overrides: object = {}, source = reporter) => hub.applyRoomCommand(id, { ...command, ...overrides }, worker, source);
+    expect(report({ result: 'fail', ...key() })).not.toHaveProperty('lessonId');
+    expect(report({ sessionId: randomUUID(), ...key() })).not.toHaveProperty('lessonId');
+    const first = report();
+    expect(first).toHaveProperty('lessonId');
+    expect(report()).toEqual(first);
+    expect(report({ check: 'IDEMPOTENCY  RETRY TEST', ...key() })).not.toHaveProperty('lessonId');
+    const draft = hub.overview().lessons[0];
+    expect(draft).toMatchObject({ outcomeId: first.targetId, status: 'candidate', memoryId: null, automatic: { roomId: id, taskId, tool: 'codex', sessionId: session.id } });
+    expect(hub.room(id).outcomes.find(outcome => outcome.id === draft.outcomeId)?.evidence).toBe(command.evidence);
+    expect(hub.overview().lessons).toHaveLength(1);
+    const query = 'idempotency retry test';
+    const read = (local = brain) => assembleContext(local, enforceProjectContext(root, local, policy.get(), { projectId: store.projectId, query })).entries;
+    expect(read()).toHaveLength(0);
+    await expect(hub.lessonAction(draft.id, { kind: 'promote', ...key() }, HUB_OPERATOR)).rejects.toMatchObject({ status: 409 });
+    await hub.lessonAction(draft.id, { kind: 'evaluate', baseline: false, candidate: true, control: true, evidence: 'Compared the fixture and negative control.', ...key() }, HUB_OPERATOR);
+    const { lesson } = await hub.lessonAction(draft.id, { kind: 'promote', ...key() }, HUB_OPERATOR);
+    const another = connect();
+    await another.brain.init();
+    expect(read(another.brain).map(entry => entry.id)).toContain(lesson.memoryId);
+    await policy.update({ kind: 'set-chat-sharing', sessionId: session.id, shareContext: false, expectedRevision: 0 }, session);
+    expect(report({ check: 'Another passing test', ...key() })).not.toHaveProperty('lessonId');
+    expect(hub.overview(true).lessons).toHaveLength(0);
+    expect(read(another.brain)).toHaveLength(0);
+    await policy.update({ kind: 'set-chat-sharing', sessionId: session.id, shareContext: true, expectedRevision: 1 }, session);
+    await policy.update({ kind: 'set-tool-participation', tool: 'codex', enabled: false, expectedRevision: 2 });
+    expect(report({ check: 'Another passing test', ...key() })).not.toHaveProperty('lessonId');
+    expect(hub.overview(true).lessons).toHaveLength(0);
+    expect(read(another.brain)).toHaveLength(0);
+    await policy.update({ kind: 'set-tool-participation', tool: 'codex', enabled: true, expectedRevision: 3 });
+    await settings.update({ automaticLearning: false }, 0);
+    expect(report({ check: 'New passing test', ...key() })).not.toHaveProperty('lessonId');
+    expect(hub.overview().lessons).toHaveLength(1);
+  });
+
   it('does not open a hub path if a database sidecar is a directory', () => {
     const { hub, root } = workspace();
     mkdirSync(join(root, '.shadow-brain', 'project-hub.sqlite-journal'), { recursive: true });
     expect(() => hub.overview()).toThrow(/ordinary, unlinked files/u);
+  });
+
+  it('refuses an exact transcript append at the byte limit without losing or rewriting messages', async () => {
+    const { root, store, brain } = workspace();
+    await new FeatureSettingsStore({ filePath: store.settingsPath }).update({ exactConversationCapture: true }, 0);
+    const actor = { id: 'native-owner-fixture', tool: 'codex', kind: 'agent' } as const;
+    const sessions = new ProjectSessions(root, brain);
+    const { session } = sessions.open({ title: 'Finite transcript', goal: 'Check the exact byte limit',
+      hostSessionId: 'finite-fixture', exactTranscript: true, ...key() }, actor);
+    const message = { sessionId: session.id, role: 'assistant', text: 'x'.repeat(SESSION_TRANSCRIPT_LIMITS.messageBytes) } as const;
+    const count = SESSION_TRANSCRIPT_LIMITS.sessionBytes / SESSION_TRANSCRIPT_LIMITS.messageBytes;
+    for (let index = 0; index < count; index++) sessions.appendExactTurn({ ...message, hostMessageId: `fixture-${index}` }, actor);
+    expect(() => sessions.appendExactTurn({ ...message, hostMessageId: 'overflow', text: 'z' }, actor)).toThrow(/limit/u);
+    expect(sessions.appendExactTurn({ ...message, hostMessageId: 'fixture-0' }, actor).replay).toBe(true);
+    const page = sessions.readExactTranscript({ sessionId: session.id }, actor);
+    expect(page).toMatchObject({ totalMessages: count, totalBytes: SESSION_TRANSCRIPT_LIMITS.sessionBytes, nextBefore: expect.any(String) });
+    expect(page.messages.at(-1)).toMatchObject({ hostMessageId: `fixture-${count - 1}`, text: message.text });
+    expect(sessions.read(session.id).messages).toHaveLength(0);
   });
 });
 

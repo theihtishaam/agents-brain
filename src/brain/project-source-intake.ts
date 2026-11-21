@@ -146,13 +146,13 @@ export class ProjectSourceIntake {
     if (typeof value !== 'string') throw new ProjectHubError('SOURCE_NOT_FOUND', 'Source was not found in this project.', 404);
     return JSON.parse(value) as SourceImport;
   }
-  previewImport(name: string, bytes: Uint8Array): SourceImport {
+  previewImport(name: string, bytes: Uint8Array, workspacePath?: string): SourceImport {
     const extracted = parse(name, bytes), sha256 = digest(bytes);
     return this.transaction(db => {
       const existing = db.prepare('SELECT data FROM sources WHERE sha256=?').get(sha256)?.data;
       if (typeof existing === 'string') return JSON.parse(existing) as SourceImport;
       if (Number(db.prepare('SELECT count(*) AS n FROM sources').get()?.n) >= SOURCE_LIMITS.sources) bad('Project source limit reached.', 422);
-      const record: SourceImport = { id: randomUUID(), projectId: this.project.projectId, name, sha256, bytes: bytes.length, parser: 'deterministic-source-v1', createdAt: new Date(this.now()).toISOString(), ...extracted };
+      const record: SourceImport = { id: randomUUID(), projectId: this.project.projectId, name, sha256, bytes: bytes.length, parser: 'deterministic-source-v1', createdAt: new Date(this.now()).toISOString(), ...extracted, ...(workspacePath ? { workspacePath } : {}) };
       db.prepare('INSERT INTO sources VALUES(?,?,?,?)').run(record.id, sha256, JSON.stringify(record), bytes); return record;
     });
   }
@@ -246,7 +246,7 @@ export class ProjectSourceIntake {
       await this.brain.init(); this.brain.refresh();
       if (this.brain.getStorageHealth().lastError) throw new ProjectHubError('SOURCE_MEMORY_UNAVAILABLE', 'Project memory unavailable; retry with the same key.', 503);
       this.brain.writeSync({ projectId: this.project.projectId, projectName: this.project.projectName, category: approved.category, agentTool: 'user', content: approved.title + '\n' + approved.text, importance: 0.7,
-        metadata: { origin: 'project-source-import', sourceId, sourceSha256: record.sha256, sourceKind: record.kind, sourceLocator: item.id, untrustedEvidence: true, title: approved.title, ...(item.role ? { sourceRole: item.role } : {}), sources: [`${record.name} · sha256:${record.sha256} · ${item.id}`, ...(item.source ? [item.source] : [])] } }, item.memoryId!);
+        metadata: { origin: 'project-source-import', sourceId, sourceSha256: record.sha256, sourceKind: record.kind, sourceLocator: item.id, untrustedEvidence: true, title: approved.title, ...(item.role ? { sourceRole: item.role } : {}), sources: [`${record.workspacePath ?? record.name} · sha256:${record.sha256} · ${item.id}`, ...(item.source ? [item.source] : [])] } }, item.memoryId!);
       await this.brain.sync();
       this.transaction(db => { const latest = this.row(db, sourceId), current = latest.items.find(x => x.id === itemId)!; current.status = 'approved'; db.prepare('UPDATE sources SET data=? WHERE id=?').run(JSON.stringify(latest), sourceId); });
     }

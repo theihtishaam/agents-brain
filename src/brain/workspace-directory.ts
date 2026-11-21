@@ -15,7 +15,7 @@ const maxPathBytes = 2048;
 const maxRevision = Number.MAX_SAFE_INTEGER - 1;
 const projectIdSchema = z.string().regex(/^[0-9a-f]{16}$/u);
 const revisionSchema = z.number().int().min(0).max(maxRevision);
-const sourceSchema = z.enum(['portal', 'mcp', 'operator']);
+const sourceSchema = z.enum(['portal', 'mcp', 'operator', 'codex-index']);
 const tokenPattern = /(?:\b(?:ghp_|github_pat_|sk[-_]|xox[abprs]-)[a-z0-9_-]{12,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b)/iu;
 const privateName = /^(?:\.(?:agents|aws|azure|claude|cline|codex|config|docker|dsh|env|git|gnupg|kube|mozilla|openclaw|opencode|shadow-brain|ssh)(?:\.|$)|(?:application support|browser|browsers|chrome|chromium|edge|microsoft edge|brave|bravesoftware|firefox|mozilla|opera|opera software|safari|webkit|vivaldi|tor browser|default|user data|userdata|local storage|session storage|profiles?|profile[ _-]+\d+|login data|local state|web data|cookies|history|keychains|credentials|passwords?|secrets?|tokens?|wallets?|vaults?)(?:$|\.(?:json|txt|db|sqlite)))/iu;
 const invalidName = /[\\/:*?"<>|\p{Cc}\p{Cf}\uFFFD]|[ .]$|~\d+(?:\.|$)/u;
@@ -63,6 +63,11 @@ export function verifiedWorkspaceRoot(value: string): string {
     if (safePath(root)) return root;
   } catch { /* Return a diagnostic without the original path. */ }
   throw invalid();
+}
+
+export function insideWorkspaceParent(parent: string, child: string): boolean {
+  const relative = path.relative(parent, child);
+  return !!relative && !path.isAbsolute(relative) && relative !== '..' && !relative.startsWith('..' + path.sep);
 }
 
 function readBounded(filename: string, maxBytes: number): { text: string; stat: fs.BigIntStats } | undefined {
@@ -199,7 +204,7 @@ export class WorkspaceDirectory {
   }
 
   async register(directory: string, source: WorkspaceDirectorySource, options: RegisterOptions = {}): Promise<WorkspaceDirectorySnapshot> {
-    if (!sourceSchema.safeParse(source).success || (options.reenable !== undefined && typeof options.reenable !== 'boolean') ||
+    if (!sourceSchema.safeParse(source).success || source === 'codex-index' || (options.reenable !== undefined && typeof options.reenable !== 'boolean') ||
         (source !== 'operator' && (options.reenable || options.projectName !== undefined))) throw invalid();
     const root = verifiedWorkspaceRoot(directory);
     const projectId = GlobalBrain.projectIdFor(root);
@@ -216,6 +221,33 @@ export class WorkspaceDirectory {
         .slice(0, WORKSPACE_DIRECTORY_LIMITS.projects);
       return { ...current, projects, forgotten: current.forgotten.filter(item => item.projectId !== projectId) };
     });
+  }
+
+  /** Register only new, still-approved descendants and leave existing rows and exclusions intact. */
+  async registerObservedCodex(parent: string, roots: readonly string[], allow: (root: string, projectId: string) => boolean) {
+    if (!roots.length) return 0;
+    if (roots.length > 25) throw limited();
+    let added = 0;
+    await this.update(undefined, current => {
+      const boundary = verifiedWorkspaceRoot(parent);
+      const known = new Set([...current.projects, ...current.forgotten].map(row => row.projectId));
+      const at = new Date(this.now()).toISOString();
+      const entries: WorkspaceDirectoryEntry[] = [];
+      for (const candidate of roots) {
+        if (current.projects.length + entries.length >= WORKSPACE_DIRECTORY_LIMITS.projects) break;
+        try {
+          const root = verifiedWorkspaceRoot(candidate);
+          const projectId = GlobalBrain.projectIdFor(root);
+          const name = displayNameSchema.parse(path.basename(root));
+          if (known.has(projectId) || !insideWorkspaceParent(boundary, root) || !allow(root, projectId)) continue;
+          known.add(projectId);
+          entries.push({ projectId, projectName: name, root, lastOpenedAt: at, lastSource: 'codex-index' });
+        } catch { /* An unsafe or newly excluded folder stays out of the directory. */ }
+      }
+      added = entries.length;
+      return added ? { ...current, projects: [...entries, ...current.projects] } : current;
+    });
+    return added;
   }
 
   async forget(projectId: string, expectedRevision?: number): Promise<WorkspaceDirectorySnapshot> {

@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { discoverAgentHosts } from '../../src/brain/host-discovery.js';
+import { discoverAgentHosts, reportedHost } from '../../src/brain/host-discovery.js';
 
 let root: string;
 let bin: string;
@@ -101,4 +101,32 @@ it('marks missing evidence as unknown when the bounded scan is incomplete', () =
   expect(cappedExtensions.hosts.find(host => host.id === 'codex')?.status).toBe('detected');
   expect(cappedExtensions.hosts.find(host => host.id === 'cline')?.status).toBe('unknown');
   expect(cappedExtensions.hosts.find(host => host.id === 'openclaw')?.status).toBe('not-detected');
+});
+
+it.skipIf(process.platform !== 'win32')('detects the exact Harness Desktop bundle even when dsh is absent from PATH', () => {
+  const desktop = join(root, 'AppData', 'Local', 'Programs', 'DeepSeek Harness');
+  const bundled = join(desktop, 'resources', 'runtime', 'cli', 'bin');
+  fs.mkdirSync(bundled, { recursive: true });
+  fs.writeFileSync(join(desktop, 'DeepSeek Harness.exe'), 'synthetic');
+  fs.writeFileSync(join(bundled, 'dsh.cmd'), 'synthetic');
+  expect(discoverAgentHosts({ path: '', home: root }).hosts.find(host => host.id === 'deepseek-harness')).toMatchObject({
+    status: 'detected', evidence: [{ kind: 'installed-launcher', value: 'DeepSeek Harness Desktop' }],
+  });
+});
+
+it('uses known install metadata for OpenCode generation and distinguishes extension hosts', () => {
+  command('opencode');
+  const packageBin = join(bin, 'node_modules', 'opencode-ai', 'bin');
+  fs.mkdirSync(packageBin, { recursive: true });
+  const packageLauncher = join(packageBin, process.platform === 'win32' ? 'opencode.exe' : 'opencode');
+  fs.writeFileSync(packageLauncher, '', { mode: 0o755 });
+  fs.truncateSync(packageLauncher, 2 * 1024 * 1024);
+  expect(discoverAgentHosts({ path: bin, home: root }).hosts.find(host => host.id === 'opencode')).toMatchObject({ openCodeMajor: 1 });
+  const insiders = join(root, '.vscode-insiders', 'extensions', 'github.copilot-chat-1.2.3');
+  fs.mkdirSync(insiders, { recursive: true });
+  expect(discoverAgentHosts({ path: '', home: root }).hosts.find(host => host.id === 'vscode')).toMatchObject({
+    status: 'detected', evidence: [{ kind: 'vscode-extension', value: 'GitHub.copilot-chat' }],
+  });
+  expect(reportedHost('Cline VSCode')).toBe('cline');
+  expect(reportedHost('Dsh')).toBe('deepseek-harness');
 });

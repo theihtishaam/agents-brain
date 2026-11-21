@@ -9,12 +9,13 @@ const isoTime = value => value && Number.isFinite(new Date(value).getTime()) ? n
 const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const local = document.documentElement.dataset.projectLocal === 'true';
 const projectFeatureLimits={crossProjectContext:'Project memory stays scoped to this project.',automaticBriefing:'Automatic briefing requires a legacy analysis session.'};
-const featureLimit = id => local ? projectFeatureLimits[id] : id==='projectFileActivity'?'Open a project workspace to observe project files.':undefined;
+const workspaceFeatureLimits={projectFileActivity:'Open a project workspace to observe project files.',exactConversationCapture:'Open a project workspace to control exact conversation capture.'};
+const featureLimit = id => (local?projectFeatureLimits:workspaceFeatureLimits)[id];
 const nav = {overview:'Brain overview',...(local?{workspaces:'Workspaces',files:'Files'}:{}),sessions:'Sessions',knowledge:'Knowledge',room:'Collaboration',context:'Context',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
 const labels = {codex:'Codex','claude-code':'Claude Code',opencode:'OpenCode','deepseek-harness':'DeepSeek Harness',vscode:'VS Code / Copilot',cline:'Cline','kilo-code':'Kilo Code',openclaw:'OpenClaw',user:'Operator'};
 const hostName = value => Object.hasOwn(labels,value) ? labels[value] : value ?? 'Unknown host';
 const state = {view:'overview',project:'',overview:null,server:null,connection:'connecting',errors:{},graph:null,features:null,integrations:null,
-  nativeConnection:null,nativeThreads:null,nativeThread:null,nativeArchived:false,nativeListCursor:null,nativeThreadCursor:null,sessions:null,session:null,sessionBefore:null,sessionCheckpoint:null,usage:null,sources:null,source:null,evidence:null,teachDraft:'',profile:null,feedback:null,hub:null,documents:null,docPage:1,room:null,context:null,contextInput:null,comparison:null,skill:null,skillInput:null,
+  nativeConnection:null,nativeThreads:null,nativeThread:null,nativeArchived:false,nativeListCursor:null,nativeThreadCursor:null,sessions:null,session:null,sessionBefore:null,sessionCheckpoint:null,sessionExact:null,usage:null,sources:null,source:null,evidence:null,teachDraft:'',profile:null,feedback:null,hub:null,documents:null,docPage:1,room:null,context:null,contextInput:null,comparison:null,skill:null,skillInput:null,
   picked:null,memory:null,focus:false,inspector:'record',graphMode:'graph',listing:false,events:[],cursor:undefined,journalId:undefined,
   live:false,recording:false,journalGap:false,replayId:null,replayExpired:false,motionPaused:false,motionStarted:0,pulseIds:[],pending:false,message:'',messageError:false,
   dataEpoch:0,viewEpoch:0,graphEpoch:0,graphFilter:'all',search:null,lessonFrom:null,policy:null,policySelection:null,managedSkills:null,managedSkillPlan:null,presence:null,connections:null,growth:null,directory:null};
@@ -100,6 +101,7 @@ function renderChrome(){
   if($('nav').dataset.buttons!==buttons){$('nav').innerHTML=buttons;$('nav').dataset.buttons=buttons;}
 }
 function resetScope(){
+  resetOverviewEvidence();
   resetProjectFiles();
   clearTopologyActivity();
   state.dataEpoch++;state.viewEpoch++;state.graph=null;state.picked=null;state.memory=null;state.focus=false;state.context=null;
@@ -109,8 +111,8 @@ function resetScope(){
   state.replayId=null;state.replayExpired=false;state.journalGap=false;state.pulseIds=[];state.motionStarted=0;
   state.policy=null;state.policySelection=null;state.managedSkills=null;state.managedSkillPlan=null;
   if(typeof observedPulses!=='undefined'){observedPulses.clear();dockTool=null;dockSession=null;dockPinned=false;clearTimeout(dockPresenceTimer);}
-  state.presence=null;state.connections=null;state.growth=null;growthDay=null;state.directory=null;portfolio.selected=null;portfolio.epoch++;stopDirectoryWatch();
-  clearTimeout(nativeTimer);state.nativeConnection=null;state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;state.nativeArchived=false;state.sessions=null;state.session=null;state.sessionBefore=null;state.sessionCheckpoint=null;state.usage=null;state.sources=null;state.source=null;state.evidence=null;state.teachDraft='';
+  state.presence=null;state.connections=null;state.growth=null;growthDay=null;state.directory=null;portfolio.selected=null;portfolio.epoch++;stopDirectoryWatch();stopDirectoryRecent();
+  nativeFollow=null;invalidateNativeRequest();state.nativeConnection=null;state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;state.nativeArchived=false;state.sessions=null;state.session=null;state.sessionBefore=null;state.sessionCheckpoint=null;state.sessionExact=null;state.usage=null;state.sources=null;state.source=null;state.evidence=null;state.teachDraft='';
   state.graphEpoch++;state.graphFilter='all';state.listing=false;graphCamera=defaultCamera();
 }
 function updateOverview(value){
@@ -160,6 +162,7 @@ async function refresh(manual=false,areas=null){
   const options={signal};
   try{
     const scope=state.view;
+    if(state.sessionExact&&areas?.has('connections')){state.sessionExact=null;render(true);}
     const needsHealth=!areas||!state.server,needsSummary=!areas||areas.has('graph');
     const [health,summary]=await Promise.allSettled([
       needsHealth?api('status',options):state.server,
@@ -179,7 +182,7 @@ async function refresh(manual=false,areas=null){
     if(summaryOk){updateOverview(summary.value);delete state.errors.overview;}
     else if(reachable)state.errors.overview=summary.reason?.message??'The workspace returned an invalid overview.';
     renderChrome();
-    if(!reachable){failures++;state.pulseIds=[];drawGraph();updateAgentDock();if(['setup','workspaces'].includes(state.view)||!$('title'))render(true);return;}
+    if(!reachable){failures++;state.pulseIds=[];stopOverviewEvidence();drawGraph();updateOverviewEvidence(false);updateAgentDock();if(state.sessionExact||['setup','workspaces'].includes(state.view)||!$('title'))render(true);return;}
     failures=0;
     polls++;
     const epoch=state.dataEpoch,graphEpoch=state.graphEpoch,directoryEpoch=portfolio.epoch;
@@ -198,7 +201,7 @@ async function refresh(manual=false,areas=null){
       (['setup','sessions','context','overview'].includes(scope)||state.context))jobs.push(['policy',api('project-policy',options)]);
     if(wanted('telemetry'))jobs.push(['telemetry',api('telemetry?'+params,options)]);
     if(local&&wanted('usage')&&['models','usage','sessions','overview'].includes(scope))jobs.push(['usage',api('usage',options)]);
-    if(local&&wanted('sessions')&&dockVisible(scope)&&!state.pending){
+    if(local&&wanted('sessions')&&(dockVisible(scope)||scope==='setup')&&!state.pending){
       jobs.push(['sessions',api('sessions',options)]);
       if(scope==='sessions'&&state.session)jobs.push(['session',api('sessions/'+state.session.session.id+(state.sessionBefore?'?before='+encodeURIComponent(state.sessionBefore):''),options)]);
     }
@@ -208,7 +211,7 @@ async function refresh(manual=false,areas=null){
       if(state.source)jobs.push(['source',api('sources/'+encodeURIComponent(state.source.id),options)]);
     }
     if(wanted('graph')&&(!state.graph||manual||(scope==='overview'&&(areas||polls%3===0||state.graph.totalMemories!==state.overview?.quality?.total))))jobs.push(['graph',api('graph'+projectQuery({limit:graphMemoryLimit,...(state.picked?.startsWith('memory:')?{memory:state.picked.slice(7)}:{})}),options)]);
-    if(wanted('features')&&(!state.features||manual||areas||scope==='setup'))jobs.push(['features',api('features',options)]);
+    if(wanted('features')&&(!state.features||manual||areas||scope==='setup'||state.sessionExact))jobs.push(['features',api('features',options)]);
     if(local&&wanted('hub')&&state.server?.capabilities?.hub!==false&&!state.pending&&(!state.hub||manual||['room','knowledge','learning'].includes(scope)))jobs.push(['hub',api('hub',options)]);
     if(local&&wanted('hub')&&!state.pending&&scope==='room'&&state.room)jobs.push(['room',api('hub/rooms/'+encodeURIComponent(state.room.room.id),options)]);
     const results=await Promise.allSettled(jobs.map(([,job])=>job));
@@ -235,7 +238,7 @@ async function refresh(manual=false,areas=null){
       else if(name==='telemetry'){const before=JSON.stringify([state.live,state.recording,state.cursor,state.events.map(event=>event.id)]);installTelemetry(result.value);needsRender ||= ['models','usage'].includes(state.view)&&before!==JSON.stringify([state.live,state.recording,state.cursor,state.events.map(event=>event.id)]);if(result.value.hasMore)pollAgain=true;}
       else if(name==='graph'&&graphEpoch===state.graphEpoch&&JSON.stringify(state.graph)!==JSON.stringify(result.value)){state.graph=result.value;needsRender ||= state.view==='overview';}
       else if(name==='features'&&(!state.features||result.value.revision>=state.features.revision)){
-        needsRender ||= state.view==='setup'&&state.features?.revision!==result.value.revision;
+        needsRender ||= ['setup','sessions'].includes(state.view)&&state.features?.revision!==result.value.revision;
         state.features=result.value;
       }else if(name==='hub'&&(!state.hub||result.value.revision>=state.hub.revision)){
         needsRender ||= ['room','knowledge','learning'].includes(state.view)&&state.hub?.revision!==result.value.revision;
@@ -266,7 +269,7 @@ async function refresh(manual=false,areas=null){
 async function loadView(){
   const epoch=++state.viewEpoch;
   const current=state.view,directoryEpoch=portfolio.epoch;
-  if(current!=='workspaces')stopDirectoryWatch();
+  if(current!=='workspaces'){stopDirectoryWatch();stopDirectoryRecent();}
   directoryPoll();
   if(current==='files'&&local)void openProjectFiles();
   const jobs=[];
@@ -279,7 +282,7 @@ async function loadView(){
     if(local&&current==='knowledge'&&!state.profile)jobs.push(['profile','project-profile']);
     if(local&&current==='learning')jobs.push(['feedback','project-feedback']);
   }
-  if(local&&current==='sessions')jobs.push(['sessions','sessions']);
+  if(local&&['sessions','setup'].includes(current))jobs.push(['sessions','sessions']);
   if(local&&current==='overview'&&!state.sessions)jobs.push(['sessions','sessions']);
   if(local&&current==='overview'&&!state.growth)jobs.push(['growth','growth']);
   if(local&&current==='overview'&&!state.usage)jobs.push(['usage','usage']);
@@ -310,16 +313,22 @@ async function loadView(){
 }
 function openView(next){
   if(!Object.hasOwn(nav,next))return;
+  if(next!=='overview')stopOverviewEvidence();
+  if(next!=='sessions')state.sessionExact=null;
   clearTopologyActivity();
   state.view=next;state.message='';state.messageError=false;state.pulseIds=[];
   scheduleDockExpiry();
   render();window.scrollTo(0,0);$('title')?.focus({preventScroll:true});void loadView();
 }
 function render(restore=false){
+  if(state.sessionExact&&(state.view!=='sessions'||state.sessionExact.sessionId!==state.session?.session.id||!sessionExactAllowed(state.session.session)))state.sessionExact=null;
+  const continuityFocus=restore&&$('conversation-continuity')?.contains(document.activeElement)?document.activeElement?.id:null;
   const workspaceFocus=$('workspace-portfolio')?.contains(document.activeElement)?document.activeElement?.id:null;
   const openDetails=restore?[...$('main').querySelectorAll('details[data-keep-open][id][open]')].map(node=>node.id):[];
   const focusedDisclosure=restore?document.activeElement?.matches('details[data-keep-open][id] > summary')&&document.activeElement.parentElement.id:null;
   const hostFocus=restore&&document.activeElement?.closest('#host-connections')?document.activeElement.id:null;
+  const captureFocus=restore&&$('exact-capture-setting')?.contains(document.activeElement)?document.activeElement.id:null;
+  const overviewFocus=restore&&document.activeElement?.closest('#overview-evidence')?document.activeElement.id:null;
   const topologyExpanded=restore&&$('topology-more')?.open;
   const dockFocus=$('tool-dock')?.contains(document.activeElement)?document.activeElement:null;
   const policyToolsOpen=$('policy-tools')?.open;
@@ -338,7 +347,10 @@ function render(restore=false){
   for(const id of openDetails)$(id)?.setAttribute('open','');
   if(focusedDisclosure)$(focusedDisclosure)?.querySelector('summary')?.focus({preventScroll:true});
   if(workspaceFocus)$(workspaceFocus)?.focus({preventScroll:true});
+  if(continuityFocus)$(continuityFocus)?.focus({preventScroll:true});
   if(hostFocus)$(hostFocus)?.focus({preventScroll:true});
+  if(captureFocus)($(captureFocus)??$('exact-capture-switch'))?.focus({preventScroll:true});
+  if(overviewFocus)$(overviewFocus)?.focus({preventScroll:true});
   updateAgentDock();
   if(topologyExpanded&&$('topology-more'))$('topology-more').open=true;
   if(dockFocus?.dataset.dockTool)focusDockTool(dockFocus.dataset.dockTool);
@@ -346,7 +358,7 @@ function render(restore=false){
   else if(dockFocus?.id)$(dockFocus.id)?.focus({preventScroll:true});
   if(policyToolsOpen&&$('policy-tools'))$('policy-tools').open=true;
   status(state.message,state.messageError);
-  if(state.view==='overview'){mountGraph();updateLiveFilePulse();}
+  if(state.view==='overview'){mountGraph();updateLiveFilePulse();updateOverviewEvidence();}
   if(state.listing&&typeof finderDraft==='string'&&$('graph-search'))$('graph-search').value=finderDraft;
   if(finderFocus&&state.listing){
     const next=finderFocus.id==='graph-search'?$('graph-search'):[...$('node-list')?.querySelectorAll('button')??[]].find(button=>
@@ -442,7 +454,8 @@ function setReplay(index){
   updateOverviewLive();renderInspector();drawGraph();
 }
 function start(){
-  if(local&&new URLSearchParams(window.location.search).get('view')==='workspaces')state.view='workspaces';
+  const initial=local?new URLSearchParams(window.location.search).get('view'):null;
+  if(initial&&Object.hasOwn(nav,initial))state.view=initial;
   render();
   $('reload').addEventListener('click',()=>void refresh(true));
   $('project').addEventListener('change',event=>{
@@ -470,7 +483,7 @@ function start(){
   });
   document.addEventListener('visibilitychange',()=>{
     clearTimeout(timer);state.pulseIds=[];drawGraph();updateAgentDock();scheduleDockExpiry();
-    if(document.hidden){controller?.abort();stopProjectStream();cancelDirectoryIndexChecks();directoryPoll();}
+    if(document.hidden){controller?.abort();stopProjectStream();stopOverviewEvidence();cancelDirectoryIndexChecks();stopDirectoryRecent();directoryPoll();}
     else {state.suppressLivePulse=!!liveStream.cursor;void refresh(true);}
   });
   reduced.addEventListener('change',()=>{state.pulseIds=[];updateOverviewLive();updateAgentDock();});

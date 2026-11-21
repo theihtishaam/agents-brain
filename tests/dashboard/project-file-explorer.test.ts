@@ -4,6 +4,9 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectFileExplorer, PROJECT_FILE_LIMITS } from '../../src/dashboard/project-file-explorer.js';
+import { WorkspaceDirectory } from '../../src/brain/workspace-directory.js';
+import { ProjectPolicyStore } from '../../src/brain/project-policy.js';
+import { projectStorage } from '../../src/brain/project-memory.js';
 import { ProjectFileWatch } from '../../src/dashboard/project-file-watch.js';
 import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
 import { handleWorkspaceRequest } from '../../src/dashboard/workspace-api.js';
@@ -64,6 +67,66 @@ describe('project file explorer', () => {
       vi.stubEnv('TMP', join(runner, 'AppData'));
       expect(() => new ProjectFileExplorer(outsideTemp).list(query())).toThrow(/protected/);
     } finally { watcher.stop(); vi.unstubAllEnvs(); }
+  });
+
+  it('switches between isolated registered project portals, reuses listeners and closes them together', async () => {
+    vi.stubEnv('SHADOW_BRAIN_DIRECTORY_HOME', join(fixture, 'registry'));
+    try {
+      const other = join(fixture, 'neighbor');
+      fs.mkdirSync(other);
+      fs.writeFileSync(join(other, 'only-neighbor.md'), 'neighbor');
+      fs.writeFileSync(join(root, 'only-original.md'), 'original');
+      await new WorkspaceDirectory().register(other, 'operator');
+      const id = projectStorage(other).projectId;
+      portal = await startProjectWorkspace(root);
+      const currentPortal = portal;
+      const open = (origin: string, scope: string, projectId: string, extra = {}) => fetch(origin + '/api/workspace/directory/open',
+        { method: 'POST', headers: { 'content-type': 'application/json', 'x-shadow-brain-project': scope, ...extra }, body: JSON.stringify({ projectId }) });
+      expect((await open(portal.url, 'wrong', id)).status).toBe(409);
+      expect((await open(portal.url, portal.projectId, id, { 'sec-fetch-site': 'cross-site' })).status).toBe(403);
+      expect((await open(portal.url, portal.projectId, '0000000000000000')).status).toBe(404);
+      const requests = await Promise.all([1, 2].map(() => open(currentPortal.url, currentPortal.projectId, id).then(r => r.json())));
+      expect(requests[0].url).toBe(requests[1].url);
+      const child = new URL(requests[0].url).origin;
+      expect(child).not.toBe(portal.url);
+      const files = await (await fetch(child + '/api/workspace/files', { headers: { 'x-shadow-brain-project': id } })).json();
+      expect(files.items.map((file: {name:string}) => file.name)).toEqual(['only-neighbor.md']);
+      const back = await (await open(child, id, portal.projectId)).json();
+      expect(back.url).toBe(portal.url + '/hub');
+      await new ProjectPolicyStore(other, id).update({ kind: 'set-project-participation', enabled: false, expectedRevision: 0 });
+      expect((await open(portal.url, portal.projectId, id)).status).toBe(403);
+      await portal.close(); portal = undefined;
+      await expect(fetch(child + '/api/workspace/status')).rejects.toThrow();
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it('reviews only a selected project document and retains its source path on explicit approval', async () => {
+    const directory = join(root, 'design');
+    fs.mkdirSync(directory);
+    const body = 'Keep the drawing scale fixed.';
+    fs.writeFileSync(join(directory, 'drawing.md'), body);
+    const explorer = new ProjectFileExplorer(root);
+    expect(explorer.readDocument({ path: 'design/drawing.md' }).bytes.toString()).toBe(body);
+    for (const path of ['../outside.md', '.env', 'hidden-key.txt', 'design', 'source.js']) expect(() => explorer.readDocument({ path })).toThrow();
+    portal = await startProjectWorkspace(root);
+    const base = portal.url + '/api/workspace/';
+    async function post(route: string, data: object, override = {}) {
+      return fetch(base + route, { method: 'POST', body: JSON.stringify(data),
+        headers: { 'content-type': 'application/json', 'x-shadow-brain-project': portal!.projectId, ...override } });
+    }
+    const pick = { path: 'design/drawing.md' };
+    expect((await post('files/review', pick, { 'sec-fetch-site': 'cross-site' })).status).toBe(403);
+    expect((await post('files/review', pick, { 'x-shadow-brain-project': 'wrong' })).status).toBe(409);
+    const { source } = await (await post('files/review', pick)).json();
+    expect(source.workspacePath).toBe(pick.path);
+    expect(source.items[0].memoryId).toBeFalsy();
+    const approve = { itemId: source.items[0].id, decision: 'approve', key: 'file_review_regression_key' };
+    const read = async () => (await (await post('sources/' + source.id + '/review', approve)).json()).source.items[0];
+    const item = await read();
+    expect((await read()).memoryId).toBe(item.memoryId);
+    const evidence = await (await fetch(base + 'memory-evidence?memoryId=' + item.memoryId)).json();
+    expect(evidence).toMatchObject({ state: 'resolved', evidence: { text: body, sha256: source.sha256 } });
+    expect(evidence.references[0]).toContain(pick.path);
   });
 
   it('returns one directory and only relative path metadata, with navigable breadcrumbs', () => {

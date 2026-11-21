@@ -1,0 +1,1818 @@
+{
+  "schemaVersion": 1,
+  "packageVersion": "7.25.0",
+  "generatedAt": "2026-11-21T13:49:43.629Z",
+  "rankingTime": "2026-11-12T00:00:00.000Z",
+  "runtime": {
+    "node": "v24.15.0",
+    "platform": "win32",
+    "arch": "x64",
+    "timing": "warm in-memory assembly; one run per case and profile; alternating order"
+  },
+  "fixture": "tests/fixtures/context-evaluation-v7.1.4.json",
+  "rankCutoff": 5,
+  "limitations": [
+    "The author-generated fixtures target named behaviors and do not measure model answer quality or competitor performance.",
+    "Token counts are profile-specific estimates and may differ from a receiving model’s tokenizer.",
+    "Timing covers context assembly after loading each store and excludes initialization, packaging, UI, and model calls.",
+    "Lexical variants and recorded links do not provide general semantic paraphrase retrieval or factual verification."
+  ],
+  "summary": {
+    "legacy": {
+      "casesPassed": 6,
+      "labeledCases": 13,
+      "meanContextRecallAtK": 0.6794871794871795,
+      "meanContextReciprocalRankAtK": 0.7307692307692307,
+      "abstentions": 1,
+      "scopeChecks": 1,
+      "scopeLeaks": 0,
+      "budgetViolations": 0,
+      "elapsedMs": {
+        "min": 0.094,
+        "median": 0.244,
+        "max": 4.422
+      }
+    },
+    "adaptive": {
+      "casesPassed": 14,
+      "labeledCases": 13,
+      "meanContextRecallAtK": 1,
+      "meanContextReciprocalRankAtK": 1,
+      "abstentions": 1,
+      "scopeChecks": 1,
+      "scopeLeaks": 0,
+      "budgetViolations": 0,
+      "elapsedMs": {
+        "min": 0.413,
+        "median": 1.2225000000000001,
+        "max": 11.447
+      }
+    }
+  },
+  "legacyControlFailures": [],
+  "adaptiveFailures": [],
+  "cases": [
+    {
+      "id": "exact-control",
+      "name": "Exact lexical control",
+      "query": "mirror checksum",
+      "records": 2,
+      "corpusBytes": 659,
+      "relevantIds": [
+        "checksum-decision"
+      ],
+      "forbiddenIds": [
+        "other"
+      ],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": true,
+      "legacy": {
+        "passed": true,
+        "selected": [
+          "checksum-decision"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 252,
+          "estimatedTokens": 63
+        },
+        "elapsedMs": 3.077
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "checksum-decision"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 252,
+          "estimatedTokens": 68,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 255
+        },
+        "elapsedMs": 11.447
+      }
+    },
+    {
+      "id": "no-evidence",
+      "name": "No lexical evidence",
+      "query": "oscillograph",
+      "records": 1,
+      "corpusBytes": 350,
+      "relevantIds": [],
+      "forbiddenIds": [
+        "ordinary"
+      ],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": true,
+      "legacy": {
+        "passed": true,
+        "selected": [],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "returns expected context count",
+            "passed": true
+          }
+        ],
+        "contextAtK": null,
+        "candidateAtK": null,
+        "abstained": true,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 0,
+          "estimatedTokens": 0
+        },
+        "elapsedMs": 0.211
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "returns expected context count",
+            "passed": true
+          }
+        ],
+        "contextAtK": null,
+        "candidateAtK": null,
+        "abstained": true,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 0,
+          "estimatedTokens": 0,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 0
+        },
+        "elapsedMs": 1.963
+      }
+    },
+    {
+      "id": "word-boundaries",
+      "name": "Exact Java match and metadata boundary",
+      "query": "java",
+      "records": 3,
+      "corpusBytes": 888,
+      "relevantIds": [
+        "java"
+      ],
+      "forbiddenIds": [
+        "javascript",
+        "metadata-only"
+      ],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [
+          "javascript",
+          "java",
+          "metadata-only"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [
+          "javascript",
+          "metadata-only"
+        ],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": false
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": false
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 2,
+          "reciprocalRank": 0.5
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 359,
+          "estimatedTokens": 90
+        },
+        "elapsedMs": 0.553
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "java"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 207,
+          "estimatedTokens": 56,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 210
+        },
+        "elapsedMs": 0.434
+      }
+    },
+    {
+      "id": "late-identifier",
+      "name": "Late identifier remains visible in the excerpt",
+      "query": "ParserSealError",
+      "records": 1,
+      "corpusBytes": 1716,
+      "relevantIds": [
+        "retry-error"
+      ],
+      "forbiddenIds": [],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [
+          "retry-error"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "shows expected passage in the excerpt",
+            "passed": false
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 1003,
+          "estimatedTokens": 251
+        },
+        "elapsedMs": 0.277
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "retry-error"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "shows expected passage in the excerpt",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 1003,
+          "estimatedTokens": 266,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 1008
+        },
+        "elapsedMs": 1.234
+      }
+    },
+    {
+      "id": "duplicate-pressure",
+      "name": "Exact duplicates leave room for a distinct checksum lesson",
+      "query": "checksum",
+      "records": 205,
+      "corpusBytes": 59121,
+      "relevantIds": [
+        "canonical",
+        "distinct"
+      ],
+      "forbiddenIds": [
+        "evidence"
+      ],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [
+          "canonical"
+        ],
+        "missingRelevant": [
+          "distinct"
+        ],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": false
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "preserves reference and original memory ID",
+            "passed": false
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 0.5,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 223,
+          "estimatedTokens": 56
+        },
+        "elapsedMs": 4.422
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "canonical",
+          "distinct"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "preserves reference and original memory ID",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 2,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 2,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 356,
+          "estimatedTokens": 97,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 362
+        },
+        "elapsedMs": 1.211
+      }
+    },
+    {
+      "id": "camel-to-snake",
+      "name": "Whole camelCase query matches snake_case",
+      "query": "deferredQueueLimit",
+      "records": 2,
+      "corpusBytes": 651,
+      "relevantIds": [
+        "limit"
+      ],
+      "forbiddenIds": [
+        "unrelated"
+      ],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [],
+        "missingRelevant": [
+          "limit"
+        ],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": false
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": false
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 0,
+          "recall": 0,
+          "firstRelevantRank": null,
+          "reciprocalRank": 0
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 0,
+          "estimatedTokens": 0
+        },
+        "elapsedMs": 0.13
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "limit"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 244,
+          "estimatedTokens": 66,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 247
+        },
+        "elapsedMs": 0.413
+      }
+    },
+    {
+      "id": "snake-to-camel",
+      "name": "Whole snake_case query matches PascalCase",
+      "query": "parser_seal_error",
+      "records": 2,
+      "corpusBytes": 652,
+      "relevantIds": [
+        "failure"
+      ],
+      "forbiddenIds": [
+        "unrelated"
+      ],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [],
+        "missingRelevant": [
+          "failure"
+        ],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": false
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": false
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 0,
+          "recall": 0,
+          "firstRelevantRank": null,
+          "reciprocalRank": 0
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 0,
+          "estimatedTokens": 0
+        },
+        "elapsedMs": 0.094
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "failure"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "ranks expected record first",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 245,
+          "estimatedTokens": 66,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 248
+        },
+        "elapsedMs": 0.429
+      }
+    },
+    {
+      "id": "path-reference",
+      "name": "Relative query matches a recorded Windows source reference",
+      "query": "src/transport/limiter.ts",
+      "records": 2,
+      "corpusBytes": 710,
+      "relevantIds": [
+        "reference"
+      ],
+      "forbiddenIds": [
+        "same-basename"
+      ],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [
+          "reference",
+          "same-basename"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [
+          "same-basename"
+        ],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": false
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 420,
+          "estimatedTokens": 105
+        },
+        "elapsedMs": 0.174
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "reference"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "explains the matched evidence field",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 286,
+          "estimatedTokens": 79,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 289
+        },
+        "elapsedMs": 0.486
+      }
+    },
+    {
+      "id": "unicode-token",
+      "name": "Unicode text and code punctuation",
+      "query": "C++ 再試行",
+      "records": 2,
+      "corpusBytes": 631,
+      "relevantIds": [
+        "native-retry"
+      ],
+      "forbiddenIds": [
+        "unrelated"
+      ],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": true,
+        "selected": [
+          "native-retry"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "shows expected passage in the excerpt",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 219,
+          "estimatedTokens": 55
+        },
+        "elapsedMs": 0.654
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "native-retry"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "shows expected passage in the excerpt",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 219,
+          "estimatedTokens": 67,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 240
+        },
+        "elapsedMs": 6.004
+      }
+    },
+    {
+      "id": "scope-fence",
+      "name": "Cross-project setting alone preserves project scope",
+      "query": "import retries",
+      "records": 2,
+      "corpusBytes": 703,
+      "relevantIds": [
+        "own"
+      ],
+      "forbiddenIds": [
+        "foreign"
+      ],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": true,
+      "legacy": {
+        "passed": true,
+        "selected": [
+          "own"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": true,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "keeps foreign ID, title, content, and source out of the response",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 230,
+          "estimatedTokens": 58
+        },
+        "elapsedMs": 0.114
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "own"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": true,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "keeps foreign ID, title, content, and source out of the response",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 230,
+          "estimatedTokens": 62,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 233
+        },
+        "elapsedMs": 1.482
+      }
+    },
+    {
+      "id": "explicit-broad",
+      "name": "Both cross-project gates permit labeled origins",
+      "query": "import retries",
+      "records": 2,
+      "corpusBytes": 639,
+      "relevantIds": [
+        "own",
+        "foreign"
+      ],
+      "forbiddenIds": [],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": true,
+      "legacy": {
+        "passed": true,
+        "selected": [
+          "foreign",
+          "own"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "returns expected context count",
+            "passed": true
+          },
+          {
+            "name": "labels both project origins",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 2,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 330,
+          "estimatedTokens": 83
+        },
+        "elapsedMs": 0.123
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "foreign",
+          "own"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "returns expected context count",
+            "passed": true
+          },
+          {
+            "name": "labels both project origins",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 2,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 2,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 330,
+          "estimatedTokens": 90,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 336
+        },
+        "elapsedMs": 0.552
+      }
+    },
+    {
+      "id": "review-state",
+      "name": "Archived, contested, and superseded states remain excluded",
+      "query": "ledger retries",
+      "records": 4,
+      "corpusBytes": 1235,
+      "relevantIds": [
+        "current"
+      ],
+      "forbiddenIds": [
+        "archived",
+        "contested",
+        "superseded"
+      ],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": true,
+      "legacy": {
+        "passed": true,
+        "selected": [
+          "current"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "returns expected context count",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 232,
+          "estimatedTokens": 58
+        },
+        "elapsedMs": 0.189
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "current"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "returns expected context count",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 232,
+          "estimatedTokens": 62,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 235
+        },
+        "elapsedMs": 0.852
+      }
+    },
+    {
+      "id": "recorded-one-hop",
+      "name": "Recorded links stop at one hop and preserve contradiction caution",
+      "query": "import replay",
+      "records": 6,
+      "corpusBytes": 1812,
+      "relevantIds": [
+        "seed",
+        "support",
+        "related"
+      ],
+      "forbiddenIds": [
+        "second-hop",
+        "conflict",
+        "archived"
+      ],
+      "order": [
+        "legacy",
+        "adaptive"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [
+          "seed"
+        ],
+        "missingRelevant": [
+          "support",
+          "related"
+        ],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": false
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "renders the expected warning",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 0.3333333333333333,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 309,
+          "estimatedTokens": 78
+        },
+        "elapsedMs": 0.411
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "seed",
+          "support",
+          "related"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "renders the expected warning",
+            "passed": true
+          },
+          {
+            "name": "preserves the original recorded graph path",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 3,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 3,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 2000,
+          "maxChars": 8000,
+          "usedChars": 601,
+          "estimatedTokens": 162,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 610
+        },
+        "elapsedMs": 1.85
+      }
+    },
+    {
+      "id": "rendered-budget",
+      "name": "Tight Unicode and code budget still shows the matched identifier",
+      "query": "RetrySeal",
+      "records": 1,
+      "corpusBytes": 3321,
+      "relevantIds": [
+        "unicode-run"
+      ],
+      "forbiddenIds": [],
+      "order": [
+        "adaptive",
+        "legacy"
+      ],
+      "legacyControl": false,
+      "legacy": {
+        "passed": false,
+        "selected": [],
+        "missingRelevant": [
+          "unicode-run"
+        ],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": false
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "shows expected passage in the excerpt",
+            "passed": false
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 0,
+          "recall": 0,
+          "firstRelevantRank": null,
+          "reciprocalRank": 0
+        },
+        "candidateAtK": null,
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 155,
+          "maxChars": 620,
+          "usedChars": 0,
+          "estimatedTokens": 0
+        },
+        "elapsedMs": 0.293
+      },
+      "adaptive": {
+        "passed": true,
+        "selected": [
+          "unicode-run"
+        ],
+        "missingRelevant": [],
+        "includedForbidden": [],
+        "scopeChecked": false,
+        "leakedIds": [],
+        "leakedText": [],
+        "checks": [
+          {
+            "name": "includes relevant IDs",
+            "passed": true
+          },
+          {
+            "name": "excludes forbidden IDs",
+            "passed": true
+          },
+          {
+            "name": "measures full render within declared limits",
+            "passed": true
+          },
+          {
+            "name": "leaves fixture store unchanged",
+            "passed": true
+          },
+          {
+            "name": "reports adaptive decisions for the assembled context",
+            "passed": true
+          },
+          {
+            "name": "shows expected passage in the excerpt",
+            "passed": true
+          },
+          {
+            "name": "uses the Unicode and code estimate on actual rendered bytes",
+            "passed": true
+          }
+        ],
+        "contextAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "candidateAtK": {
+          "retrievedRelevant": 1,
+          "recall": 1,
+          "firstRelevantRank": 1,
+          "reciprocalRank": 1
+        },
+        "abstained": null,
+        "budget": {
+          "tokenBudget": 155,
+          "maxChars": 620,
+          "usedChars": 390,
+          "estimatedTokens": 155,
+          "estimator": "unicode-code-heuristic",
+          "usedBytes": 507
+        },
+        "elapsedMs": 2.003
+      }
+    }
+  ]
+}

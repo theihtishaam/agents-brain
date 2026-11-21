@@ -1,6 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { expect, it } from 'vitest';
 import { BRAIN_HUB_CONNECTIONS } from '../../src/dashboard/brain-hub-connections.js';
+import { BRAIN_HUB_CONTROLS } from '../../src/dashboard/brain-hub-controls.js';
 
 const fixture = BRAIN_HUB_CONNECTIONS + `
   const hosts=[
@@ -53,6 +54,39 @@ it('blocks per-host admission controls while project access is disabled and remo
   expect(markup).not.toContain('data-connection-action="admission"');
   expect(markup).not.toContain('2 current connections');
   expect(markup).toContain('data-connection-action="participation" data-enabled="true" role="switch" aria-checked="false" aria-label="Project tool participation" disabled');
+});
+
+it('distinguishes disabled, unreported, and recorded exact conversation coverage within the current project', () => {
+  const outputs = runInNewContext(fixture + BRAIN_HUB_CONTROLS + `
+    state.project='current-project';
+    state.sessions={projectId:'different-project',sessions:[{exactTranscript:{totalMessages:99}}]};
+    const [disabled,foreign]=[exactCaptureSetup(false),exactCaptureSetup(true)];
+    state.sessions={projectId:state.project,sessions:[{title:'Synthetic title with no capture metadata'}]};
+    const unreported=exactCaptureSetup(true);
+    state.sessions.sessions.push({exactTranscript:{totalMessages:0}});
+    const zero=exactCaptureSetup(true);
+    state.sessions.sessions.push({exactTranscript:{totalMessages:1},text:'Synthetic original text'});
+    const captured=exactCaptureSetup(true);
+    state.errors.sessions='Coverage request failed';
+    const failed=exactCaptureSetup(true);
+    ({disabled,foreign,unreported,zero,captured,failed});
+  `, {}) as Record<string, string>;
+  expect(outputs.disabled).toContain('Capture disabled');
+  for (const key of ['foreign', 'unreported', 'failed']) expect(outputs[key]).toContain('Exact message counts unreported');
+  expect(outputs.zero).toContain('0 exact messages recorded across 1 enrolled project conversation');
+  expect(outputs.captured).toContain('1 exact message recorded across 2 enrolled project conversations');
+  expect(outputs.captured).toContain('data-view="sessions"');
+  expect(Object.values(outputs).join(' ')).not.toMatch(/99 exact|Synthetic original text|Synthetic title/);
+});
+
+it('offers reconnect for a blocked host sharing another host’s managed project config', () => {
+  const markup = runInNewContext(fixture + `
+    Object.assign(hosts[2],{mode:'workspace',configuration:'shared',locallyAllowed:false});
+    workspaceConnections();
+  `, {}) as string;
+  expect(markup).toContain('Shared project configuration');
+  expect(markup).toContain('data-connection-action="connect" data-host="claude-code"');
+  expect(markup).not.toContain('data-connection-action="disconnect" data-host="claude-code"');
 });
 
 it('sends the correct typed commands with both revisions and refreshes the snapshot', async () => {

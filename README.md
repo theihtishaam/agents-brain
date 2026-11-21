@@ -1,212 +1,85 @@
-<h1 align="center">Agent Shadow Brain</h1>
+# Agent Shadow Brain
 
-<p align="center">Created by <a href="https://github.com/theihtishaam">Ihtisham Ahmad (@theihtishaam)</a> · <a href="https://www.linkedin.com/in/ihtishamdeveloper/">LinkedIn</a> · <a href="https://github.com/theihtishaam/agents-brain">Repository</a></p>
-<p align="center"><strong>Your project memory. Shared across your AI tools.</strong></p>
-<p align="center">Save a fact once. Find useful context. Hand off work with its evidence intact.</p>
+Pick up a task in a different coding agent without writing the handoff from scratch. Shadow Brain keeps the project’s decisions, source notes and unfinished work in a local store that your agents can share.
 
-<p align="center"><a href="https://trendshift.io"><img src="https://img.shields.io/badge/Trendshift-Explore%20trending%20projects-6366f1?style=for-the-badge" alt="Explore trending projects on Trendshift" /></a></p>
+[![npm version](https://img.shields.io/npm/v/@theihtisham/agent-shadow-brain?logo=npm&label=npm)](https://www.npmjs.com/package/@theihtisham/agent-shadow-brain) [![Total npm downloads](https://img.shields.io/npm/dt/%40theihtisham%2Fagent-shadow-brain?label=Total%20Downloads&color=087f73)](https://www.npmjs.com/package/@theihtisham/agent-shadow-brain) [![Follow Ihtisham Ahmad on GitHub](https://img.shields.io/github/followers/theihtishaam?label=Follow%20%40theihtishaam&style=social)](https://github.com/theihtishaam) [![Star Agent Shadow Brain on GitHub](https://img.shields.io/github/stars/theihtishaam/agents-brain?style=social)](https://github.com/theihtishaam/agents-brain)
 
-<p align="center">
-  <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img src="https://img.shields.io/npm/dt/%40theihtisham%2Fagent-shadow-brain?label=Total%20Downloads&amp;color=brightgreen" alt="Total npm downloads (all time)" /></a>
-  <a href="https://github.com/theihtishaam"><img src="https://img.shields.io/github/followers/theihtishaam?label=Follow%20%40theihtishaam&amp;style=social" alt="Follow @theihtishaam on GitHub" /></a>
-  <a href="https://www.npmjs.com/package/@theihtisham/agent-shadow-brain"><img alt="npm latest version" src="https://img.shields.io/npm/v/@theihtisham/agent-shadow-brain/latest?label=npm&amp;color=0f766e"></a>
-  <a href="https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/theihtishaam/agents-brain/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/theihtishaam/agents-brain?color=475569"></a>
-  <a href="https://github.com/theihtishaam/agents-brain"><img src="https://img.shields.io/github/stars/theihtishaam/agents-brain?label=Star%20on%20GitHub&amp;style=social" alt="Star agents-brain on GitHub" /></a>
-</p>
+![The Brain Hub recording shows requests and results moving between four scripted clients and one project brain](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-agent-traffic.gif)
 
-<p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
-
-![Measured requests and results between the project brain and four scripted MCP clients](docs/assets/7.25.0-agent-traffic.gif)
-
-## New in 7.25.0
-
-Watch a request travel from a connected tool into the project brain and the result travel back. Select a tool to inspect its recorded chat, model and latest action. The recording above comes from an isolated workspace with four scripted MCP clients. The cortex highlights retrieval, knowledge writes and session work. Select a column in **Payload traffic** to inspect measured request and result sizes, or select an observed file change to look up its project context.
-
-Any participating agent can call **project_brief** with its current question to retrieve a compact, cited briefing from shared project memory. Use **Files** to look up a path in memory and **Usage** to filter reported token counts. **Workspaces** brings together registered projects' current MCP connections, shared session reports and recorded task outcomes. Each project retains its own memory and controls. [7.25.0 visual guide](docs/VISUAL_GUIDE_v7.25.0.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.25.0.md) · [Capabilities and limits](docs/FEATURES_AND_LIMITS.md)
+*Recorded in the running dashboard with four scripted clients in a test project. Each moving signal corresponds to a tool request or result.*
 
 ## Try it
 
-Use **Node.js 22.13+ in the 22.x line, 24.x, or 26+**. From your project directory, one command installs the requested version in npm's cache and starts its local portal:
+From the project folder, run this with Node.js 22.13 or later in the 22.x line, 24.x, or 26+.
 
-```bash
+```sh
 npx --yes --package @theihtisham/agent-shadow-brain@7.25.0 shadow-brain project workspace . --port 62595
 ```
 
-For a reusable global command:
+1. Open the [local Brain Hub](http://127.0.0.1:62595/hub) and keep the terminal running.
+2. In **Knowledge**, enter “The checkout service retries a failed payment with the same request ID.” Choose **Add to memory**.
+3. In **Context**, ask “Which request ID should a retry use?” Open the cited passage to see the original note.
+4. In **Setup → Host connections**, connect a supported agent and reload it if prompted. Ask it to use `project_brief` to answer the same question. Connect a second agent to the same folder and it can read the same source.
 
-```bash
-npm install -g @theihtisham/agent-shadow-brain@latest
-shadow-brain --version
-cd your-project
-shadow-brain project workspace . --port 62595
-```
+You can start with a single sentence. The project keeps its data in `.shadow-brain` and reopens it the next time you start the portal in that folder. [Install options and quickstart](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/QUICKSTART.md)
 
-Keep the launcher running and open [the project Brain Hub](http://127.0.0.1:62595/hub). Start with **Knowledge → Add to memory**, then **Context → Find useful context**. Connect your chosen tool through **Setup** when you want it to retrieve that memory. Use the same project directory and port when restarting. Port `0` lets the OS assign a free port; open the URL printed by that launch.
+## When a shared brain helps
 
-To build from this checkout while preparing a release, use `npm ci`, `npm run build`, then `node dist/cli.js project workspace . --port 62595`. The command’s directory argument selects which project store to open. [Quickstart](docs/QUICKSTART.md) · [Troubleshooting](docs/TROUBLESHOOTING.md)
+| When you… | With separate chat histories | With Shadow Brain |
+| --- | --- | --- |
+| Switch tools midway through a fix | You find the last useful turn and explain what to try next. | The next agent can open a saved checkpoint with the goal, constraints, evidence and next step. |
+| Revisit a decision weeks later | You search old threads for the wording. | A project brief returns the matching note with its source. You can inspect the original. |
+| Work on several projects | You choose which details to paste into each new chat. | Each folder has its own memory, chat-sharing settings and context budget. |
+| Learn something from a passing test | The result stays in the chat unless someone writes it down. | A reported outcome with evidence can draft a lesson. You review it before promoting it into retrieval. |
+
+### What changed in a measured example?
+
+Four scripted clients asked the same question about a release checklist. Each started with one of four facts. With separate stores, each reply cited its own fact. With the facts in one shared store, every reply cited all four. A citation counted only when the reply included the expected text, source and memory ID.
+
+![With separate stores the four clients cited one fact apiece. With one shared store each cited retry budget, migration approval, canary region and rollback owner.](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-citation-map.png)
+
+That’s **4 of 16 possible citations** across separate stores and **16 of 16** in the shared store. Both setups completed four tool calls. This experiment measures how much known evidence reached the clients. [Receipts](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/evaluation/SHARED_BRIEF_v7.25.0.json) · [Reproduce the comparison](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/VISUAL_GUIDE_v7.25.0.md#four-facts-two-setups)
+
+We also ran both retrieval profiles against 14 cases, including identifiers, duplicate notes, excluded records and a tight context budget.
+
+| Retrieval check | Legacy | Adaptive |
+| --- | ---: | ---: |
+| Cases passing every check | 6 / 14 | 14 / 14 |
+| Mean fraction of relevant records in the first five results | 0.679 | 1.000 |
+| Context-budget violations | 0 | 0 |
+
+These results come from the included fixtures. Model answer quality, token bills and time saved depend on the task and host. [Case-by-case results and method](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/evaluation/CONTEXT_EVALUATION_v7.25.0.md)
+
+## Continue where another agent stopped
+
+Suppose you investigate a checkout failure in Codex and want to finish it in Claude Code. Ask Codex to save a checkpoint with the retry constraint, what it tested and the next failing case. In Claude Code, request the handoff for that task. The new session links back to the original, so you can check the earlier decision or take a different approach. **Copy handoff for any agent** also gives you a plain-text version.
+
+![The Sessions screen recovers two shared updates from a checkout investigation. The next check is to retry the failed network request with the same request ID.](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-handoff-guide.png)
+
+If work stops before a checkpoint, **Continue from last shared update** can recover progress the host already shared. For word-for-word history, enable **Exact shared conversation history** and enroll a compatible chat. Codex also lets you follow a selected native conversation for the duration of its local connection. Detection alone gives the dashboard no access to an app’s private chats. [Capture, limits and handoffs](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/SESSIONS.md)
 
 ## Inside the Brain Hub
 
-![Current project brain and connected tools in an isolated workspace](docs/assets/7.25.0-brain-network.png)
+![Three registered test workspaces with distinct tool connections, latest shared chats and recorded outcomes](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-workspaces.png)
 
-| View | What you can do |
-| --- | --- |
-| **Brain overview** | Follow measured requests and results along one strand per tool, inspect saved-memory points, and review project knowledge growth and recorded activity. |
-| **Workspaces** | Compare local projects by connected host, latest shared chat, recorded task progress, and latest outcome. Check Codex index metadata by request. |
-| **Files** | Browse project files and use a relative path to find related team knowledge. |
-| **Knowledge** | Paste ordinary text and click Add to memory. Review longer notes, inspect original sources, or optionally import a document. Generate a project-specific skill. |
-| **Sessions** | Inspect reported work, original conversation snapshots, saved checkpoints and linked continuations. Connect the supported Codex history API explicitly or select an export from another tool. |
-| **Collaboration** | Open a project room, post a proposal or critique, claim a task, attach a project file, accept evidence, and record the outcome. |
-| **Context** | Assemble a scoped pack, inspect selected passages and sources, compare retrieval profiles, and copy the rendered Markdown. |
-| **Models and Usage** | Inspect client readiness, retained exchanges and optional host-reported model/token receipts. Unknown counts remain unknown; costs are not invented. |
-| **Learning** | Rate memories for a task, pause or remove retrieval feedback, and create a lesson from a recorded outcome. Record a paired evaluation, promote an eligible lesson, or roll back its retrieval influence. |
-| **Setup** | Check host detection and MCP presence. Connect a supported host, control tool participation and chat sharing, and manage project skills. |
+**Workspaces** shows which project a host reported to, its latest shared chat and any recorded outcomes. Open a workspace to browse its files, notes and sessions. On the brain graph, select a memory point to inspect its source or select a host to inspect recorded traffic.
 
-### What shared project memory changes
+![Context view showing what made it into a project briefing and its estimated budget](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-context.png)
 
-![The four-fact fixture returned 4 of 16 possible citations from isolated stores and 16 of 16 from the shared store](docs/assets/7.25.0-shared-brief-comparison.png)
-
-Four scripted clients asked the same question. Each isolated store held one fact. The shared store held all four. The returned Markdown contained **4 of 16** possible citations across the isolated replies and **16 of 16** across the shared replies. Both setups recorded four successful request–result pairs. These figures measure retrieved evidence in this fixture. [Method and reproduction](docs/VISUAL_GUIDE_v7.25.0.md#four-facts-two-setups) · [Measured receipts](docs/evaluation/SHARED_BRIEF_v7.25.0.json)
-
-### See which tool reported the work
-
-Select a tool to inspect its recorded conversations, coordination role, latest observed action, and optional model receipts. Hover or focus a cortex point to inspect its saved excerpt, source, and date. When a measured receipt identifies the memory, the preview shows the last host it was returned to. **Project knowledge** shows saved-memory counts by day and recorded lesson stages.
-
-Model, provider, effort and token counts come from explicit host reports. Missing values say **Not reported**. Activity indicators respond to new recorded events, respect **Pause motion** and reduced-motion preferences, and do not animate old history as new work. The icon identifies the tool, not the model it may be running.
-
-**Reporting MCP connections** counts initialized project connections with a current heartbeat. Connections renew every ten seconds and expire after thirty seconds without renewal. This reports the memory transport; a connected tool may be idle. It does not count native apps that have not connected to this project.
-
-The panel captures use four scripted MCP clients and synthetic model receipts. They demonstrate the working interface and transport, not four native applications or model inference.
-
-[Activity and session guide](docs/SESSIONS.md) · [Icon sources and license](docs/BRAND_ASSETS.md)
-
-### Compare registered workspaces
-
-![Three isolated registered projects with separate host, chat, task progress and outcome reports](docs/assets/7.25.0-workspaces.png)
-
-Open **All workspaces** from the overview, then select a project to review its visible chat reports and outcomes. The percentage uses completed recorded tasks divided by all recorded tasks for that project. A project without task records shows an unavailable percentage. [Visual guide](docs/VISUAL_GUIDE_v7.25.0.md#compare-registered-workspaces)
-
-### Start with ordinary words
-
-![Working Teach the brain screen with reviewed project notes](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-teach-brain.png)
-
-1. Open **Knowledge** and type: **“The cupboard is black. Keep its brass handles.”**
-2. Click **Add to memory**. The note and its original wording are saved in this project.
-3. Open **Context** and ask: **“What colour is the cupboard?”** Inspect the returned note and its source. A connected agent can request the same context through MCP.
-4. For longer notes or edits before saving, choose **Review first**, then save the useful parts. Pending and skipped parts stay outside shared retrieval.
-5. Use **Learning** to mark a memory useful, irrelevant or incorrect for a task, then inspect the effect on the next retrieval.
-
-Direct notes support up to 6,000 characters and 20 paragraphs. No PDF, JSON or special format is required. The brain stores reference knowledge; your agent handles reasoning and answers from the context it requests. [Notes and conversation import guide](docs/SOURCE_INTAKE.md)
-
-```mermaid
-flowchart LR
-  Note[Your plain-language note] --> Save[Add to project memory]
-  Save --> Recall[Relevant context with sources]
-  Recall --> Codex[Codex]
-  Recall --> Claude[Claude Code]
-  Recall --> Other[OpenCode / Harness / MCP host]
-  Other --> Feedback[Task feedback and reviewed outcomes]
-  Feedback --> Recall
-```
-
-### Continue where another agent stopped
-
-![Running Sessions view with reported history and an immutable handoff](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-sessions.png)
-
-An agent records meaningful progress and saves a checkpoint: what is done, decisions, evidence and next steps. Another connected agent calls `session_resume` with that checkpoint's ID and digest. It receives the exact saved handoff in a new linked session; the original remains available. This transfers recorded work, not hidden model state or an application's native running process.
-
-**Original tool history** preserves names and conversation IDs supplied by supported sources. Codex has an explicit read-only connection to its installed app-server's project index; Claude Code, OpenCode and DeepSeek Harness support selected native exports. Missing original names remain unavailable. A saved history page is a bounded snapshot, and an operator adds a checkpoint before handing it to another agent. [Sessions and native formats](docs/SESSIONS.md)
-
-```mermaid
-flowchart LR
-  A[Agent A in this project] --> Report[Progress and evidence]
-  Report --> Checkpoint[Immutable checkpoint]
-  Checkpoint --> B[Agent B resumes shared work]
-  Checkpoint --> Audit[Original history retained]
-  Control[Your sharing controls] --> Checkpoint
-```
-
-### Follow evidence from a PDF to a context pack
-
-![Working PDF intake with extracted text, a page locator, and approved project memory](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-hub-knowledge.png)
-
-```mermaid
-flowchart LR
-  PDF[Local PDF] --> Parse[Extract page text]
-  Parse --> Review[Review cited page]
-  Review -->|Approve| Memory[Project memory]
-  Memory --> Pack[Scoped context pack]
-  Pack --> Host[Copy or retrieve through MCP]
-```
-
-The project store records the document fingerprint and the approved page citation. An image-only page shows that OCR is needed. Context budget figures estimate rendered pack tokens, and profile comparisons use the same scoped request. Optional host-reported token receipts appear separately in Usage. Context estimates do not prove a billing reduction. [Context guide](docs/CONTEXT_LAB.md)
-
-### Coordinate work and record a lesson
-
-```mermaid
-flowchart LR
-  Goal[Project room] --> Msg[Proposal or critique]
-  Msg --> Claim[Task claim and lease]
-  Claim --> Artifact[Versioned file and digest]
-  Artifact --> Outcome[Recorded outcome]
-  Outcome --> Candidate[Lesson candidate]
-  Candidate --> Evaluate[Operator records evaluation]
-  Evaluate --> Promote[Explicit promotion]
-  Promote --> Rollback[Rollback archives retrieval influence]
-```
-
-Browser and compatible project-local MCP clients share the same room records. Task claims carry revisions and expire. A recipient acknowledgement references the specific message or artifact. Learning changes project memory and retrieval. The workspace does not run models, train them, or assign work to hosts by itself. [Workspace guide](docs/WORKSPACE.md) · [Workflow integration](docs/WORKFLOW_INTEGRATION.md)
-
-![Actual learning view with a recorded comparison and rolled-back lesson](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-hub-learning.png)
-
-### Browse the original evidence tools
-
-The classic workspace offers memory curation, typed relationships, retrieval feedback, and the full Context Lab. The detailed activity view adds filters and playback controls for the loaded journal.
-
-![Classic Context Lab with selected and excluded evidence](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-context-lab.png)
-
-![Memory review with recorded sources and typed links](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-memory-review.png)
-
-![Activity diagnostics showing a recorded tool timeline](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.1.4-live.png)
+**Context** shows what was selected for a brief and how much space it takes. **Usage** shows tokens when a host reports them. An empty token field means the host has supplied no measurement. [Dashboard tour](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/VISUAL_GUIDE_v7.25.0.md) · [Capabilities and limits](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/FEATURES_AND_LIMITS.md)
 
 ## Connect your agent
 
-Open **Setup → Host connections** to see detected hosts and project connection options. **Connect** can write a new project configuration for supported hosts. Automatic connections start off. Reload the host after setup and check its MCP presence. [Supported hosts and setup instructions](docs/INTEGRATIONS.md#connect-a-detected-host-from-setup)
+The local server speaks MCP (Model Context Protocol). Point participating clients at the same project directory. For Codex, the CLI can print the host’s configuration recipe:
 
-For manual setup, generate a recipe from the same directory used to start the project workspace. The recipe identifies the project store and launches the local stdio service.
-
-```bash
+```sh
 shadow-brain project config . --target codex
-shadow-brain skills install . --target codex
 ```
 
-Preview the skill installation before adding `--apply`. Merge the printed recipe in the selected host, reconnect, and confirm it can list and call a tool such as `project_inspect` or `context_pack`. A recorded exchange will appear when activity recording and display are enabled. [Integration guide](docs/INTEGRATIONS.md)
+Use the `shadow-brain` command after a global install, or run it through `npx` as above. Project setup is available for Codex, Claude Code, OpenCode and supported VS Code/Copilot and Kilo Code configurations. Cline, OpenClaw and DeepSeek Harness have manual recipes. The integration guide lists what each host can share and where approval or a restart is needed. [Host compatibility](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/INTEGRATIONS.md) · [Troubleshooting](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/TROUBLESHOOTING.md)
 
-| Target | Recipe |
-| --- | --- |
-| Codex | `shadow-brain project config . --target codex` |
-| Claude Code | `shadow-brain project config . --target claude-code` |
-| OpenCode | `shadow-brain project config . --target opencode` |
-| DeepSeek Harness | `shadow-brain project config . --target deepseek-harness` |
-| Other compatible host | `shadow-brain project config . --target portable` |
+## Project and maintainer
 
-The Codex history adapter completed a 0.145.0 handshake and an empty-project indexed list. History paging and imports were verified with controlled process fixtures.
+I’m Ihtisham Ahmad. If Shadow Brain helped you pick up unfinished work, you can star the repository. If a handoff lost something important, open an issue with the host name and the step where it happened. [Star Agent Shadow Brain](https://github.com/theihtishaam/agents-brain) · [Report an issue](https://github.com/theihtishaam/agents-brain/issues) · [Follow me on GitHub](https://github.com/theihtishaam) · [LinkedIn](https://www.linkedin.com/in/ihtishamdeveloper/)
 
-![Setup view showing host detection, project setup, tool admission and MCP presence in an isolated fixture](docs/assets/7.25.0-setup.png)
-
-### Keep the workspace under your control
-
-Set context token and entry ceilings, turn features on or off, and choose which conversations can be delivered to connected agents. Explicit source links carry those exclusions into retrieval and inherited handoffs. Tool switches use the client label supplied by a cooperating host; they are not authenticated access control. Already delivered context cannot be withdrawn from another application.
-
-Enable **project file activity** only when you want file-change metadata. The live stream sends bounded change notifications; it does not repeatedly reload the whole dashboard. File events identify paths and times, while agent attribution requires an actual report. [Measured local performance and limits](docs/WORKSPACE.md)
-
-The dashboard separates **reported model tokens**, **estimated context reduction**, and **measured tool duration**. It never converts a smaller context pack into a claimed billing or speed saving.
-
-## Documentation
-
-- [Quickstart](docs/QUICKSTART.md) · [Workspace guide](docs/WORKSPACE.md) · [Visual guide](docs/VISUAL_GUIDE_v7.25.0.md) · [Features and limits](docs/FEATURES_AND_LIMITS.md)
-- [Project Kit](docs/PROJECT_KIT.md) · [Context Lab](docs/CONTEXT_LAB.md) · [Workflow skills](docs/WORKFLOW_INTEGRATION.md)
-- [Integrations](docs/INTEGRATIONS.md) · [Sessions](docs/SESSIONS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.25.0.md)
-
-MIT license. [Changelog](CHANGELOG.md)
+[All guides](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/README.md) · [Release notes](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/launch/RELEASE_NOTES_v7.25.0.md) · [Downloads and coverage](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/docs/STATS.md) · [MIT license](https://github.com/theihtishaam/agents-brain/blob/v7.25.0/LICENSE) · [Explore trending projects on Trendshift](https://trendshift.io)

@@ -153,12 +153,18 @@ try {
   const written = await writer.call('session_record', { sessionId: opened.session.id, command: { kind: 'message', key: key(), role: 'note', text: 'Private fixture message sentinel' } });
   const checkpointSummary = 'Cupboard finish verified. Continue with hardware review.';
   const checkpointRecord = await writer.call('session_record', { sessionId: opened.session.id, command: { kind: 'checkpoint', key: key(),
-    summary: checkpointSummary, decisions: ['Keep the brass handles.'], completed: ['Verified the black finish.'], nextSteps: ['Check the hinge plan.'], evidence: [source] } });
+    summary: checkpointSummary, approach: 'Inspect the finish before adjusting hardware', constraints: ['Preserve the handle spacing'], decisions: ['Keep the brass handles.'], completed: ['Verified the black finish.'], nextSteps: ['Check the hinge plan.'], evidence: [source] } });
   assert.equal(written.messages.length, 1);
   const checkpoint = checkpointRecord.checkpoints[0];
+  const search = await reader.call('session_handoffs', {query:'cupboard finish'});
+  assert.equal(search.handoffs[0].checkpointId, checkpoint.id);
+  const automaticBrief = await reader.call('project_brief', {query:'cupboard finish'});
+  assert.ok(automaticBrief.includes(checkpoint.sha256) && automaticBrief.includes('Check the hinge plan.'));
   const continued = await reader.call('session_resume', { key: key(), sessionId: opened.session.id, checkpointId: checkpoint.id, sha256: checkpoint.sha256,
     title: 'Continue hardware review', hostSessionId: 'fixture-reader' });
   assert.equal(continued.handoff.summary, checkpointSummary);
+  assert.equal(continued.handoff.approach, 'Inspect the finish before adjusting hardware');
+  assert.deepEqual(continued.handoff.constraints, ['Preserve the handle spacing']);
   assert.equal(continued.handoff.sha256, checkpoint.sha256);
   const wrongSession = await otherB.raw('session_read', { sessionId: continued.session.id });
   assert.ok(wrongSession.error || wrongSession.result?.isError);
@@ -201,6 +207,22 @@ try {
     assert.ok(!JSON.stringify(observed).includes(value));
   }
 
+  const options = await web(primary, 'features');
+  assert.equal(options.features.exactConversationCapture, false);
+  await web(primary, 'features', { patch: { exactConversationCapture: true }, expectedRevision: options.revision });
+  const exact = await writer.call('session_open', { key: key(), title: 'Exact conversation fixture', goal: 'Check literal shared text',
+    hostSessionId: 'fixture-exact', exactTranscript: true });
+  const sessionId = exact.session.id;
+  const literal = '  Original 🗺️ words\r\n    Indented line with a final space. ';
+  const turn = { sessionId, hostMessageId: 'fixture-native-turn-001', role: 'user', text: literal };
+  await writer.call('session_append_turn', turn);
+  await writer.call('session_append_turn', turn);
+  const visible = await reader.call('session_transcript_read', { sessionId });
+  assert.deepEqual(visible.messages.map(item => item.text), [literal]);
+  const foreignHistory = await otherB.raw('session_transcript_read', { sessionId });
+  assert.ok(foreignHistory.error || foreignHistory.result?.isError);
+  assert.ok(!(await reader.call('project_brief', { query: 'cupboard finish' })).includes(literal));
+
   const primaryPort = Number(new URL(primary.url).port);
   await Promise.all([writer.close(), reader.close()]);
   await stop(primary);
@@ -211,6 +233,14 @@ try {
   const recoveredClient = await connect(primary, 'opencode');
   assert.ok((await requestBrief(recoveredClient)).includes(saved.memoryId));
   assert.equal((await recoveredClient.call('session_read', { sessionId: continued.session.id })).handoff.sha256, checkpoint.sha256);
+  const durableHistory = await recoveredClient.call('session_transcript_read', { sessionId });
+  assert.deepEqual(durableHistory.messages.map(item => item.text), [literal]);
+  const original = await recoveredClient.call('session_read', { sessionId });
+  const recoveredHistory = await recoveredClient.call('session_recover', { sessionId, expectedRevision: original.session.revision, key: key() });
+  assert.equal(recoveredHistory.session.goal, 'Check literal shared text');
+  assert.equal(recoveredHistory.handoff.sessionId, sessionId);
+  assert.equal(recoveredHistory.handoff.recovery.exactTranscript.totalMessages, 1);
+  assert.ok(!JSON.stringify(recoveredHistory.handoff).includes(literal));
   const recovered = rowFor(await listDirectory(foreignC, primary.projectId), primary);
   assert.deepEqual(recovered.progress, active.progress);
   assert.equal(recovered.latestOutcome.result, 'pass');
@@ -251,7 +281,8 @@ try {
       primaryConfirmingBriefs: 3, initialMisses: 3, foreignWorkspacesChecked: 2, foreignMemoryMatches: 0 },
     knowledge: { savedNotes: 1, receivedMatchedText: true, receivedMemoryId: true, referenceState: evidence.state, referenceCount: 1,
       requestArgumentBytes: requestReceipt.argumentBytes, returnedTextBytes: deliveredReceipt.resultTextBytes, returnedMemoryIds: 1 },
-    handoff: { savedCheckpoints: 1, resumedByAnotherClient: 1, checkpointDigestMatched: true, foreignReadsDenied: 1, persistedAfterRestart: true },
+    exactHistory: { crossClientRead: true, recoveredByAnotherClientAfterRestart: true, preservedUnicodeWhitespace: true, duplicateReplayStoredOnce: true, survivedRestart: true, unrelatedBriefExcluded: true, foreignProjectBlocked: true },
+    handoff: { taskDiscoveryMatched: true, automaticBriefMatched: true, approachAndConstraintsInherited: true, savedCheckpoints: 1, resumedByAnotherClient: 1, checkpointDigestMatched: true, foreignReadsDenied: 1, persistedAfterRestart: true },
     portfolio: { visibleBeforeForget: observed.total, observedConnectionsByWorkspace: [2, 1, 1], reportedSessions: active.sessions.length,
       completedTasks: active.progress.completed, totalTasks: active.progress.total, latestOutcome: active.latestOutcome.result,
       acceptedArtifactDigestMatched: true, reportedPhase: report.phase, modelReceiptMatched: true, privateTextFieldsExposed: 0, persistedAfterRestart: true },

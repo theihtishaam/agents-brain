@@ -46,6 +46,12 @@ The managed project-instruction section points relevant tasks to the installed s
 
 Other clients can use the portable layout if they support it, or read an installed `SKILL.md` explicitly. An MCP-capable client can retrieve the same guidance through the tools below. There is no claim that every client automatically discovers these files.
 
+## Start with project memory and save progress
+
+The installed project instructions and project-local MCP connection guide cooperating agents to call `project_brief` once at the start of a substantive task or continuation. For work authorized for project sharing, the host opens a session for new work or resumes an identified checkpoint, then saves concise checkpoints at milestones and before an authorized handoff or subagent transition. A useful checkpoint records verified progress, important decisions, evidence references and the next action. Project and host participation, conversation sharing, and context limits apply. Use a short, shareable query and keep private reasoning, credentials and entire transcripts out of the record.
+
+Preview and apply the same `skills install` command to update previously managed project instructions and the workflow skill. Reload the client after applying the update. If your client uses only MCP, its behavior depends on whether it consumes server instructions. You can also ask it to call `project_brief` directly and verify the call in the Hub’s activity feed. [Project sessions](SESSIONS.md)
+
 ## What each skill contributes
 
 | Skill | Purpose |

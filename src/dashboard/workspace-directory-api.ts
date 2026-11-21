@@ -33,7 +33,7 @@ type Registration = Index['projects'][number];
 type DirectoryPhase = 'understand' | 'plan' | 'work' | 'verify';
 type DirectoryHost = { id: DiscoverableHostId; label: string; connections: number };
 type DirectorySession = {
-  id: string; title: string; host: DiscoverableHostId | null; reportedStatus: 'working' | 'waiting' | 'completed' | null;
+  id: string; title: string; hasCheckpoint: boolean; host: DiscoverableHostId | null; reportedStatus: 'working' | 'waiting' | 'completed' | null;
   lastReportedAt: string | null; phase: DirectoryPhase | null; phaseReportedAt: string | null;
   requestModel: string | null; responseModel: string | null; reasoningEffort: string | null; modelReportedAt: string | null;
 };
@@ -67,7 +67,7 @@ function hasProjectEvidence(project: ReturnType<typeof projectStorage>) {
 
 function emptyProject(entry: Registration, status: Exclude<ProjectStatus, 'available'>) {
   return { ...entry, status, hosts: null, sessions: null, latestOutcome: null, progress: null,
-    policyRevision: null, codexIndexAllowed: status === 'private' ? false : null };
+    policyRevision: null, codexIndexAllowed: status === 'private' ? false : null, opencodeIndexAllowed: status === 'private' ? false : null };
 }
 
 function directoryProject(entry: Registration, inspectReports: boolean, observeCodex: boolean) {
@@ -84,7 +84,7 @@ function directoryProject(entry: Registration, inspectReports: boolean, observeC
       const host = reportedHost(raw);
       return toolParticipates(policy, raw) && (!host || (!excluded.has(host) && toolParticipates(policy, host)));
     };
-    const nativePermission = { policyRevision: policy.revision, codexIndexAllowed: hostAllowed('codex') };
+    const nativePermission = { policyRevision: policy.revision, codexIndexAllowed: hostAllowed('codex'), opencodeIndexAllowed: hostAllowed('opencode') };
     if (!hasEvidence) return { ...emptyProject(entry, 'awaiting-host'), ...nativePermission };
     const flags = new FeatureSettingsStore({ filePath: project.settingsPath }).get().features;
     let hosts: DirectoryHost[] | null = null;
@@ -129,7 +129,7 @@ function directoryProject(entry: Registration, inspectReports: boolean, observeC
           value.agent === tool && value.sessionId === session.hostSessionId;
         const phase = events.findLast(event => event.kind === 'phase' && event.source === 'reported' && matches(event));
         const model = reports.findLast(report => matches(report) && (report.requestModel || report.responseModel || report.reasoningEffort));
-        return { id: session.id, title: typeof session.title === 'string' ? session.title.slice(0, 120) : 'Untitled session',
+        return { id: session.id, hasCheckpoint: !!session.latestCheckpointId, title: typeof session.title === 'string' ? session.title.slice(0, 120) : 'Untitled session',
           host: reportedHost(tool) ?? null,
           reportedStatus: ['working', 'waiting', 'completed'].includes(session.reportedStatus) ? session.reportedStatus : null,
           lastReportedAt: timestamps(session.lastReportedAt), phase: phase?.phase ?? null, phaseReportedAt: phase?.timestamp ?? null,

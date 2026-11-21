@@ -2,6 +2,10 @@
 
 ## 7.25.0
 
+- Agents working in the same project can find a checkpoint by task and resume its goal, constraints and next step. Interrupted work can be recovered from the last shared updates.
+- Added opt-in exact visible-message capture, per-chat sharing controls and a follow option for a selected Codex conversation. A warm client sees changes to access on its next request.
+- The dashboard brings saved work, cited memory points and measured host activity into the overview. A reviewed project file can supply knowledge and a passing outcome with evidence can draft a lesson.
+
 Added opt-in project host discovery and configuration, immediate project and tool admission controls, measured payload sizes, a live agent topology, a compact shared project briefing for MCP clients, project file navigation and context lookup, usage coverage and filters, and accessible theme and context actions. [Release guide](docs/launch/RELEASE_NOTES_v7.25.0.md)
 
 ## [7.22.2] - 2026-11-15 - Live download badge

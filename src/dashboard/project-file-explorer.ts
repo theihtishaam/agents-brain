@@ -1,5 +1,7 @@
 import { lstatSync, opendirSync, realpathSync, type BigIntStats } from 'node:fs';
 import { join, parse, relative, sep } from 'node:path';
+import { readProjectFile } from '../brain/project-kit-paths.js';
+import { SOURCE_LIMITS } from '../brain/project-source-contract.js';
 import { projectFileNameAllowed, projectFileRootAllowed } from './project-file-paths.js';
 
 export const PROJECT_FILE_LIMITS = { scanned: 1000, pageSize: 100, pathBytes: 1024, depth: 24 } as const;
@@ -78,6 +80,18 @@ export class ProjectFileExplorer {
     if (!projectFileRootAllowed(root)) return;
     try { this.rootIdentity = resolveDirectory(root, []).pop()?.stat; }
     catch { /* The file surface stays unavailable if the root cannot be pinned. */ }
+  }
+
+  readDocument(input: Record<string, unknown>) {
+    if (Object.keys(input).length !== 1 || typeof input.path !== 'string') throw new FileExplorerError('Choose a project document.', 400);
+    const { path, parts } = parseListing(new URLSearchParams({ path: input.path }));
+    const name = parts.at(-1);
+    if (!name || !/\.(?:md|markdown|txt)$/iu.test(name) || !this.rootIdentity) throw unavailable();
+    const parents = resolveDirectory(this.root, parts.slice(0, -1), this.rootIdentity);
+    const bytes = readProjectFile(this.root, path, SOURCE_LIMITS.bytes);
+    checkDirectoryChain(parents);
+    if (!bytes) throw unavailable();
+    return { path, name, bytes };
   }
 
   list(search: URLSearchParams) {

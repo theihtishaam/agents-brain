@@ -110,7 +110,20 @@ it('enforces sharing, lineage, and context ceilings across a warm MCP client and
     expect(response.status).toBe(200);
     return response.json();
   };
+  const resumeTask = { query: 'HiddenPolicyCheckpoint' };
+  expect(result(await call('project_brief', resumeTask))).toContain(checkpoint.sha256);
+  const checkpointPreview = () => fetch(portal.url + '/api/workspace/context', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: resumeTask.query, projectId: id, profile: 'adaptive' }) }).then(r => r.json());
+  expect((await checkpointPreview()).continuation).toMatchObject({ checkpointId: checkpoint.id, sessionId: parent.id });
+  await settings.update({ checkpointContext: false }, settings.get().revision);
+  expect(result(await call('project_brief', resumeTask))).not.toContain(checkpoint.sha256);
+  expect((await checkpointPreview()).continuation).toBeUndefined();
+  expect(result(await call('session_handoffs', { query: resumeTask.query }))).toContain(checkpoint.sha256);
+  await settings.update({ checkpointContext: true }, settings.get().revision);
+  expect(result(await call('project_brief', { query: 'unrelated vegetables' }))).not.toContain(checkpoint.sha256);
   await set({ kind: 'set-chat-sharing', sessionId: parent.id, shareContext: false });
+  expect(result(await call('project_brief', resumeTask))).not.toContain(checkpoint.sha256);
+  expect((await checkpointPreview()).continuation).toBeUndefined();
   const controls = await set({ kind: 'set-chat-sharing', sessionId: imported.id, shareContext: false });
   expect(controls.chats.find((row: { id: string }) => row.id === child.id)).toMatchObject({ inheritedBlocked: true });
   await set({ kind: 'set-context-limits', context: { maxTokens: 330, maxEntries: 1 } });
@@ -124,9 +137,11 @@ it('enforces sharing, lineage, and context ceilings across a warm MCP client and
     expect((await rpc('resources/read', { uri: `shadow-brain://projects/${id}/memories/${memoryId}` })).error).toBeDefined();
   }
   expect(result(await call('memory_inspect', { memoryId: allowed }))).not.toContain('HiddenPolicyLink');
+  expect(result(await call('session_handoffs'))).not.toMatch(/HiddenPolicy|Reviewed transcript/u);
   expect(result(await call('session_list'))).not.toMatch(/HiddenPolicy|Reviewed transcript/u);
   expect(result(await call('session_read', { sessionId: child.id }))).toContain('SESSION_SHARING_OFF');
   expect(result(await call('session_checkpoint_read', { sessionId: parent.id, checkpointId: checkpoint.id }))).toContain('SESSION_SHARING_OFF');
+  expect(result(await call('session_recover', { sessionId: parent.id, expectedRevision: sessions.read(parent.id).session.revision, ...key() }))).toContain('SESSION_SHARING_OFF');
   expect(result(await call('session_resume', { sessionId: parent.id, checkpointId: checkpoint.id, sha256: checkpoint.sha256, ...key() }))).toContain('SESSION_SHARING_OFF');
   expect(sessions.read(parent.id).checkpoints).toHaveLength(1);
   const options = { projectId: id, query: 'policyneedle', profile: 'adaptive', tokenBudget: 12000, maxEntries: 30 };

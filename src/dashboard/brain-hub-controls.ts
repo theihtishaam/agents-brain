@@ -1,4 +1,16 @@
 export const BRAIN_HUB_CONTROLS = String.raw`
+function exactCaptureSetup(enabled){
+  if(!local)return '';
+  const projectId=state.server?.project?.id??state.project;
+  const counts=enabled&&projectId&&state.connection==='reachable'&&!state.errors.sessions&&state.sessions?.projectId===projectId?
+    arr(state.sessions.sessions).map(session=>session.exactTranscript?.totalMessages).filter(count=>Number.isSafeInteger(count)&&count>=0):[];
+  const total=counts.reduce((sum,count)=>sum+count,0);
+  const label=!enabled?'Capture disabled':counts.length?fmt(total)+' exact '+(total===1?'message':'messages')+' recorded across '+
+    fmt(counts.length)+' enrolled project '+(counts.length===1?'conversation':'conversations'):'Exact message counts unreported';
+  return '<div class="stack"><p id="exact-capture-coverage" class="small"><strong>'+esc(label)+'</strong></p>'+
+    '<p class="small muted">Installation and MCP connection are separate from capture. A compatible host must enroll the conversation and send its original messages. Task briefs still use selected evidence and saved next steps.</p>'+
+    (enabled?'<div class="actions">'+btn('Open Sessions','id="exact-capture-sessions" data-view="sessions"','quiet')+'</div>':'')+'</div>';
+}
 function projectControls(){
   if(!local)return '';
   if(state.errors.policy)return panel('Project sharing',error('policy','project controls'));

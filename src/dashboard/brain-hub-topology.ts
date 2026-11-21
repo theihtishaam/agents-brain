@@ -55,6 +55,7 @@ function topologyState(){
   if(state.connection!=='reachable'||!state.live)return ['review','Waiting for activity'];
   if(state.recording===false)return ['review','Recording off'];
   if(state.motionPaused||reduced.matches)return ['review','Motion off'];
+  if(local&&!currentDockConnections().length&&!arr(state.events).some(exchangeKey))return ['review','Awaiting MCP activity'];
   return ['ready','Observing MCP traffic'];
 }
 const topologyOperations=[
@@ -176,15 +177,18 @@ const topologyToolName=tool=>tool==='mcp-client'?'MCP client':hostName(tool);
 function topologyTool(slot,extra=false){
   const {tool,records}=slot;
   const connected=records.filter(record=>record.presence).length;
+  const indexed=records.filter(record=>record.index);
   const text=connected?(connected===1?'MCP connected':fmt(connected)+' MCP connections'):
     records.some(record=>record.kind==='connection'&&record.event)?'Recorded MCP activity':
+    indexed.length?topologyToolName(tool)+' index · '+fmt(indexed.length)+' '+(indexed.length===1?'title':'titles'):
     records.some(record=>record.session)?'Recorded session':'Reported activity';
   const latest=records.reduce((prior,record)=>record.event&&(!prior||record.event.sequence>prior.sequence)?record.event:prior,null);
   const operation=latest?exchangeKey(latest)?latest.tool+' · '+exchangeLabel(latest):eventLabel(latest)+' · '+evidence(latest):null;
-  const recorded=operation?'<span class="topology-recorded" title="'+esc(operation+' · '+time(latest.timestamp))+'">'+esc(operation)+'</span>':'';
+  const recorded=operation?'<span class="topology-recorded" title="'+esc(operation+' · '+time(latest.timestamp))+'">'+esc(operation)+'</span>':
+    indexed.length?'<span class="topology-recorded" title="'+esc(indexed[0].index.thread.name)+'">'+esc(indexed[0].index.thread.name)+'</span>':'';
   const name=esc(topologyToolName(tool));
   return '<li class="topology-node"'+(extra?'':' data-side="'+(slot.left?'left':'right')+'" style="--node-x:'+(slot.x/10)+'%;--node-y:'+(slot.y/4)+'%"')+'>'+
-    '<button class="topology-tool" type="button" data-topology-tool data-connected="'+!!connected+'" data-dock-tool="'+esc(tool)+'" aria-expanded="'+(tool===dockTool)+'" aria-controls="tool-dock-details">'+
+    '<button class="topology-tool" type="button" data-topology-tool data-connected="'+!!connected+'" data-indexed="'+(!connected&&indexed.length>0)+'" data-dock-tool="'+esc(tool)+'" aria-expanded="'+(tool===dockTool)+'" aria-controls="tool-dock-details">'+
     toolMark(tool)+'<span class="topology-node-text"><strong title="'+name+'">'+name+'</strong><small><i class="topology-state-dot" aria-hidden="true"></i>'+
     esc(text)+'</small>'+recorded+'</span><span class="topology-traffic" hidden></span></button></li>';
 }
@@ -198,7 +202,8 @@ function topologyMarkup({tools,connections:identities}){
     fmt(connections)+' connected via MCP';
   const paths=slots.map(slot=>{
     const connected=slot.records.some(record=>record.presence);
-    return '<path class="topology-strand" data-strand-tool="'+esc(slot.tool)+'" data-connected="'+connected+'" data-selected="'+(slot.tool===dockTool)+
+    const indexed=slot.records.every(record=>record.index);
+    return '<path class="topology-strand" data-strand-tool="'+esc(slot.tool)+'" data-connected="'+connected+'" data-indexed="'+indexed+'" data-selected="'+(slot.tool===dockTool)+
       '" d="'+topologyRoute(slot,'request')+'"/>';
   }).join('');
   const extra=ranked.slice(topologyCapacity);
@@ -305,6 +310,7 @@ export const BRAIN_HUB_TOPOLOGY_CSS = String.raw`
 .topology-wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .topology-wires path{fill:none;vector-effect:non-scaling-stroke}
 .topology-strand{stroke:#58718a;stroke-width:1.08;stroke-dasharray:2 5;stroke-linecap:round}
+.topology-strand[data-indexed=true]{stroke:#8e79a8;stroke-dasharray:2 6}
 .topology-strand[data-connected=true]{stroke:url(#topology-strand-light);stroke-width:1.56;stroke-dasharray:none;filter:drop-shadow(0 0 3.7px #53cdf65d)}
 .topology-strand[data-selected=true]{stroke:var(--cyan);stroke-width:1.85}
 .topology-core{position:absolute;left:50%;top:46%;transform:translate(-50%,-44%);width:clamp(174px,27vw,315px);
@@ -369,6 +375,7 @@ export const BRAIN_HUB_TOPOLOGY_CSS = String.raw`
 .topology-nodes [data-side=right] .topology-tool::before{left:-4px}
 .topology-nodes .topology-tool[data-connected=true]::before{background:#bcfbeb;border-color:#bcfbeb;box-shadow:0 0 5px #91fff0ab}
 .topology-tool[data-connected=true] .topology-node-text small{color:var(--green)}
+.topology-tool[data-indexed=true] .topology-node-text small{color:var(--blue)}
 .topology-tool:hover,.topology-tool[aria-expanded=true]{border-color:#80bdcf;background:#192f44}
 .topology-tool:focus-visible{outline-offset:3px}
 .topology-tool .tool-mark{flex:none;width:29px;height:29px}
@@ -401,6 +408,7 @@ export const BRAIN_HUB_TOPOLOGY_CSS = String.raw`
 }
 :root[data-hub-theme=daylight] .topology-dock{--topology-request:#225caa;--topology-result:#a34d0c}
 :root[data-hub-theme=daylight] .topology-strand{stroke:#8197aa}
+:root[data-hub-theme=daylight] .topology-strand[data-indexed=true]{stroke:#7271a2}
 :root[data-hub-theme=daylight] .topology-strand[data-connected=true]{stroke:#397385;filter:none}
 :root[data-hub-theme=daylight] .cortex-depth{opacity:.73;filter:saturate(.63) contrast(.99)}
 :root[data-hub-theme=daylight] .topology-memory-point{color:#fff1cc}

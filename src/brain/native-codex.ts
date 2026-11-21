@@ -3,20 +3,25 @@ import { lstatSync } from 'node:fs';
 import * as path from 'node:path';
 import { digest } from './project-hub-store.js';
 import { projectRoot } from './project-kit-paths.js';
-import type { NativeSessionSnapshot } from './native-session-import.js';
+import { NATIVE_MESSAGE_CHARS, NATIVE_SESSION_BYTES, type NativeSessionSnapshot } from './native-session-import.js';
+import { SESSION_LIMITS } from './project-session-contract.js';
 
 const MAX_REPLY = 2 * 1024 * 1024;
 const TIMEOUT = 12_000;
 const LIFETIME = 15 * 60_000;
 const PAGE_SIZE = 25;
+const WORKSPACE_SOURCES = ['cli', 'vscode', 'appServer'];
+// The remaining bytes cover snapshot metadata and array separators.
+const MESSAGE_PAGE_BYTES = NATIVE_SESSION_BYTES - 16 * 1024;
 const controls = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
+const loneSurrogate = /[\uD800-\uDFFF]/u;
 const identifier = /^[A-Za-z0-9_-]{1,128}$/u;
 export class NativeCodexError extends Error {
   constructor(readonly code: string, message: string, readonly status = 400) { super(message); this.name = 'NativeCodexError'; }
 }
 export interface NativeCodexRpc { request(method: string, params: object): Promise<unknown>; notify(method: string, params: object): void; close(): void; isOpen?(): boolean }
 export type NativeCodexFactory = () => NativeCodexRpc;
-export type NativeCodexThread = { id: string; sessionId: string | null; parentThreadId: string | null; name: string | null; cwd: string; createdAt: string | null; updatedAt: string | null; status: { type: 'notLoaded' | 'idle' | 'systemError' | 'active' | 'unknown'; activeFlags?: string[] }; archived: boolean };
+export type NativeCodexThread = { id: string; sessionId: string | null; parentThreadId: string | null; name: string | null; cwd: string; createdAt: string | null; updatedAt: string | null; agentNickname?: string; agentRole?: string; provider?: string; subagentKind?: string; forkedFromId?: string; status: { type: 'notLoaded' | 'idle' | 'systemError' | 'active' | 'unknown'; activeFlags?: string[] }; archived: boolean };
 export type NativeCodexMessage = { id: string; locator: string; role: 'user' | 'assistant'; text: string; phase?: 'commentary' | 'partial_answer' | 'final_answer' };
 const invalid = (message: string): never => { throw new NativeCodexError('CODEX_INVALID', message); };
 const failed = (): NativeCodexError => new NativeCodexError('CODEX_UNAVAILABLE', 'The Codex connection could not complete the read. Check the local CLI and reconnect.', 503);
@@ -24,6 +29,73 @@ const obj = (value: unknown): Record<string, unknown> => value && typeof value =
 const stamp = (value: unknown): string | null => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) < 8640000000000 ? new Date(value * 1000).toISOString() : null;
 function rememberCursor(set: Set<string>, value: string, limit: number): void { set.delete(value); set.add(value); if (set.size > limit) set.delete(set.values().next().value!); }
 const cursorValue = (value: unknown): string | null => value === null || value === undefined ? null : typeof value === 'string' && value.length > 0 && value.length <= 1000 && !controls.test(value) ? value : invalid('Invalid pagination cursor.');
+
+function messageSections(text: string, source: Omit<NativeCodexMessage, 'text'>): NativeCodexMessage[] {
+  if (text.length <= NATIVE_MESSAGE_CHARS) {
+    return [{ ...source, id: source.id.length <= 128 ? source.id : digest(source.locator), text }];
+  }
+  const sections: NativeCodexMessage[] = [];
+  for (let start = 0; start < text.length;) {
+    let end = Math.min(text.length, start + NATIVE_MESSAGE_CHARS);
+    const lead = text.charCodeAt(end - 1), trail = text.charCodeAt(end);
+    if (lead >= 0xd800 && lead <= 0xdbff && trail >= 0xdc00 && trail <= 0xdfff) end--;
+    const locator = `${source.locator}#utf16=${start},${end}`;
+    sections.push({ ...source, id: digest(locator), locator, text: text.slice(start, end) });
+    start = end;
+  }
+  return sections;
+}
+
+function boundedMessages(data: unknown[]) {
+  const visible: NativeCodexMessage[][] = [];
+  let omitted = 0, invalidText = 0;
+  function append(text: unknown, source: Omit<NativeCodexMessage, 'text'>) {
+    if (typeof text !== 'string' || !text.trim() || controls.test(text) || loneSurrogate.test(text)) { omitted++; invalidText++; return; }
+    visible.push(messageSections(text, source));
+  }
+  for (const raw of [...data].reverse()) {
+    const item = obj(obj(raw).item);
+    const id = typeof item.id === 'string' && identifier.test(item.id) ? item.id : invalid('A native message has an invalid identifier.');
+    if (item.type === 'userMessage') {
+      if (!Array.isArray(item.content)) { omitted++; invalidText++; continue; }
+      for (const [index, part] of item.content.entries()) {
+        const segment = obj(part);
+        if (segment.type === 'text') append(segment.text, { id: `${id}:${index}`, locator: `/items/${id}/content/${index}`, role: 'user' });
+        else omitted++;
+      }
+    } else if (item.type === 'agentMessage') {
+      const phase = item.phase === 'commentary' || item.phase === 'partial_answer' || item.phase === 'final_answer' ? item.phase : undefined;
+      if (item.phase !== undefined && item.phase !== null && phase === undefined) omitted++;
+      else append(item.text, { id, locator: `/items/${id}`, role: 'assistant', ...(phase ? { phase } : {}) });
+    } else omitted++;
+  }
+
+  const retained = visible.map((): NativeCodexMessage[] => []);
+  let count = 0, remaining = MESSAGE_PAGE_BYTES, capacityOmitted = 0;
+  function retain(sections: NativeCodexMessage[], kept: NativeCodexMessage[]) {
+    let added = 0;
+    for (const message of sections) {
+      if (count >= SESSION_LIMITS.messages) break;
+      const bytes = Buffer.byteLength(JSON.stringify({ ...message, createdAt: null })) + 1;
+      if (bytes > remaining) break;
+      kept.push(message);
+      added++;
+      count++;
+      remaining -= bytes;
+    }
+    capacityOmitted += sections.length - added;
+  }
+  // Preserve ordinary messages first, then one section from each long message.
+  visible.forEach((sections, index) => { if (sections.length === 1) retain(sections, retained[index]); });
+  visible.forEach((sections, index) => { if (sections.length > 1) retain(sections.slice(0, 1), retained[index]); });
+  visible.forEach((sections, index) => {
+    if (sections.length <= 1) return;
+    if (retained[index].length) retain(sections.slice(1), retained[index]);
+    else capacityOmitted += sections.length - 1;
+  });
+  return { messages: retained.flat(), omitted: omitted + capacityOmitted, capacityOmitted, invalidText };
+}
+
 function sameRoot(a: string, b: string): boolean {
   try {
     // The project helper validates real directory ancestry before resolving physical spelling.
@@ -37,11 +109,20 @@ function normalizeThread(value: unknown, root: string, archived: boolean): Nativ
   if (typeof t.id !== 'string' || !identifier.test(t.id) || typeof t.cwd !== 'string' || !path.isAbsolute(t.cwd) || !sameRoot(t.cwd, root)) invalid('A returned thread did not match this project.');
   if (t.name !== null && t.name !== undefined && (typeof t.name !== 'string' || !t.name.trim() || t.name.length > 512 || /[\u0000-\u001f\u007f]/u.test(t.name))) invalid('A native thread name could not be represented exactly.');
   const group = t.sessionId === null || t.sessionId === undefined ? null : typeof t.sessionId === 'string' && identifier.test(t.sessionId) ? t.sessionId : invalid('Invalid native session identity.');
-  const parent = t.parentThreadId ?? t.forkedFromId ?? null;
+  const sub = obj(t.source).subAgent, spawnSource = obj(obj(sub).thread_spawn);
+  const parent = t.parentThreadId ?? spawnSource.parent_thread_id ?? null;
+  const label = (value: unknown) => typeof value === 'string' && value.trim() && value.length <= 128 && !/[\u0000-\u001f\u007f]/u.test(value) ? value : undefined;
+  const nickname = label(t.agentNickname ?? spawnSource.agent_nickname), role = label(t.agentRole ?? spawnSource.agent_role);
+  const provider = label(t.modelProvider);
+  const subagentKind = typeof sub === 'string' && ['review', 'compact', 'memory_consolidation'].includes(sub) ? sub :
+    sub || parent ? 'subagent' : undefined;
+  const fork = typeof t.forkedFromId === 'string' && identifier.test(t.forkedFromId) ? t.forkedFromId : undefined;
   if (parent !== null && (typeof parent !== 'string' || !identifier.test(parent))) invalid('Invalid native parent identity.');
   const type = ['notLoaded', 'idle', 'systemError', 'active'].includes(String(status.type)) ? status.type as NativeCodexThread['status']['type'] : 'unknown';
   const flags = Array.isArray(status.activeFlags) ? status.activeFlags.filter((x): x is string => x === 'waitingOnApproval' || x === 'waitingOnUserInput').slice(0, 2) : [];
-  return { id: t.id as string, sessionId: group, parentThreadId: parent as string | null, name: (t.name ?? null) as string | null, cwd: root, createdAt: stamp(t.createdAt), updatedAt: stamp(t.updatedAt), status: { type, ...(flags.length ? { activeFlags: flags } : {}) }, archived };
+  return { id: t.id as string, sessionId: group, parentThreadId: parent as string | null, name: (t.name ?? null) as string | null, cwd: root,
+    ...(nickname ? { agentNickname: nickname } : {}), ...(role ? { agentRole: role } : {}), ...(provider ? { provider } : {}),
+    ...(subagentKind ? { subagentKind } : {}), ...(fork ? { forkedFromId: fork } : {}), createdAt: stamp(t.createdAt), updatedAt: stamp(t.updatedAt), status: { type, ...(flags.length ? { activeFlags: flags } : {}) }, archived };
 }
 
 /** Locate a fixed, directly executable official npm package binary; never run a shell or accept user arguments. */
@@ -64,7 +145,8 @@ export class NativeCodexStdioRpc implements NativeCodexRpc {
   private next = 0;
   private closed = false;
   private readonly pending = new Map<number, { method: string; resolve(value: unknown): void; reject(error: Error): void; timer: NodeJS.Timeout }>();
-  constructor(launch: () => ChildProcessWithoutNullStreams = () => spawn(codexBinary(), ['app-server', '--stdio'], { windowsHide: true, stdio: 'pipe', shell: false }), private readonly timeoutMs = TIMEOUT) {
+  constructor(launch: () => ChildProcessWithoutNullStreams = () => spawn(codexBinary(), ['app-server', '--stdio'], { windowsHide: true, stdio: 'pipe', shell: false }),
+    private readonly timeoutMs = TIMEOUT, private readonly jsonRpcVersion = false) {
     this.child = launch();
     this.child.stderr.resume();
     this.child.stdin.on('error', () => this.close());
@@ -96,10 +178,12 @@ export class NativeCodexStdioRpc implements NativeCodexRpc {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(failed()); this.close(); }, Math.max(1, Math.min(TIMEOUT, this.timeoutMs)));
       this.pending.set(id, { method, resolve, reject, timer });
-      this.child.stdin.write(JSON.stringify({ id, method, params }) + '\n', error => { if (error) this.close(); });
+      this.child.stdin.write(JSON.stringify({ ...(this.jsonRpcVersion ? { jsonrpc: '2.0' } : {}), id, method, params }) + '\n', error => { if (error) this.close(); });
     });
   }
-  notify(method: string, params: object): void { if (!this.closed) this.child.stdin.write(JSON.stringify({ method, params }) + '\n', error => { if (error) this.close(); }); }
+  notify(method: string, params: object): void { if (!this.closed) this.child.stdin.write(JSON.stringify({
+    ...(this.jsonRpcVersion ? { jsonrpc: '2.0' } : {}), method, params,
+  }) + '\n', error => { if (error) this.close(); }); }
   isOpen(): boolean { return !this.closed; }
   close(): void {
     if (this.closed) return; this.closed = true;
@@ -110,6 +194,7 @@ export class NativeCodexStdioRpc implements NativeCodexRpc {
 
 export class NativeCodexConnection {
   private rpc?: NativeCodexRpc;
+  private recentIndexSupported = false;
   private expires?: NodeJS.Timeout;
   private connectedAt: string | null = null;
   private generation = 0;
@@ -123,62 +208,87 @@ export class NativeCodexConnection {
     if (this.rpc) { if (!this.connectedAt) throw new NativeCodexError('CODEX_CONNECTING', 'The Codex connection is still starting.', 409); return this.status(); }
     const rpc = this.factory(); this.rpc = rpc;
     try {
-      await rpc.request('initialize', { clientInfo: { name: 'shadow_brain', title: 'Agent Shadow Brain', version: '7.25.0' }, capabilities: { experimentalApi: true, requestAttestation: false } });
+      const info = obj(await rpc.request('initialize', { clientInfo: { name: 'shadow_brain', title: 'Agent Shadow Brain', version: '7.25.0' }, capabilities: { experimentalApi: true, requestAttestation: false } }));
       if (this.rpc !== rpc) throw failed();
+      // The stable 0.169.1 app-server schema documents currentAccountOnly and DB-only listing.
+      const version = typeof info.userAgent === 'string' && /^shadow_brain\/(\d+)\.(\d+)\.(\d+)(?:\s|$)/u.exec(info.userAgent);
+      this.recentIndexSupported = !!version && (+version[1] > 0 || +version[2] > 169 || +version[2] === 169 && +version[3] >= 1);
       rpc.notify('initialized', {}); this.connectedAt = new Date(this.now()).toISOString();
       this.expires = setTimeout(() => this.close(), LIFETIME); this.expires.unref(); return this.status();
     } catch { if (this.rpc === rpc) this.close(); else rpc.close(); throw failed(); }
   }
-  close() { this.generation++; if (this.expires) clearTimeout(this.expires); this.expires = undefined; this.rpc?.close(); this.rpc = undefined; this.connectedAt = null; this.allowed.clear(); this.itemCursors.clear(); this.listCursors.get(false)!.clear(); this.listCursors.get(true)!.clear(); }
+  close() { this.generation++; if (this.expires) clearTimeout(this.expires); this.expires = undefined; this.rpc?.close(); this.rpc = undefined; this.connectedAt = null; this.recentIndexSupported = false; this.allowed.clear(); this.itemCursors.clear(); this.listCursors.get(false)!.clear(); this.listCursors.get(true)!.clear(); }
   private active() { if (this.rpc?.isOpen && !this.rpc.isOpen()) this.close(); return this.connectedAt && this.rpc ? this.rpc : invalid('Connect Codex before reading project conversations.'); }
+  private async indexedPage(params: object) {
+    const rpc = this.active(), generation = this.generation;
+    const response = obj(await rpc.request('thread/list', { limit: PAGE_SIZE, sortKey: 'updated_at', modelProviders: [],
+      useStateDbOnly: true, ...params }));
+    if (generation !== this.generation || rpc !== this.rpc) throw failed();
+    if (!Array.isArray(response.data) || response.data.length > PAGE_SIZE || !Object.hasOwn(response, 'nextCursor')) throw failed();
+    return { data: response.data, nextCursor: cursorValue(response.nextCursor), observedAt: new Date(this.now()).toISOString() };
+  }
+  /** Read scoped index metadata with a cursor validated by the workspace directory. */
+  async directoryPage(cursor: string | null = null, archived = false, currentAccountOnly = false) {
+    const { data, ...page } = await this.indexedPage({ cwd: this.root, cursor: cursorValue(cursor), archived,
+      ...(currentAccountOnly ? { currentAccountOnly: true } : {}),
+      sourceKinds: ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther', 'unknown'] });
+    return { ...page, threads: data.map(item => normalizeThread(item, this.root, archived)) };
+  }
+  /** Discover candidate roots from the official index without returning thread names or contents. */
+  async discoverWorkspaceRoots(cursor: string | null = null, createdAfter?: number) {
+    if (createdAfter !== undefined && !this.recentIndexSupported) {
+      throw new NativeCodexError('CODEX_RECENT_INDEX_UNAVAILABLE', 'Recent workspace changes require a supported stable Codex app-server (0.169.1 or later).', 409);
+    }
+    const { data, ...page } = await this.indexedPage({ cursor: cursorValue(cursor), archived: false, currentAccountOnly: true,
+      sourceKinds: WORKSPACE_SOURCES });
+    const roots = data.flatMap(item => {
+      const row = obj(item);
+      if (typeof row.cwd !== 'string' || row.cwd.length > 2048 || typeof row.id !== 'string' || !identifier.test(row.id)) return [];
+      const updatedAt = stamp(row.updatedAt);
+      if (createdAfter !== undefined) {
+        const created = Date.parse(stamp(row.createdAt) ?? '');
+        const updated = Date.parse(updatedAt ?? '');
+        if (row.ephemeral !== false || row.parentThreadId !== null || row.forkedFromId !== null ||
+            typeof row.source !== 'string' || !WORKSPACE_SOURCES.includes(row.source) ||
+            !(created > createdAfter && updated >= created && updated <= Date.parse(page.observedAt))) return [];
+      }
+      return [{ cwd: row.cwd, threadId: row.id, updatedAt }];
+    });
+    return { ...page, roots };
+  }
   async list(archived = false, cursor: string | null = null) {
     cursor = cursorValue(cursor);
     if (cursor && !this.listCursors.get(archived)!.has(cursor)) invalid('Use a cursor returned by this project connection.');
-    const rpc = this.active(), generation = this.generation;
-    const response = obj(await rpc.request('thread/list', { cwd: this.root, limit: PAGE_SIZE, cursor, sortKey: 'updated_at', archived, modelProviders: [], useStateDbOnly: true,
-      sourceKinds: ['cli', 'vscode', 'exec', 'appServer', 'subAgent', 'subAgentReview', 'subAgentCompact', 'subAgentThreadSpawn', 'subAgentOther', 'unknown'] }));
-    if (generation !== this.generation || rpc !== this.rpc) throw failed();
-    if (!Array.isArray(response.data) || response.data.length > PAGE_SIZE || !Object.hasOwn(response, 'nextCursor')) throw failed();
-    const threads = response.data.map(item => normalizeThread(item, this.root, archived));
+    const { threads, nextCursor, observedAt } = await this.directoryPage(cursor, archived);
     for (const thread of threads) { this.allowed.delete(thread.id); this.allowed.set(thread.id, thread); }
     while (this.allowed.size > 500) { const expired = this.allowed.keys().next().value!; this.allowed.delete(expired); this.itemCursors.delete(expired); }
-    const nextCursor = cursorValue(response.nextCursor); if (nextCursor) rememberCursor(this.listCursors.get(archived)!, nextCursor, 50);
-    return { connected: true, observedAt: new Date(this.now()).toISOString(), threads, nextCursor };
+    if (nextCursor) rememberCursor(this.listCursors.get(archived)!, nextCursor, 50);
+    return { connected: true, observedAt, threads, nextCursor };
   }
-  async read(threadId: string, cursor: string | null = null) {
+  async read(threadId: string, cursor: string | null = null, guard?: () => void) {
     if (!identifier.test(threadId) || !this.allowed.has(threadId)) invalid('Select a thread listed for this project first.');
     cursor = cursorValue(cursor);
     if (cursor && !this.itemCursors.get(threadId)?.has(cursor)) invalid('Use a cursor returned for this thread.');
     const rpc = this.active(), generation = this.generation, previous = this.allowed.get(threadId)!;
+    guard?.();
     const metadata = obj(await rpc.request('thread/read', { threadId, includeTurns: false }));
     if (generation !== this.generation || rpc !== this.rpc) throw failed();
     const thread = normalizeThread(metadata.thread, this.root, previous.archived);
     if (thread.id !== threadId) throw failed();
+    guard?.();
     const response = obj(await rpc.request('thread/items/list', { threadId, cursor, limit: PAGE_SIZE, sortDirection: 'desc' }));
     if (generation !== this.generation || rpc !== this.rpc) throw failed();
     if (!Array.isArray(response.data) || response.data.length > PAGE_SIZE || !Object.hasOwn(response, 'nextCursor')) throw failed();
-    const messages: NativeCodexMessage[] = []; let omitted = 0;
-    for (const raw of [...response.data].reverse()) {
-      const entry = obj(raw), item = obj(entry.item), id = typeof item.id === 'string' && identifier.test(item.id) ? item.id : invalid('A native message has an invalid identifier.');
-      if (item.type === 'userMessage' && Array.isArray(item.content)) {
-        for (const [index, part] of item.content.entries()) {
-          const segment = obj(part); if (segment.type !== 'text') { omitted++; continue; }
-          const text = segment.text; if (typeof text !== 'string' || !text.trim() || text.length > 8000 || controls.test(text)) invalid('A native message is unsupported or exceeds 8,000 characters.');
-          messages.push({ id: id + ':' + index, locator: `/items/${id}/content/${index}`, role: 'user', text: text as string });
-        }
-      } else if (item.type === 'agentMessage') {
-        const text = item.text; if (typeof text !== 'string' || !text.trim() || text.length > 8000 || controls.test(text)) invalid('A native message is unsupported or exceeds 8,000 characters.');
-        const phase = item.phase === 'commentary' || item.phase === 'partial_answer' || item.phase === 'final_answer' ? item.phase : undefined;
-        messages.push({ id, locator: `/items/${id}`, role: 'assistant', text: text as string, ...(phase ? { phase } : {}) });
-      } else omitted++;
-    }
-    if (messages.length > 200) invalid('This page contains too many message sections.');
+    guard?.();
+    const { messages, omitted, capacityOmitted, invalidText } = boundedMessages(response.data);
     const nextCursor = cursorValue(response.nextCursor); if (nextCursor) { const allowed = this.itemCursors.get(threadId) ?? new Set<string>(); rememberCursor(allowed, nextCursor, 20); this.itemCursors.set(threadId, allowed); }
     this.allowed.set(threadId, thread);
     const { status: _status, ...stableThread } = thread;
-    const pageCoverage = { kind: 'page' as const, direction: 'newest-first' as const, hasEarlier: nextCursor !== null, hasLater: cursor !== null, cursorSha256: cursor === null ? null : digest(cursor), omittedInPage: omitted };
+    const pageCoverage = { kind: 'page' as const, direction: 'newest-first' as const, hasEarlier: nextCursor !== null, hasLater: cursor !== null,
+      cursorSha256: cursor === null ? null : digest(cursor), omittedInPage: omitted,
+      ...(capacityOmitted > 0 ? { capacityOmittedInPage: capacityOmitted } : {}) };
     const sha256 = digest(JSON.stringify({ thread: stableThread, messages, pageCoverage }));
-    return { thread, messages, omitted, nextCursor, pageCoverage, sha256, observedAt: new Date(this.now()).toISOString() };
+    return { thread, messages, omitted, invalidText, nextCursor, pageCoverage, sha256, observedAt: new Date(this.now()).toISOString() };
   }
   async snapshot(threadId: string, cursor: string | null = null): Promise<{ snapshot: NativeSessionSnapshot; nextCursor: string | null }> {
     const page = await this.read(threadId, cursor);

@@ -5,6 +5,7 @@ import { digest } from './project-hub-store.js';
 import { ProjectSessionError, SESSION_LIMITS } from './project-session-contract.js';
 
 export const NATIVE_SESSION_BYTES = 2 * 1024 * 1024;
+export const NATIVE_MESSAGE_CHARS = 8_000;
 const toolSchema = z.enum(['codex', 'claude-code', 'opencode', 'deepseek-harness']);
 const controls = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/u;
 const titleControls = /[\x00-\x1f\x7f]/u;
@@ -12,11 +13,14 @@ const label = (limit: number) => z.string().min(1).max(limit).refine(value => va
 const timestamp = z.string().datetime().nullable();
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u);
 const message = z.strictObject({ id: label(128), locator: label(240), role: z.enum(['user', 'assistant']), createdAt: timestamp,
-  text: z.string().min(1).max(8000).refine(value => !!value.trim() && !controls.test(value)) });
+  text: z.string().min(1).max(NATIVE_MESSAGE_CHARS).refine(value => !controls.test(value)) });
+const codexSection = /^\/items\/[A-Za-z0-9_-]{1,128}(?:\/content\/\d+)?#utf16=(\d+),(\d+)$/u;
+const omittedCount = z.number().int().min(0).max(NATIVE_SESSION_BYTES);
 export const nativeSnapshot = z.strictObject({ tool: toolSchema, format: label(80), filename: label(150), sha256, sessionId: label(128),
   titleExact: label(512).nullable(), titleOrigin: z.enum(['host-name', 'host-generated', 'unavailable']), workspaceRoot: label(1024).nullable(),
-  createdAt: timestamp, updatedAt: timestamp, parentNativeId: label(128).nullable(), groupSessionId: label(128).nullable().optional(), omitted: z.number().int().min(0).max(100_000),
-  pageCoverage: z.strictObject({ kind: z.literal('page'), direction: z.literal('newest-first'), hasEarlier: z.boolean(), hasLater: z.boolean(), cursorSha256: sha256.nullable(), omittedInPage: z.number().int().min(0).max(100_000) }).optional(),
+  createdAt: timestamp, updatedAt: timestamp, parentNativeId: label(128).nullable(), groupSessionId: label(128).nullable().optional(), omitted: omittedCount,
+  pageCoverage: z.strictObject({ kind: z.literal('page'), direction: z.literal('newest-first'), hasEarlier: z.boolean(), hasLater: z.boolean(),
+    cursorSha256: sha256.nullable(), omittedInPage: omittedCount, capacityOmittedInPage: omittedCount.optional() }).optional(),
   messages: z.array(message).max(SESSION_LIMITS.messages),
 });
 export type NativeSessionSnapshot = z.infer<typeof nativeSnapshot>;
@@ -234,8 +238,16 @@ export function validateNativeSnapshot(value: unknown, root: string): NativeSess
   if (!parsed.success) return invalid('The export contains invalid fields or more than 200 visible messages.');
   const snapshot = parsed.data;
   const coverage = snapshot.pageCoverage;
-  if (coverage && (snapshot.tool !== 'codex' || snapshot.format !== 'codex-app-server-v1' || coverage.omittedInPage !== snapshot.omitted || coverage.hasLater !== (coverage.cursorSha256 !== null))) {
+  if (coverage && (snapshot.tool !== 'codex' || snapshot.format !== 'codex-app-server-v1' || coverage.omittedInPage !== snapshot.omitted ||
+      (coverage.capacityOmittedInPage ?? 0) > coverage.omittedInPage || coverage.hasLater !== (coverage.cursorSha256 !== null))) {
     invalid('The native history page coverage is inconsistent.');
+  }
+  for (const item of snapshot.messages) {
+    const range = coverage ? codexSection.exec(item.locator) : null;
+    if (range) {
+      const start = Number(range[1]), end = Number(range[2]);
+      if (end > NATIVE_SESSION_BYTES || end - start !== item.text.length) invalid('A Codex message section has an invalid text range.');
+    } else if (!item.text.trim()) invalid('An imported message is blank.');
   }
   if ((snapshot.titleOrigin === 'unavailable') !== (snapshot.titleExact === null) || snapshot.filename.startsWith('.') ||
       !/^[^\\/:*?"<>|\x00-\x1f\x7f]{1,140}\.(?:json|jsonl|zip)$/iu.test(snapshot.filename) ||

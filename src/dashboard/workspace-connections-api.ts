@@ -27,7 +27,7 @@ export class WorkspaceConnectionsApi {
 
   constructor(root: string, private readonly projectId: string, private readonly recording: () => boolean,
     private readonly discover: typeof discoverAgentHosts = discoverAgentHosts) {
-    this.manager = new WorkspaceConnections(root, projectId);
+    this.manager = new WorkspaceConnections(root, projectId, () => this.discovery().hosts.find(host => host.id === 'opencode')?.openCodeMajor);
     this.policy = new ProjectPolicyStore(root, projectId);
     this.presence = new MCPPresenceStore(root, projectId);
   }
@@ -56,7 +56,8 @@ export class WorkspaceConnectionsApi {
   private reconcile() {
     const policy = this.policy.get();
     if (policy.participationEnabled === false) return;
-    const ids = this.discovery().hosts.filter(host => host.status === 'detected' && toolParticipates(policy, host.id)).map(host => host.id);
+    const ids = this.discovery().hosts.filter(host => host.status === 'detected' && toolParticipates(policy, host.id) &&
+      (host.id !== 'opencode' || host.openCodeMajor !== undefined)).map(host => host.id);
     this.manager.reconcile(ids);
   }
 
@@ -71,13 +72,20 @@ export class WorkspaceConnectionsApi {
       hosts: settings.connectors.map(connector => {
         const found = detection.hosts.find(item => item.id === connector.id);
         const conflict = connector.status === 'modified' || connector.status === 'conflict';
+        const unknownOpenCode = connector.id === 'opencode' && connector.status === 'available' && found?.openCodeMajor === undefined;
+        const shared = connector.status === 'configured' && !connector.ownsConfiguration;
+        const evidence = found?.evidence.map(entry => (entry.kind === 'path-command' ? 'Command: ' : entry.kind === 'installed-launcher' ? 'Installed: ' : 'Extension: ') + entry.value) ?? [];
+        if (found?.openCodeMajor) evidence.push('OpenCode V' + found.openCodeMajor + ' setup');
         return { id: connector.id, label: connector.label, installation: found?.status ?? 'unknown',
-          evidence: found?.evidence.map(entry => (entry.kind === 'path-command' ? 'Command: ' : 'Extension: ') + entry.value).join(' · ') ?? '',
-          mode: connector.configurationPath ? 'workspace' : 'manual', configurationPath: connector.configurationPath,
-          configuration: conflict ? 'conflict' : connector.status === 'configured' ? 'managed' : connector.status,
+          evidence: evidence.join(' · '),
+          mode: connector.configurationPath && !unknownOpenCode ? 'workspace' : 'manual', configurationPath: connector.configurationPath,
+          configuration: conflict ? 'conflict' : shared ? 'shared' : connector.status === 'configured' ? 'managed' : unknownOpenCode ? 'manual' : connector.status,
+          locallyAllowed: connector.allowed,
           enabled: connector.allowed && toolParticipates(policy, connector.id),
           connected: presence.enabled ? presence.connections.filter(item => reportedHost(item.tool) === connector.id).length : null,
-          notes: [...(conflict ? ['Existing or changed configuration requires manual review.'] : []), ...connector.recipe.notes].join(' '),
+          notes: [...(conflict ? ['Existing or changed configuration requires manual review.'] : []),
+            ...(unknownOpenCode ? ['Confirm the installed generation with opencode --version. The recipe below uses V2. For V1, move the shadow_brain entry directly under mcp.'] : []),
+            ...(shared ? ['This project file is managed through the other host that shares .mcp.json.'] : []), ...connector.recipe.notes].join(' '),
           docs: connector.docs, recipe: connector.recipe.content };
       }) };
   }
@@ -101,6 +109,11 @@ export class WorkspaceConnectionsApi {
         await this.policy.update({ kind: 'set-tool-participation', tool: entry.host, enabled: true, expectedRevision: policy.revision });
       }
     } else {
+      if (entry.action === 'connect' && entry.host === 'opencode' &&
+          this.discovery().hosts.find(host => host.id === 'opencode')?.openCodeMajor === undefined &&
+          settings.connectors.find(host => host.id === 'opencode')?.status !== 'configured') {
+        throw new WorkspaceConnectionsError('WORKSPACE_CONNECTIONS_VERSION_UNKNOWN', 'Confirm the OpenCode generation and use its setup guide.', 409);
+      }
       this.manager.apply({ kind: entry.action === 'connect' ? 'configure' : 'remove', id: entry.host, expectedRevision: settings.revision });
     }
     return this.read();

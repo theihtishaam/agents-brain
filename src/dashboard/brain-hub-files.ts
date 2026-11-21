@@ -68,7 +68,7 @@ function filesPage(){
     const expanded=entry.path===selected;
     const target=folder?(entry.navigable?fileNavAttributes(entry.path):'disabled title="Directory depth limit reached"'):
       'data-file-select="'+esc(entry.path)+'" aria-expanded="'+expanded+'"';
-    const detail=expanded?'<tr><td colspan="4"><div class="receipt row"><p class="mono">'+esc(entry.path)+'</p>'+btn('Look up in Context','id="file-context-button" data-file-context="'+esc(entry.path)+'"','primary')+'</div></td></tr>':'';
+    const detail=expanded?'<tr><td colspan="4"><div class="receipt row"><p class="mono">'+esc(entry.path)+'</p>'+btn('Look up in Context','id="file-context-button" data-file-context="'+esc(entry.path)+'"','primary')+(/\.(?:md|markdown|txt)$/iu.test(entry.name)?btn('Review for memory','data-review-document="'+esc(entry.path)+'"','quiet'):'')+'</div></td></tr>':'';
     return '<tr><td><button class="entry mono" type="button" '+target+'>'+esc(entry.name)+'</button></td><td>'+(folder?'Folder':'File')+'</td><td class="mono">'+(folder?'—':fileBytes(entry.bytes))+'</td><td>'+esc(isoTime(entry.modifiedAt))+'</td></tr>'+detail;
   }).join('')+'</tbody></table></div>':listing?empty('No browsable entries','Choose another folder or refresh this one.'):'';
   const pages=listing&&(listing.previousOffset!==null||listing.nextOffset!==null)?'<div class="panel-body row"><p class="small muted">'+fmt(listing.offset+1)+'–'+fmt(listing.offset+items.length)+' of '+fmt(listing.total)+'</p><div class="actions">'+btn('Previous page',listing.previousOffset===null?'disabled':fileNavAttributes(folderPath,listing.previousOffset))+btn('Next page',listing.nextOffset===null?'disabled':fileNavAttributes(folderPath,listing.nextOffset))+'</div></div>':'';

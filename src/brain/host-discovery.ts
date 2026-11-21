@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, parse, resolve, sep } from 'node:path';
 
 const HOSTS = [
-  { id: 'vscode', label: 'Visual Studio Code', commands: ['code', 'code-insiders'], extensions: [], docs: 'https://code.visualstudio.com/docs/configure/command-line' },
+  { id: 'vscode', label: 'Visual Studio Code', commands: ['code', 'code-insiders', 'copilot'], extensions: ['GitHub.copilot', 'GitHub.copilot-chat'], docs: 'https://code.visualstudio.com/docs/configure/command-line' },
   { id: 'cline', label: 'Cline', commands: ['cline'], extensions: ['saoudrizwan.claude-dev'], docs: 'https://docs.cline.bot/usage/cli-overview' },
   { id: 'kilo-code', label: 'Kilo Code', commands: ['kilo'], extensions: ['kilocode.Kilo-Code'], docs: 'https://kilo.ai/docs/code-with-ai/platforms/cli' },
   { id: 'claude-code', label: 'Claude Code', commands: ['claude'], extensions: ['anthropic.claude-code'], docs: 'https://code.claude.com/docs/en/quickstart' },
@@ -21,13 +21,13 @@ export const hostDisplayLabel = (id: DiscoverableHostId) => HOSTS.find(host => h
 export function reportedHost(name: string): DiscoverableHostId | undefined {
   const label = name.trim().toLowerCase();
   if (isDiscoverableHost(label)) return label;
+  if (/\bcline\b/.test(label)) return 'cline';
+  if (/\bkilo[ -]?code\b/.test(label)) return 'kilo-code';
   if (label.includes('codex')) return 'codex';
   if (label.includes('claude')) return 'claude-code';
   if (label.includes('opencode')) return 'opencode';
-  if (label.includes('deepseek')) return 'deepseek-harness';
+  if (label.includes('deepseek') || /^dsh(?:\b|$)/u.test(label)) return 'deepseek-harness';
   if (/\b(?:vscode|vs code|visual studio code|copilot)\b/.test(label)) return 'vscode';
-  if (/\bcline\b/.test(label)) return 'cline';
-  if (/\bkilo[ -]?code\b/.test(label)) return 'kilo-code';
   if (/\bopenclaw\b/.test(label)) return 'openclaw';
   return undefined;
 }
@@ -37,7 +37,8 @@ export interface HostDiscoveryEntry {
   label: string;
   docs: string;
   status: 'detected' | 'not-detected' | 'unknown';
-  evidence: Array<{ kind: 'path-command' | 'vscode-extension'; value: string }>;
+  evidence: Array<{ kind: 'path-command' | 'installed-launcher' | 'vscode-extension'; value: string }>;
+  openCodeMajor?: 1 | 2;
 }
 
 const LIMITS = { pathChars: 32_768, directories: 96, extensions: 512, pathBytes: 2048, depth: 32, links: 6 };
@@ -101,9 +102,50 @@ function probe(candidate: string, allowLinks: boolean): Probe {
   return 'blocked';
 }
 
+const executable = (result: Probe) => found(result) && result.stat.isFile() && (WINDOWS || (result.stat.mode & 0o111) !== 0);
+
+function openCodePackage(bin: string, actual: string): 1 | 2 | undefined {
+  const installed = actual.toLowerCase().split(WINDOWS ? /[\\/]/u : '/');
+  const modules = installed.lastIndexOf('node_modules');
+  if (modules !== -1) {
+    if (installed[modules + 1] === 'opencode-ai' || /^opencode-(?:win|linux|darwin)/u.test(installed[modules + 1] ?? '')) return 1;
+    if (installed[modules + 1] === '@opencode' && /^cli(?:-|$)/u.test(installed[modules + 2] ?? '')) return 2;
+  }
+  const binary = WINDOWS ? 'opencode.exe' : 'opencode';
+  const installedBinary = (candidate: string) => {
+    const result = probe(candidate, true);
+    // Windows npm launch files can be small postinstall placeholders.
+    return found(result) && executable(result) && (!WINDOWS || result.stat.size > 1024 * 1024);
+  };
+  const v1 = installedBinary(join(bin, 'node_modules', 'opencode-ai', 'bin', binary));
+  const v2 = installedBinary(join(bin, 'node_modules', '@opencode', 'cli', 'bin', binary));
+  return v1 === v2 ? undefined : v1 ? 1 : 2;
+}
+
+/** Only fixed install-time launchers, never application data or profile configuration. */
+function bundledLaunchers(home: string) {
+  const launchers = new Map<DiscoverableHostId, string>();
+  if (!safeAbsolute(home)?.length) return launchers;
+  if (executable(probe(join(home, '.local', 'bin', WINDOWS ? 'claude.exe' : 'claude'), true))) launchers.set('claude-code', 'Claude Code launcher');
+  if (WINDOWS) {
+    const programs = join(home, 'AppData', 'Local', 'Programs');
+    const editor = join(programs, 'Microsoft VS Code');
+    if (executable(probe(join(editor, 'Code.exe'), false)) && executable(probe(join(editor, 'bin', 'code.cmd'), false))) {
+      launchers.set('vscode', 'VS Code user installation');
+    }
+    const desktop = join(programs, 'DeepSeek Harness');
+    if (executable(probe(join(desktop, 'DeepSeek Harness.exe'), false)) &&
+        executable(probe(join(desktop, 'resources', 'runtime', 'cli', 'bin', 'dsh.cmd'), false))) {
+      launchers.set('deepseek-harness', 'DeepSeek Harness Desktop');
+    }
+  }
+  return launchers;
+}
+
 function scanCommands(searchPath: string) {
   const commands = HOSTS.flatMap(host => [...host.commands]);
   const visible = new Set<string>();
+  let openCodeMajor: 1 | 2 | undefined;
   let limited = searchPath.length > LIMITS.pathChars;
   const bounded = searchPath.slice(0, LIMITS.pathChars);
   const complete = limited ? bounded.slice(0, Math.max(0, bounded.lastIndexOf(delimiter))) : bounded;
@@ -126,8 +168,9 @@ function scanCommands(searchPath: string) {
           const candidate = join(directory.path, command + suffix);
           const stat = lstatSync(candidate, { throwIfNoEntry: false });
           const result = stat?.isSymbolicLink() ? probe(candidate, true) : stat ? { path: candidate, stat } : 'missing';
-          if (found(result) && result.stat.isFile() && (WINDOWS || (result.stat.mode & 0o111) !== 0)) {
+          if (found(result) && executable(result)) {
             visible.add(command);
+            if (command === 'opencode') openCodeMajor = openCodePackage(directory.path, result.path);
             break;
           }
           limited ||= result === 'blocked';
@@ -135,14 +178,14 @@ function scanCommands(searchPath: string) {
       }
     }
   }
-  return { visible, limited };
+  return { visible, limited, openCodeMajor };
 }
 
-function scanExtensions(home: string) {
+function scanExtensions(home: string, product: '.vscode' | '.vscode-insiders') {
   const candidates = HOSTS.flatMap(host => [...host.extensions]);
   const visible = new Set<string>();
   if (!safeAbsolute(home)?.length) return { visible, limited: true };
-  const root = probe(join(home, '.vscode', 'extensions'), false);
+  const root = probe(join(home, product, 'extensions'), false);
   if (!found(root)) return { visible, limited: root === 'blocked' };
   if (!root.stat.isDirectory()) return { visible, limited: true };
   const checkRoot = () => {
@@ -176,14 +219,23 @@ function scanExtensions(home: string) {
 /** On-demand installation evidence only. No CLI execution, profile files, extension contents or persisted results. */
 export function discoverAgentHosts(options: { path?: string; home?: string } = {}): { hosts: HostDiscoveryEntry[]; limited: boolean } {
   const commands = scanCommands(options.path ?? process.env.PATH ?? '');
-  const extensions = scanExtensions(options.home ?? homedir());
+  const home = options.home ?? homedir();
+  const launchers = bundledLaunchers(home);
+  const stable = scanExtensions(home, '.vscode');
+  const insiders = scanExtensions(home, '.vscode-insiders');
+  const extensions = { visible: new Set([...stable.visible, ...insiders.visible]), limited: stable.limited || insiders.limited };
   const hosts = HOSTS.map(({ id, label, docs, commands: names, extensions: ids }): HostDiscoveryEntry => {
+    const launcher = launchers.get(id);
     const evidence: HostDiscoveryEntry['evidence'] = [
       ...names.filter(name => commands.visible.has(name)).map(value => ({ kind: 'path-command' as const, value })),
+      ...(launcher ? [{ kind: 'installed-launcher' as const, value: launcher }] : []),
       ...ids.filter(name => extensions.visible.has(name)).map(value => ({ kind: 'vscode-extension' as const, value })),
     ];
     const limited = commands.limited || (ids.length > 0 && extensions.limited);
-    return { id, label, docs, status: evidence.length ? 'detected' : limited ? 'unknown' : 'not-detected', evidence };
+    const openCodeMajor = commands.openCodeMajor ?? (extensions.visible.has('sst-dev.opencode-v2') ? 2 :
+      extensions.visible.has('sst-dev.opencode') ? 1 : undefined);
+    return { id, label, docs, status: evidence.length ? 'detected' : limited ? 'unknown' : 'not-detected', evidence,
+      ...(id === 'opencode' && openCodeMajor !== undefined ? { openCodeMajor } : {}) };
   });
   return { hosts, limited: commands.limited || extensions.limited };
 }

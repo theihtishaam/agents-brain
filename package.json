@@ -1,7 +1,7 @@
 {
   "name": "@theihtisham/agent-shadow-brain",
   "version": "7.25.0",
-  "description": "Local memory, focused skills, and a visual context workspace for coding agents. Explore memories, build project-scoped context, and control briefings across Codex, Claude Code, OpenCode, and DeepSeek Harness.",
+  "description": "Local project memory for coding agents. Share cited context, recover interrupted work, and resume a saved session across Codex, Claude Code, OpenCode, and other MCP clients.",
   "main": "dist/index.js",
   "exports": {
     ".": "./dist/index.js"
@@ -24,31 +24,26 @@
     "test:context-eval": "node tools/evaluate-context.mjs"
   },
   "keywords": [
-    "ai",
     "coding-agents",
     "agent-memory",
+    "shared-memory",
+    "session-handoff",
     "local-first",
-    "context",
-    "context-management",
     "context-engineering",
+    "context-retrieval",
     "explainable-retrieval",
-    "memory-health",
     "token-budget",
-    "agent-skills",
     "project-skills",
-    "adaptive-memory",
-    "task-workflow",
     "codex",
     "claude-code",
     "opencode",
     "deepseek-harness",
     "mcp",
-    "dashboard",
+    "mcp-server",
+    "model-context-protocol",
     "knowledge-graph",
-    "developer-tools",
-    "cross-agent",
-    "recall",
-    "typescript",
+    "agent-dashboard",
+    "multi-agent",
     "cli"
   ],
   "author": {

@@ -38,7 +38,7 @@ const agentRoomActions = [
   z.strictObject({ kind: z.literal('message'), type: messageType, text: text(8000), replyTo: hubId.optional(), key }),
   z.strictObject({ kind: z.literal('artifact'), taskId: hubId, revision, path: singleLine(400), key }),
   z.strictObject({ kind: z.literal('ack'), targetType, targetId: hubId, sha256: sha256.optional(), key }),
-  z.strictObject({ kind: z.literal('outcome'), taskId: hubId, artifactId: hubId.optional(), result, check: singleLine(240), evidence: text(3000), key }),
+  z.strictObject({ kind: z.literal('outcome'), taskId: hubId, artifactId: hubId.optional(), sessionId: hubId.optional(), result, check: singleLine(240), evidence: text(3000), key }),
 ] as const;
 export const agentRoomActionInput = z.discriminatedUnion('kind', agentRoomActions);
 export const roomActionInput = z.discriminatedUnion('kind', [
@@ -137,5 +137,6 @@ export interface HubLesson {
   memoryId: string | null;
   createdAt: string;
   author: HubActor;
+  automatic?: { roomId: string; taskId: string; tool: string; sessionId?: string; nativeChatKey?: string };
 }
 export interface HubEvent { id: string; cursor: number; roomId: string; kind: string; targetId: string; actor: HubActor; createdAt: string }

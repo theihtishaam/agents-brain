@@ -99,6 +99,46 @@ function contextEfficiencyPanel(pack){
     fmt(result.referenceEntryLimit)+' memories.'+(result.referenceLimited?' The reference reached a scan or pack limit.':'')+
     '</p><p class="small muted">These estimates describe the assembled text. See Usage for reported model counts.</p></div>',chip('Estimate'));
 }
+function sharedContextCheckpoint(pack){
+  const project=state.server?.project?.id??state.project;
+  const checkpoint=pack?.continuation;
+  if(!local||!project||state.project!==project||pack?.projectId!==project||pack.scope!=='project'||
+    state.errors?.policy||state.policy?.policy?.participationEnabled===false||pack.policy?.revision<state.policy?.policy?.revision||
+    typeof checkpoint?.title!=='string'||!checkpoint.title.trim()||typeof checkpoint.sessionId!=='string'||!checkpoint.sessionId||
+    typeof checkpoint.checkpointId!=='string'||!checkpoint.checkpointId||
+    typeof checkpoint.sha256!=='string'||!(/^[a-f0-9]{64}$/iu.test(checkpoint.sha256)))return null;
+  return checkpoint;
+}
+function contextContinuation(pack){
+  const checkpoint=sharedContextCheckpoint(pack);
+  if(!checkpoint)return '';
+  return '<section class="receipt" aria-labelledby="context-saved-checkpoint"><div class="row"><div>'+
+    '<h3 id="context-saved-checkpoint">Saved checkpoint</h3><strong class="preserve">'+esc(checkpoint.title)+'</strong></div>'+
+    action('context-open-checkpoint','Open checkpoint','quiet')+'</div>'+
+    (typeof checkpoint.nextStep==='string'&&checkpoint.nextStep.trim()?'<p class="small muted">Next step</p><p class="preserve">'+esc(checkpoint.nextStep)+'</p>':'')+'</section>';
+}
+async function openContextContinuation(button){
+  const pack=state.context,selection=sharedContextCheckpoint(pack);
+  if(!selection||state.view!=='context'||state.pending)return;
+  const epoch=state.dataEpoch,viewEpoch=state.viewEpoch,project=state.project;
+  const current=()=>state.dataEpoch===epoch&&state.viewEpoch===viewEpoch&&state.project===project&&
+    state.view==='context'&&state.context===pack&&sharedContextCheckpoint(pack)===selection;
+  const sessionRoute='sessions/'+encodeURIComponent(selection.sessionId);
+  button.disabled=true;
+  try{
+    const [detail,{checkpoint}]=await Promise.all([api(sessionRoute),api(sessionRoute+'/checkpoints/'+encodeURIComponent(selection.checkpointId))]);
+    if(!current())return;
+    if(detail?.session?.id!==selection.sessionId||checkpoint?.sessionId!==selection.sessionId||
+      checkpoint.id!==selection.checkpointId||checkpoint.sha256!==selection.sha256){
+      throw new Error('The saved checkpoint changed. Build a fresh context pack.');
+    }
+    state.session=detail;state.sessionBefore=null;state.sessionCheckpoint=checkpoint;
+    openView('sessions');
+    const target=$('checkpoint-'+selection.checkpointId)??$('conversation-continuity');
+    target?.focus();
+  }catch(failure){if(current())status(failure.message||'Could not open the checkpoint.',true);}
+  finally{button.disabled=false;}
+}
 function contextPreview(pack,input){
   const entries=arr(pack.entries);
   const profile=pack.retrieval?.profile??'legacy';
@@ -114,7 +154,7 @@ function contextPreview(pack,input){
     '</h3>'+chip(contextProfiles.find(([value])=>value===profile)?.[1]??profile)+'</div>'+contextBudget(pack,input)+warnings+
     (pack.markdown?'<div class="actions">'+action('copy-pack','Copy context','primary')+view('learning','Review usefulness')+
       '</div><details id="context-exact" data-keep-open><summary>Exact text available to copy</summary><pre>'+esc(pack.markdown)+'</pre></details>':'')+
-    selected+'</div>';
+    contextContinuation(pack)+selected+'</div>';
 }
 function contextPage(){
   const input=state.contextInput??{};

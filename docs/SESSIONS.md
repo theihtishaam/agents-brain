@@ -7,13 +7,17 @@ shadow-brain project workspace . --port 62595
 shadow-brain project config . --target codex
 ```
 
-Use `claude-code`, `opencode`, or `deepseek-harness` for the other native recipes. Configure each host to use its recipe from the same project directory, then confirm `session_list`, `session_read`, `session_checkpoint_read`, `session_open`, `session_record`, and `session_resume` appear in its MCP tool list. Open **Sessions** in the project Hub to review work reported by those clients. [Client setup](INTEGRATIONS.md)
+Use `claude-code`, `opencode`, or `deepseek-harness` for the other native recipes. Configure each host to use its recipe from the same project directory, then confirm `session_handoffs`, `session_recover`, `session_list`, `session_read`, `session_checkpoint_read`, `session_open`, `session_record`, and `session_resume` appear in its MCP tool list. Open **Sessions** in the project Hub to review work reported by those clients. [Client setup](INTEGRATIONS.md)
 
 ## Track work and continue with another agent
 
 1. At the start of shared work, call `session_open` with a title, the project goal, and an operation key. Supply `hostSessionId` when the host already has a safe conversation label to share. A child worker can set `parentSessionId` to the UUID of an existing project session.
 2. Use `session_record` at meaningful milestones. Record a brief note, a `working` or `waiting` status, or a checkpoint. Save verified progress, decisions, next steps and evidence labels before a handoff. Use `completed` when the session is finished.
 3. In **Sessions**, open the saved checkpoint and copy the agent resume request. Give it to the next connected agent in the same project. Its `session_resume` call opens a new session owned by that connection and returns the exact saved handoff. The source session and earlier checkpoint stay available. Continuing in the portal creates an operator-owned session.
+
+A connected agent can call `session_handoffs` with a short task phrase to find the latest shared checkpoint for each matching conversation. It can pass the returned session ID, checkpoint ID and SHA-256 to `session_resume`. The new session inherits the original goal. Checkpoints carry forward the saved approach and constraints when omitted. A receiving agent can record a changed approach in its own checkpoint. **Copy handoff for any agent** also produces readable text for a host where MCP is unavailable.
+
+If work stopped before the first agent saved a checkpoint, find the conversation in `session_list` and call `session_recover` with its ID, current revision and a fresh operation key. **Continue from last shared update** does the same in the portal. Recovery records up to three quoted excerpts, their original message IDs and the total number of shared messages. A receiving agent can open the original session to read earlier pages. Previously recorded decisions and constraints carry forward. An empty chat has no work to recover.
 
 Each write uses a stable operation key for retries in the same connection. Each record includes a revision. Pass `expectedRevision` when making a change based on a specific observed version. If the current connection ends, a new agent connection continues via a checkpoint. The original session is still readable.
 
@@ -24,6 +28,8 @@ For example, after opening a session, an agent can call `session_record` with th
   "sessionId": "1b7766ed-34cb-4108-985d-b172a86ebd85",
   "command": {
     "kind": "checkpoint",
+    "approach": "Exercise the installed binary with a saved fixture",
+    "constraints": ["Keep previously saved work readable"],
     "key": "checkout-handoff-20261114",
     "summary": "Verified the retry check with a fixture.",
     "completed": ["Ran the existing retry regression check"],
@@ -60,6 +66,14 @@ The connector asks Codex for its indexed current conversations whose recorded wo
 Select a conversation to read a bounded page of visible user and assistant text, then use **Earlier history** for older pages. The page shows how many non-text or unsupported items were omitted. Tool output, reasoning, and attachments are not imported as messages. To keep the displayed page in shared project sessions, select **Save this history page**. The Hub verifies the page fingerprint before saving; if the source changed, review the new page first. A saved page is an immutable, possibly partial snapshot. It is not automatically added as project knowledge and does not resume the original native chat.
 
 While **Sessions** is open and connected, the Hub checks the current list every ten seconds and reloads the selected page when its reported update timestamp changes. This does not automatically save new snapshots. The timestamp is supplied by the separate app-server and can have limited resolution; its runtime state does not prove whether a desktop chat is active. The connector requires a compatible app-server with bounded history paging. On Windows it looks for the official npm package's local vendor executable; custom installation locations may not be detected. See the [Codex app-server protocol](https://learn.chatgpt.com/docs/app-server).
+
+### Follow one selected Codex chat
+
+In **Setup → Features**, enable **Exact shared conversation history**. Then in **Sessions**, connect Codex, select a current chat, and review its latest page. Click **Follow and save this chat**. The local portal saves the reviewed page and checks the same chat for new persisted user and assistant text every ten seconds, including while you work in Codex or another Hub view. Use **Open saved archive** for its paged history or **Stop following** to stop collecting. [Codex persisted item paging](https://learn.chatgpt.com/docs/app-server#list-thread-items)
+
+One chat can be followed per project portal. Capture ends when you stop it, close the local portal, disconnect Codex, or the 15-minute native connection expires. The archive stays in **Project conversations**. Reconnect, review the latest page, and opt in again to continue the same archive. Earlier history outside its first page can be reviewed and saved separately. Each check pages backward at most four pages to verify the saved boundary. Capture stops on a gap, changed overlap, unsupported visible text, or the limit of 200 text sections or 2 MiB. Existing history stays intact. The archive records the original title, source identifiers and revision. It covers representable text from persisted messages. Attachments, reasoning, tool output, and live unsaved text stay outside its coverage.
+
+Turning off **Exact shared conversation history**, pausing the project or source tool, or excluding the chat stops capture and withholds the archive and inherited handoffs from agents. The local operator can still review retained history. **Stop following** ends collection while keeping the current sharing controls. Earlier manually reviewed snapshots follow their own project and chat controls.
 
 ## Import a native conversation export
 

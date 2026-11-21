@@ -5,6 +5,8 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import { GlobalBrain } from '../../src/brain/global-brain.js';
 import { MCPServer } from '../../src/brain/mcp-server.js';
 import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
+import { projectStorage } from '../../src/brain/project-memory.js';
+import { ProjectPolicyStore } from '../../src/brain/project-policy.js';
 
 let dir: string, brain: GlobalBrain, settings: FeatureSettingsStore, server: MCPServer;
 let id: string;
@@ -22,7 +24,9 @@ beforeEach(async () => {
 afterEach(async () => { await brain.shutdown(); fs.rmSync(dir, { recursive: true, force: true }); });
 
 it('negotiates supported revisions and exposes bounded progressive discovery', async () => {
-  expect((await request('initialize', { protocolVersion: '2025-11-25' })).result.protocolVersion).toBe('2025-11-25');
+  const initialized = (await request('initialize', { protocolVersion: '2025-11-25' })).result;
+  expect(initialized.protocolVersion).toBe('2025-11-25');
+  expect(initialized.instructions).not.toMatch(/project_brief|session_record/);
   expect((await request('initialize', { protocolVersion: '2025-06-18' })).result.protocolVersion).toBe('2025-06-18');
   expect(typeof (await request('initialize', { protocolVersion: ['2025-11-25'] })).result.protocolVersion).toBe('string');
   expect((await request('resources/list')).result.resources).toHaveLength(2);
@@ -37,6 +41,31 @@ it('negotiates supported revisions and exposes bounded progressive discovery', a
   expect((await request('resources/read', { uri: 'shadow-brain://projects/beta/memories/' + id })).error.code).toBe(-32002);
   for (const uri of ['file:///private', 'https://example.invalid', 'shadow-brain://projects/%ZZ/memories/' + id]) {
     expect((await request('resources/read', { uri })).error).toBeDefined();
+  }
+});
+
+it('delivers task-start and checkpoint guidance to project hosts without bypassing participation controls', async () => {
+  const project = projectStorage(dir);
+  const local = GlobalBrain.createIsolated({ dbPath: project.storagePath });
+  await local.init();
+  const scoped = new MCPServer(null, { toolProfile: 'memory', authToken: '' },
+    { brain: local, settings, projectDir: dir, projectId: project.projectId, localProject: true });
+  const rpc = (method: string, params: Record<string, unknown> = {}) =>
+    scoped.handleRequest({ jsonrpc: '2.0', id: 1, method, params }) as Promise<any>;
+  const call = (name: string, args: object = {}) => rpc('tools/call', { name, arguments: args });
+  try {
+    const handshake = await rpc('initialize', { clientInfo: { name: 'Codex', version: 'fixture' } });
+    expect(handshake.result.instructions).toContain('start each substantive task or continuation with one `project_brief` call');
+    expect(handshake.result.instructions).toContain('work is authorized for project sharing');
+    expect(handshake.result.instructions).toContain('before an authorized handoff or subagent transition');
+    expect((await call('session_list')).result.structuredContent.sessions).toEqual([]);
+    const policy = new ProjectPolicyStore(dir, project.projectId);
+    await policy.update({ kind: 'set-tool-participation', tool: 'codex', enabled: false, expectedRevision: 0 });
+    expect((await call('project_brief', { query: 'retry work' })).error.code).toBe(-32003);
+    expect((await call('session_record')).error.code).toBe(-32003);
+  } finally {
+    await scoped.finishMemorySession();
+    await local.shutdown();
   }
 });
 

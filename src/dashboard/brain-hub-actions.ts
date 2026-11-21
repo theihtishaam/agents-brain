@@ -13,25 +13,59 @@ async function inspectApprovedMemory(id){
   openView('overview');
   await chooseMemory('memory:'+id);
 }
+async function recoverSharedSession(){
+  const detail=state.session,source=detail?.session;
+  if(!source||!sessionHandoffAllowed(source.id)||!sessionCanRecover(detail))throw new Error('Choose a conversation with shared updates to continue.');
+  const epoch=state.dataEpoch;
+  const next=await hubWrite('sessions/'+encodeURIComponent(source.id)+'/recover',{expectedRevision:source.revision});
+  if(state.dataEpoch!==epoch||state.session?.session.id!==source.id)return;
+  const link=next?.session?.resumedFrom;
+  if(!next?.session?.id||next.session.id===source.id||link?.sessionId!==source.id||
+    next.handoff?.sessionId!==source.id||next.handoff?.id!==link.checkpointId)throw new Error('Could not open the matching recovery checkpoint.');
+  state.session=next;state.sessionBefore=null;state.sessionCheckpoint=null;
+  return afterSave(refreshSessions);
+}
 function handleClick(event){
   const button=event.target.closest('button');
   if(!button||button.disabled)return;
   const data=button.dataset;
+  if(data.launchWorkspace){void mutation(async()=>{
+    const result=await api('directory/open',{...json({projectId:data.launchWorkspace}),headers:{...directoryHeader(),'Content-Type':'application/json'}});
+    const url=new URL(result.url);
+    if(result.projectId!==data.launchWorkspace||url.protocol!=='http:'||url.hostname!=='127.0.0.1'||url.pathname!=='/hub')throw new Error('The project portal returned an invalid destination.');
+    url.searchParams.set('view',data.landing==='files'?'files':data.landing==='sessions'?'sessions':'overview');
+    window.location.assign(url.href);
+  },button,'Opening project dashboard.');return;}
   if(data.openWorkspace){void selectDirectory(data.openWorkspace);return;}
   if(data.directoryForget){void mutation(async()=>{await directoryWrite({kind:'forget',projectId:data.directoryForget});portfolio.selected=null;},button,'Workspace listing stopped.');return;}
+  if(data.directoryDiscover){
+    if(data.directoryDiscover==='close'){portfolio.epoch++;portfolio.discovery=null;render(true);$('directory-discover')?.focus({preventScroll:true});}
+    else void mutation(()=>discoverDirectoryWorkspaces(data.directoryDiscover),button,'Codex workspace index checked.');
+    return;
+  }
+  if(data.directoryCandidate){void mutation(()=>addDirectoryCandidate(data.directoryCandidate),button,'Workspace added to the local directory.');return;}
+  if(data.directoryRecentStop){stopDirectoryRecent();render(true);$('directory-recent-start')?.focus({preventScroll:true});return;}
+  if(data.directoryTitles){void mutation(()=>loadDirectoryTitles(data.directoryTitles,data.step),button,'Codex titles checked.');return;}
+  if(data.directoryOpencode){void mutation(()=>loadDirectoryOpenCode(data.directoryOpencode,data.step),button,'OpenCode sessions checked.');return;}
   if(data.directoryWatch){
     if(portfolio.nativeWatch)stopDirectoryWatch();
     else {portfolio.nativeWatch=true;portfolio.nextIndexCheck=0;void checkDirectoryIndexes();}
     render(true);return;
   }
   if(data.directoryNative){void mutation(async()=>{
-    await checkDirectoryIndex(data.directoryNative);
+    await loadDirectoryTitles(data.directoryNative);
   },button,'Codex index checked.');return;}
   if(data.growthDay){growthDay=growthDay===data.growthDay?null:data.growthDay;updateGrowth();return;}
   if(data.filePath!==undefined){void openProjectFiles(data.filePath,Number(data.fileOffset??0));return;}
   if(data.fileSelect){selectProjectFile(data.fileSelect);return;}
+  if(data.reviewDocument){void mutation(async()=>{
+    const result=await api('files/review',{...json({path:data.reviewDocument}),headers:{...directoryHeader(),'Content-Type':'application/json'}});
+    state.source=result.source;openView('knowledge');
+  },button,'Review the passages to add to project memory.');return;}
   if(data.fileContext){openFileContext(data.fileContext);return;}
   if(handleAgentDock(button))return;
+  if((data.overviewResume||data.overviewRefresh||data.overviewIndex||data.overviewFile)&&handleOverviewEvidence(button))return;
+  if(data.action==='copy-handoff'){void copyPortableHandoff(data.checkpoint,button);return;}
   if(data.connectionAction&&handleWorkspaceConnection(button))return;
   if(data.policyTool){void mutation(()=>saveProjectPolicy({kind:'set-tool-participation',tool:data.policyTool,enabled:data.enabled==='true'}),button,'Tool participation saved.');return;}
   if(data.policyChat){void mutation(()=>saveProjectPolicy({kind:'set-chat-sharing',sessionId:data.policyChat,shareContext:data.enabled==='true'}),button,'Conversation sharing saved.');return;}
@@ -59,7 +93,7 @@ function handleClick(event){
     return;
   }
   if(data.nativeThread){void mutation(async()=>{invalidateNativeRequest();state.nativeThreadCursor=null;state.nativeThread=await api('sessions/codex/threads/'+encodeURIComponent(data.nativeThread),{timeoutMs:15000});nativeTimer=setTimeout(()=>void refreshNativeChats(),10000);},button,'Original history page opened.');return;}
-  if(data.session){void mutation(async()=>{state.sessionBefore=null;state.sessionCheckpoint=null;state.session=await api('sessions/'+data.session);},button,'Conversation opened.');return;}
+  if(data.session){void mutation(async()=>{state.sessionBefore=null;state.sessionCheckpoint=null;state.sessionExact=null;state.session=await api('sessions/'+encodeURIComponent(data.session));},button,'Conversation opened.');return;}
   if(data.source){void mutation(async()=>{state.source=(await api('sources/'+encodeURIComponent(data.source))).source;},button,'Source opened.');return;}
   if(data.document){void mutation(()=>loadDocuments(data.document),button,'Document opened.');return;}
   if(data.page){state.docPage=Number(data.page);render();return;}
@@ -83,6 +117,10 @@ function handleClick(event){
     void mutation(()=>roomWrite(payload),button);return;
   }
   if(data.lessonAction){void mutation(()=>lessonWrite(data.id,{kind:data.lessonAction}),button);return;}
+  if(data.lessonRoom){void mutation(async()=>{await loadRoom(data.lessonRoom);openView('room');},button,'Source outcome opened.').then(()=>{
+    if(state.view!=='room'||state.room?.room.id!==data.lessonRoom)return;
+    const outcome=$('outcome-'+data.lessonOutcome);outcome?.scrollIntoView({block:'nearest'});outcome?.focus({preventScroll:true});
+  });return;}
   if(data.lessonFrom){state.lessonFrom=data.lessonFrom;openView('learning');return;}
   if(!data.action)return;
   if(data.action.startsWith('copy-')){
@@ -128,7 +166,14 @@ function handleClick(event){
       const link=document.createElement('a');link.href=url;link.download='shadow-brain-'+data.example+'-example.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);break;
     }
     case 'native-connect':void mutation(async()=>{invalidateNativeRequest();state.nativeConnection=await api('sessions/codex/connect',{...json({}),timeoutMs:30000});await refreshNativeChats(true);},button,'Read-only native connection opened.');break;
-    case 'native-disconnect':void mutation(async()=>{invalidateNativeRequest();nativeReload=false;state.nativeConnection=await api('sessions/codex/disconnect',json({}));state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;},button,'Native connection closed.');break;
+    case 'native-disconnect':void mutation(async()=>{invalidateNativeRequest();nativeReload=false;state.nativeConnection=await api('sessions/codex/disconnect',json({}));nativeFollow=await api('sessions/codex/follow',{headers:directoryHeader()});state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;},button,'Native connection closed.');break;
+    case 'native-follow-start':void mutation(startNativeFollow,button,'This portal is following the selected chat.');break;
+    case 'native-follow-stop':void mutation(stopNativeFollow,button,'Capture stopped. Saved text stays in the archive.');break;
+    case 'native-follow-open':void mutation(async()=>{
+      const archiveId=nativeFollow?.result?.archiveId;if(!archiveId)return;
+      state.sessionBefore=null;state.sessionCheckpoint=null;state.session=await api('sessions/'+encodeURIComponent(archiveId));
+      requestAnimationFrame(()=>$('conversation-continuity')?.scrollIntoView({block:'start'}));
+    },button,'Saved conversation archive opened.');break;
     case 'native-refresh':void refreshNativeChats(true);break;
     case 'native-archive':invalidateNativeRequest();state.nativeArchived=!state.nativeArchived;state.nativeListCursor=null;state.nativeThreads=null;state.nativeThread=null;state.nativeThreadCursor=null;void refreshNativeChats(true);break;
     case 'native-next':invalidateNativeRequest();state.nativeListCursor=data.cursor;state.nativeThread=null;state.nativeThreadCursor=null;void refreshNativeChats(true);break;
@@ -136,10 +181,22 @@ function handleClick(event){
     case 'native-earlier':void mutation(async()=>{invalidateNativeRequest();state.nativeThreadCursor=data.cursor;state.nativeThread=await api('sessions/codex/threads/'+encodeURIComponent(state.nativeThread.thread.id)+'?cursor='+encodeURIComponent(data.cursor),{timeoutMs:15000});nativeTimer=setTimeout(()=>void refreshNativeChats(),10000);},button,'Earlier original history opened.');break;
     case 'native-import':void mutation(async()=>{const result=await hubWrite('sessions/codex/threads/'+encodeURIComponent(state.nativeThread.thread.id)+'/import',{sha256:state.nativeThread.sha256,...(state.nativeThreadCursor?{cursor:state.nativeThreadCursor}:{})});state.session=result;state.sessionBefore=null;state.sessionCheckpoint=null;await refreshSessions();},button,'Original history page saved as a project snapshot.');break;
     case 'session-checkpoint-open':void mutation(async()=>{state.sessionCheckpoint=(await api('sessions/'+state.session.session.id+'/checkpoints/'+data.checkpoint)).checkpoint;},button,'Checkpoint opened.');break;
+    case 'context-open-checkpoint':void openContextContinuation(button);break;
     case 'session-policy':state.policySelection=data.sessionPolicy;openView('setup');break;
+    case 'session-exact-read':case 'session-exact-older':void mutation(()=>readSessionExact(data.before),button,'Original messages opened.').then(()=>{
+      if(state.sessionExact)$('exact-history-title')?.focus({preventScroll:true});
+    });break;
+    case 'session-exact-close':state.sessionExact=null;render(true);$('open-exact-history')?.focus({preventScroll:true});break;
     case 'session-older':void mutation(async()=>{state.sessionBefore=data.before;await refreshSessions();},button,'Earlier messages loaded.');break;
     case 'session-latest':void mutation(async()=>{state.sessionBefore=null;await refreshSessions();},button,'Latest messages loaded.');break;
     case 'session-status':void mutation(async()=>{state.session=await hubWrite('sessions/'+state.session.session.id+'/actions',{kind:'status',status:data.status,expectedRevision:state.session.session.revision});await refreshSessions();},button,'Reported status saved.');break;
+    case 'session-recover':{
+      const source=state.session?.session.id;
+      void mutation(recoverSharedSession,button,'New session opened with the latest shared updates.').then(()=>{
+        if(source&&state.session?.session.resumedFrom?.sessionId===source)$('session-inherited-handoff')?.querySelector('summary')?.focus();
+      });
+      break;
+    }
     case 'session-resume':void mutation(async()=>{const cp=arr(state.session.checkpoints).find(item=>item.id===data.checkpoint);if(!cp)throw new Error('Choose a saved checkpoint.');state.sessionBefore=null;state.sessionCheckpoint=null;state.session=await hubWrite('sessions/'+state.session.session.id+'/resume',{checkpointId:cp.id,sha256:cp.sha256});await refreshSessions();},button,'New portal session created from this checkpoint.');break;
     case 'import-session':void mutation(async()=>{if(!state.source)throw new Error('Choose a reviewed transcript.');state.session=await hubWrite('sessions/import',{sourceId:state.source.id});openView('sessions');await refreshSessions();},button,'Reviewed conversation snapshot opened.');break;
     case 'source-evidence':void mutation(async()=>{state.evidence=await api('memory-evidence?'+new URLSearchParams({memoryId:data.memory}));if(state.view!=='knowledge')openView('knowledge');},button,'Source checked.');break;
@@ -190,6 +247,7 @@ function handleSubmit(event){
     const name=field(form,'name');
     void mutation(async()=>{await directoryWrite({kind:'add',root:field(form,'root'),...(name?{projectName:name}:{})});target.reset();},button,'Workspace added to the local directory.');return;
   }
+  if(kind==='directory-recent'){void startDirectoryRecent(field(form,'parent').trim());return;}
   if(kind==='usage-filter'){applyUsageFilters(form);return;}
   const tasks={
     'policy-context':()=>saveProjectPolicy({kind:'set-context-limits',context:{maxTokens:Number(form.get('maxTokens')),maxEntries:Number(form.get('maxEntries'))}}),
@@ -197,7 +255,7 @@ function handleSubmit(event){
     'native-export':async()=>{const file=form.get('export');if(!(file instanceof File)||!file.size)throw new Error('Choose a native export.');if(file.size>2*1024*1024)throw new Error('Choose an export smaller than 2 MiB.');const query=new URLSearchParams({tool:field(form,'tool'),name:file.name,key:crypto.randomUUID()});state.session=await api('sessions/native?'+query,{method:'POST',body:file,headers:{'Content-Type':file.name.endsWith('.zip')?'application/zip':'application/octet-stream'},timeoutMs:15000});state.sessionBefore=null;state.sessionCheckpoint=null;await refreshSessions();},
     'session-open':async()=>{state.sessionBefore=null;state.sessionCheckpoint=null;state.session=await hubWrite('sessions',{title:field(form,'title'),goal:field(form,'goal')});await refreshSessions();},
     'session-note':async()=>{state.session=await hubWrite('sessions/'+state.session.session.id+'/actions',{kind:'message',role:'note',text:field(form,'text'),expectedRevision:state.session.session.revision});await refreshSessions();},
-    'session-checkpoint':async()=>{const input={kind:'checkpoint',summary:field(form,'summary'),expectedRevision:state.session.session.revision};for(const name of ['decisions','completed','nextSteps','evidence'])input[name]=field(form,name).split(/\r?\n/).map(item=>item.trim()).filter(Boolean);state.session=await hubWrite('sessions/'+state.session.session.id+'/actions',input);await refreshSessions();},
+    'session-checkpoint':async()=>{const input={kind:'checkpoint',summary:field(form,'summary'),expectedRevision:state.session.session.revision};const approach=field(form,'approach').trim(),constraints=field(form,'constraints').split(/\r?\n/).map(item=>item.trim()).filter(Boolean);if(approach)input.approach=approach;if(constraints.length)input.constraints=constraints;for(const name of ['decisions','completed','nextSteps','evidence'])input[name]=field(form,name).split(/\r?\n/).map(item=>item.trim()).filter(Boolean);state.session=await hubWrite('sessions/'+state.session.session.id+'/actions',input);await refreshSessions();},
     teach:async()=>{
       state.teachDraft=field(form,'text');
       const save=form.get('mode')==='save';

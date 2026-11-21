@@ -85,6 +85,12 @@ describe('project workflow skills installer', () => {
     expect(text('AGENTS.md')).not.toContain('shadow-workflow');
     expect(text('CLAUDE.md')).toContain('.claude/skills');
     expect(text('CLAUDE.md')).not.toContain('.agents/skills');
+    for (const instructions of [text('AGENTS.md'), text('CLAUDE.md')]) {
+      expect(instructions).toContain('start each substantive task or continuation with one `project_brief` call');
+      expect(instructions).toContain('work is authorized for project sharing');
+      expect(instructions).toContain('before an authorized handoff or subagent transition');
+      expect(instructions).toContain('Respect project and chat sharing controls');
+    }
     expect(fs.existsSync(projectFile(CORE))).toBe(false);
     expect(fs.existsSync(projectFile('.claude/settings.json'))).toBe(false);
     expect(fs.existsSync(projectFile('.dsh/config.json'))).toBe(false);
@@ -158,6 +164,32 @@ describe('project workflow skills installer', () => {
     expect(text(DEBUG)).toBe(getBundledSkill('shadow-debug').content);
     expect(fs.readFileSync(path.join(result.backupDir!, DEBUG), 'utf8')).toBe(old);
     expect(preview(['shadow-debug']).files.every(file => file.action === 'unchanged')).toBe(true);
+  });
+
+  it('upgrades the owned task-start instructions and workflow skill without changing project rules', () => {
+    applySkillInstall(preview(['shadow-workflow']));
+    const oldText = text('AGENTS.md').split('\n').filter(line => !line.includes('`project_brief`') &&
+      !line.includes('`session_open`') && !line.includes('`session_record`') && !line.includes('`session_append_turn`')).join('\n');
+    const current = 'Existing project rules.\n\n' + oldText;
+    write('AGENTS.md', current);
+    const oldSkill = '# Older workflow skill\n';
+    write(CORE, oldSkill);
+    const manifest = JSON.parse(text(MANIFEST));
+    manifest.blocks['AGENTS.md'] = createHash('sha256').update(oldText.trimEnd()).digest('hex');
+    manifest.skills[CORE] = createHash('sha256').update(oldSkill).digest('hex');
+    write(MANIFEST, JSON.stringify(manifest, null, 2) + '\n');
+
+    const upgraded = applySkillInstall(preview(['shadow-workflow']));
+    expect(upgraded.updated).toEqual(expect.arrayContaining([projectFile(CORE), projectFile('AGENTS.md')]));
+    expect(text('AGENTS.md')).toMatch(/^Existing project rules\.\n\n/);
+    expect(text('AGENTS.md')).toContain('`project_brief`');
+    expect(text('AGENTS.md')).toContain('operator enables Exact shared conversation history');
+    expect(text('AGENTS.md')).toContain('`session_append_turn`');
+    expect(text(CORE)).toContain('before an authorized handoff or subagent transition');
+    expect(text(CORE)).toContain('the stable `hostMessageId`');
+    expect(text(CORE)).toContain('`session_transcript_read`');
+    expect(fs.readFileSync(path.join(upgraded.backupDir!, 'AGENTS.md'), 'utf8')).toBe(current);
+    expect(preview(['shadow-workflow']).files.every(file => file.action === 'unchanged')).toBe(true);
   });
 
   it('preserves a user edit to a previously managed skill or instruction block', () => {

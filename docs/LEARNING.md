@@ -1,5 +1,15 @@
 # Learning from work
 
+## Review automatic lesson candidates
+
+In a project workspace, a connected agent can report a passing work-room check and its evidence with `hub_room_action`. When **Automatic lesson candidates** is enabled and sharing permits the source, Shadow Brain drafts one candidate for the same task, check, and artifact. Retried or duplicate reports remain linked to the work room without creating duplicate drafts. An agent can include its project `sessionId` to link the report to a specific conversation, which matters when a connection has several conversations or the project has private chats.
+
+Open **Learning** to inspect the draft and follow its source back to the recorded outcome. The draft suggests reusing the reported check, and the original report keeps the evidence. You can refine the draft using **Propose a lesson** from that outcome. A recorded baseline failure, candidate success, passing control, and explicit operator promotion are required before a lesson can appear in project retrieval. Rolling back a promoted lesson removes it from ordinary retrieval. The draft uses only the submitted check and the work-room task. No chat history, file contents, or model weights are involved.
+
+Turn off **Automatic lesson candidates** under **Setup → Features** to stop new drafts. Project, host, and linked conversation sharing still apply. Existing candidates remain available to the project operator for review.
+
+## Report what helped retrieval
+
 Shadow Brain 7.1.4 can reuse project-specific feedback when assembling adaptive context. The loop is explicit: select relevant memory, do the task in the host, observe the result, report what helped or failed, and inspect the effect on later retrieval.
 
 ```mermaid

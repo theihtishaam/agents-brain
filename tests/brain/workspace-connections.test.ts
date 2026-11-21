@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { WorkspaceConnections, type WorkspaceConnectionId } from '../../src/brain/workspace-connections.js';
+import { WorkspaceConnectionsApi } from '../../src/dashboard/workspace-connections-api.js';
 
 let root: string;
 let manager: WorkspaceConnections;
@@ -56,10 +57,40 @@ it('publishes one shared configuration and removes it only after the last config
   remove('claude-code');
   expect(manager.allows('claude-code')).toBe(false);
   expect(manager.allows('vscode')).toBe(true);
+  expect(connector('claude-code')).toMatchObject({ status: 'configured', allowed: false, ownsConfiguration: false });
   expect(fs.existsSync(path.join(root, '.mcp.json'))).toBe(true);
   remove('vscode');
   expect(fs.existsSync(path.join(root, '.mcp.json'))).toBe(false);
   expect(manager.allows('vscode')).toBe(false);
+});
+
+it('uses the detected OpenCode configuration generation and preserves an owned file through a host upgrade', () => {
+  let major: 1 | 2 = 1;
+  manager = new WorkspaceConnections(root, projectId, () => major);
+  configure('opencode');
+  const filename = path.join(root, 'opencode.json');
+  const original = fs.readFileSync(filename, 'utf8');
+  expect(JSON.parse(original).mcp.shadow_brain.type).toBe('local');
+  expect(JSON.parse(original).mcp.servers).toBeUndefined();
+  major = 2;
+  expect(connector('opencode').recipe.notes.join(' ')).toContain('Installed package evidence indicates V2');
+  expect(fs.readFileSync(filename, 'utf8')).toBe(original);
+  remove('opencode');
+  configure('opencode');
+  expect(JSON.parse(fs.readFileSync(filename, 'utf8')).mcp.servers.shadow_brain.type).toBe('local');
+});
+
+it('keeps ambiguous OpenCode installations manual until there is generation evidence', async () => {
+  const api = new WorkspaceConnectionsApi(root, projectId, () => false, () => ({ limited: false, hosts: [{
+    id: 'opencode', label: 'OpenCode', docs: 'https://opencode.ai/docs/mcp-servers/', status: 'detected',
+    evidence: [{ kind: 'path-command', value: 'opencode' }],
+  }] }));
+  const original = api.read();
+  expect(original.hosts.find(host => host.id === 'opencode')).toMatchObject({ configuration: 'manual', mode: 'manual' });
+  const revisions = { expectedRevision: original.revision, expectedPolicyRevision: original.policyRevision };
+  await expect(api.change({ action: 'connect', host: 'opencode', ...revisions })).rejects.toMatchObject({ code: 'WORKSPACE_CONNECTIONS_VERSION_UNKNOWN' });
+  await api.change({ action: 'automatic', enabled: true, ...revisions });
+  expect(fs.existsSync(path.join(root, 'opencode.json'))).toBe(false);
 });
 
 it('preserves unowned, modified and alternate configurations while persisting a disconnect', () => {

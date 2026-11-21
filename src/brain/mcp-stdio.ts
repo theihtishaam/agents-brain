@@ -37,7 +37,9 @@ export async function serveMCPStdio(
   const consumeOutputError = () => {};
   output.on('error', consumeOutputError);
   const send = async (message: unknown) => {
-    let payload = JSON.stringify(message) + '\n';
+    // Some line readers split on Unicode separators. Escape them on the wire,
+    // so parsed text preserves the characters without creating extra records.
+    let payload = JSON.stringify(message).replace(/\u2028/gu, '\\u2028').replace(/\u2029/gu, '\\u2029') + '\n';
     if (Buffer.byteLength(payload) > MAX_RESPONSE_BYTES) {
       payload = JSON.stringify({ jsonrpc: '2.0', id: (message as MCPResponse).id ?? null,
         error: { code: -32001, message: 'Result exceeds 4 MiB. Request fewer memories or a smaller context.' } }) + '\n';

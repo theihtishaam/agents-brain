@@ -78,3 +78,63 @@ it('submits the requested memory limit and rejects a pack from a stale sharing p
   expect(api).toHaveBeenCalledWith('context', expect.objectContaining({ projectId: 'fixture', tokenBudget: 300, maxEntries: 3 }));
   expect(state.context).toBeNull();
 });
+
+const continuationFixture = BRAIN_HUB_CONTEXT + `
+  const local=true, projectId='fixture-project';
+  const continuation={title:'Release <check>',nextStep:'Verify the retry <limit>',sessionId:'session#12',checkpointId:'checkpoint?2',sha256:'a'.repeat(64)};
+  const pack={projectId,scope:'project',policy:{revision:3},continuation};
+  const state={project:projectId,server:{project:{id:projectId}},context:pack,view:'context',dataEpoch:1,policy:{policy:{revision:3}},errors:{}};
+  const esc=value=>String(value).replaceAll('<','&lt;');
+  const action=(key,label)=>'<button data-action="'+key+'">'+label+'</button>';
+`;
+
+it('renders a shared checkpoint and next step only in its current local pack', () => {
+  const actual = runInNewContext(continuationFixture + `
+    const valid=contextContinuation(pack);
+    const optional=contextContinuation({...pack,continuation:{...continuation,nextStep:null}});
+    const wrongProject=contextContinuation({...pack,projectId:'other-project'});
+    state.policy.policy.revision=4;
+    const stale=contextContinuation(pack);
+    ({valid,optional,wrongProject,stale});
+  `, {});
+  expect(actual.valid).toContain('Release &lt;check>');
+  expect(actual.valid).toContain('Verify the retry &lt;limit>');
+  expect(actual.valid).toContain('Open checkpoint');
+  expect(actual.optional).not.toContain('Next step');
+  expect(actual.wrongProject).toBe('');
+  expect(actual.stale).toBe('');
+});
+
+it('opens and focuses the exact checkpoint and discards results if scope changes during the read', async () => {
+  const actual = await runInNewContext(continuationFixture + `
+    const urls=[],events=[],button={disabled:false};
+    let switchScope=false;
+    const checkpoint={...continuation,id:continuation.checkpointId,summary:'Shared checkpoint evidence'};
+    const api=async route=>{
+      urls.push(route);
+      if(route.includes('/checkpoints/')){
+        if(switchScope)state.dataEpoch++;
+        return {checkpoint};
+      }
+      return {session:{id:continuation.sessionId}};
+    };
+    const openView=view=>{state.view=view;events.push(view);};
+    const status=(message,isError)=>events.push([message,isError]);
+    const $=id=>({focus:()=>events.push(id)});
+    (async()=>{
+      await openContextContinuation(button);
+      const opened=state.sessionCheckpoint?.id;
+      state.view='context';state.sessionCheckpoint=null;switchScope=true;
+      await openContextContinuation(button);
+      return {urls,events,opened,stale:state.sessionCheckpoint,disabled:button.disabled};
+    })()
+  `, {});
+  expect(actual).toEqual({
+    urls: ['sessions/session%2312', 'sessions/session%2312/checkpoints/checkpoint%3F2',
+      'sessions/session%2312', 'sessions/session%2312/checkpoints/checkpoint%3F2'],
+    events: ['sessions', 'checkpoint-checkpoint?2'],
+    opened: 'checkpoint?2',
+    stale: null,
+    disabled: false,
+  });
+});

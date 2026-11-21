@@ -5,6 +5,10 @@ import { memoryAnnotationsFor, memoryState } from './memory-annotations.js';
 import { readProjectFile } from './project-kit-paths.js';
 import { extractHubPdf, PDF_PARSER } from './project-hub-pdf-worker.js';
 import { capped, conflict, digest, HubStore, missing } from './project-hub-store.js';
+import { FeatureSettingsStore } from './feature-settings.js';
+import { disabledChatKeys, hiddenChatSessions, nativeChatKey, ProjectPolicyStore, toolParticipates, toolPolicyLabel } from './project-policy.js';
+import { WorkspaceConnections } from './workspace-connections.js';
+import type { SessionRecord } from './project-session-contract.js';
 import {
   HUB_LIMITS, HUB_OPERATOR, ProjectHubError, artifactReadInput, hubActor, hubId, hubInput, lessonActionInput, lessonInput, reviewInput, roomActionInput, roomInput,
   type HubAck, type HubActor, type HubArtifact, type HubDocument, type HubLesson, type HubMessage, type HubOutcome,
@@ -14,6 +18,7 @@ import {
 type DocumentRecord = HubDocument & { pages: HubPage[]; extraction: { id: string; until: number } | null };
 type RoomAction = ReturnType<typeof roomActionInput.parse>;
 type LessonAction = ReturnType<typeof lessonActionInput.parse>;
+export type HubOutcomeReporter = { tool: string; sessionActorId: string };
 const sameActor = (a: HubActor | null, b: HubActor) => a?.id === b.id && a.kind === b.kind;
 const artifactFile = /\.(?:txt|md|csv|diff|patch|log|html|css|js|mjs|cjs|jsx|ts|tsx|py|rs|go|java|cs|sh|ps1|pdf|png|jpe?g|webp|json)$/iu;
 const privatePath = /(?:credential|secret|password|passwd|passkey|private[-_ ]?key|session[-_ ]?token|auth[-_ ]?(?:token|data|profile)|cookie|browser[-_ ]?history|keystore|node_modules|appdata)/iu;
@@ -47,7 +52,7 @@ export class ProjectHubService {
 
   private documentSummary({ pages, extraction, ...document }: DocumentRecord): HubDocument { return document; }
 
-  overview() {
+  overview(forAgent = false) {
     return this.db.transaction(() => {
       const documents = this.db.list<DocumentRecord>('documents');
       for (const document of documents) {
@@ -59,9 +64,12 @@ export class ProjectHubService {
           this.db.put('documents', document);
         }
       }
+      const lessons = this.db.list<HubLesson>('lessons');
+      const shared = forAgent && lessons.some(lesson => lesson.automatic) ? this.automaticLessonSharing() : undefined;
       return { schemaVersion: 1 as const, projectId: this.project.projectId, projectName: this.project.projectName, revision: this.db.revision(),
         documents: documents.map(document => this.documentSummary(document)).reverse(),
-        rooms: this.db.list<HubRoom>('rooms').reverse(), lessons: this.db.list<HubLesson>('lessons').reverse(),
+        rooms: this.db.list<HubRoom>('rooms').reverse(), lessons: lessons
+          .filter(lesson => !shared || !lesson.automatic || shared(lesson.automatic)).reverse(),
         ocr: 'unavailable' as const, limits: HUB_LIMITS };
     });
   }
@@ -199,12 +207,12 @@ export class ProjectHubService {
     return { ...this.room(id), applied };
   }
 
-  applyRoomCommand(id: string, raw: unknown, by: HubActor) {
+  applyRoomCommand(id: string, raw: unknown, by: HubActor, reporter?: HubOutcomeReporter) {
     id = hubInput(hubId, id);
     const input = hubInput(roomActionInput, raw), actor = hubInput(hubActor, by);
     // Keep lease expiry committed even if the caller's subsequent revision check conflicts.
     this.db.transaction(() => this.expireLeases(id));
-    return this.run('room:' + id, actor, input, () => this.applyRoomAction(id, input, actor));
+    return this.run('room:' + id, actor, input, () => this.applyRoomAction(id, input, actor, reporter));
   }
 
   roomFeed(id: string, after = 0) {
@@ -228,7 +236,7 @@ export class ProjectHubService {
     if (this.db.count(kind, id) >= HUB_LIMITS.roomRecords) capped('This room reached its retained ' + kind + ' limit.');
   }
 
-  private applyRoomAction(id: string, input: RoomAction, actor: HubActor) {
+  private applyRoomAction(id: string, input: RoomAction, actor: HubActor, reporter?: HubOutcomeReporter) {
     const createdAt = this.time();
     const publish = (kind: string, targetId: string, revision?: number) => {
       this.db.event(id, kind, targetId, actor, createdAt);
@@ -313,9 +321,46 @@ export class ProjectHubService {
         const outcome: HubOutcome = { id: randomUUID(), roomId: id, taskId: task.id, artifactId: artifact?.id ?? null,
           result: input.result, check: input.check, evidence: input.evidence, provenance: actor.kind === 'agent' ? 'agent-report' : 'user-report', author: actor, createdAt };
         this.db.put('outcomes', outcome, id);
-        return publish('outcome-reported', outcome.id);
+        const lessonId = reporter && actor.kind === 'agent' && outcome.result === 'pass'
+          ? this.draftOutcomeLesson(outcome, task, reporter, input.sessionId) : undefined;
+        return { ...publish('outcome-reported', outcome.id), ...(lessonId ? { lessonId } : {}) };
       }
     }
+  }
+
+  private automaticLessonSharing(records?: SessionRecord[]): (source: NonNullable<HubLesson['automatic']>) => boolean {
+    try {
+      const { root, projectId } = this.project;
+      const policy = new ProjectPolicyStore(root, projectId).get();
+      const excluded = new Set<string>(new WorkspaceConnections(root, projectId).excludedHosts());
+      const disabled = disabledChatKeys(policy);
+      const hidden = disabled.size ? hiddenChatSessions(policy, records ?? this.db.list<SessionRecord>('sessions')) : new Set<string>();
+      return source => toolParticipates(policy, source.tool) && !excluded.has(source.tool) && (!disabled.size ||
+        (!!source.sessionId && !hidden.has(source.sessionId) && !(source.nativeChatKey && disabled.has(source.nativeChatKey))));
+    } catch { return () => false; }
+  }
+
+  private draftOutcomeLesson(outcome: HubOutcome, task: HubTask, reporter: HubOutcomeReporter, requestedSession?: string): string | undefined {
+    try {
+      if (!new FeatureSettingsStore({ filePath: this.project.settingsPath }).get().features.automaticLearning) return;
+    } catch { return; }
+    const records = this.db.list<SessionRecord>('sessions');
+    const own = records.filter(session => session.actor.kind === 'agent' && session.actor.id === reporter.sessionActorId);
+    const session = requestedSession ? own.find(row => row.id === requestedSession) : own.length === 1 ? own[0] : undefined;
+    if (!session && (requestedSession || own.length > 1)) return;
+    const tool = toolPolicyLabel(reporter.tool);
+    const automatic = { roomId: outcome.roomId, taskId: task.id, tool,
+      ...(session ? { sessionId: session.id } : {}),
+      ...(session?.hostSessionId ? { nativeChatKey: nativeChatKey(tool, session.hostSessionId) } : {}) };
+    if (!this.automaticLessonSharing(records)(automatic)) return;
+    const scope = 'automatic-outcome:' + digest(JSON.stringify([task.id, outcome.artifactId, outcome.check.toLowerCase().replace(/\s+/gu, ' ')]));
+    if (this.db.findByScope<HubLesson>('lessons', scope) || this.db.count('lessons') >= HUB_LIMITS.lessons) return;
+    const prefix = 'Repeat check: ', maxSubject = 150 - prefix.length;
+    const subject = outcome.check.length > maxSubject ? outcome.check.slice(0, maxSubject - 1).replace(/[\uD800-\uDBFF]$/u, '') + '…' : outcome.check;
+    const lesson: HubLesson = { id: randomUUID(), outcomeId: outcome.id, title: prefix + subject,
+      text: `For work on ${task.title}, repeat this check and compare the result before relying on the same approach.\n\nCheck reported by the agent: ${outcome.check}`,
+      status: 'candidate', evaluation: null, memoryId: null, createdAt: outcome.createdAt, author: outcome.author, automatic };
+    return this.db.put('lessons', lesson, scope).id;
   }
 
   artifact(roomId: string, artifactId: string) {
@@ -345,9 +390,15 @@ export class ProjectHubService {
     const input = hubInput(lessonInput, raw), actor = hubInput(hubActor, by);
     const id = this.run('lesson-create', actor, input, () => {
       const outcome = this.row<HubOutcome>('outcomes', input.outcomeId);
+      const draft = this.db.list<HubLesson>('lessons').find(lesson => lesson.automatic && lesson.outcomeId === outcome.id);
+      if (draft?.automatic && actor.kind === 'agent' && !this.automaticLessonSharing()(draft.automatic)) conflict('The original work report is no longer shared.');
+      if (draft?.status === 'candidate' && (actor.kind === 'user' || sameActor(draft.author, actor))) {
+        return this.db.put('lessons', { ...draft, title: input.title, text: input.text }).id;
+      }
       if (this.db.count('lessons') >= HUB_LIMITS.lessons) capped('This project has reached its lesson limit.');
       const lesson: HubLesson = { id: randomUUID(), outcomeId: outcome.id, title: input.title, text: input.text,
-        status: 'candidate', evaluation: null, memoryId: null, createdAt: this.time(), author: actor };
+        status: 'candidate', evaluation: null, memoryId: null, createdAt: this.time(), author: actor,
+        ...(draft?.automatic ? { automatic: draft.automatic } : {}) };
       return this.db.put('lessons', lesson).id;
     });
     return { lesson: this.row<HubLesson>('lessons', id) };
@@ -369,6 +420,7 @@ export class ProjectHubService {
         if (!evaluation || evaluation.baseline || !evaluation.candidate || !evaluation.control || lesson.status === 'rolled-back') {
           conflict('Promotion requires a reviewed baseline failure, candidate success, and passing control comparison.');
         }
+        if (lesson.automatic && !this.automaticLessonSharing()(lesson.automatic)) conflict('The original work report is no longer shared.');
         lesson.memoryId ??= randomUUID();
       } else if (lesson.status !== 'promoted' && lesson.status !== 'rolled-back') {
         conflict('Only a promoted lesson can be rolled back.');
@@ -379,6 +431,8 @@ export class ProjectHubService {
     if (input.kind === 'promote' && this.row<HubLesson>('lessons', id).status !== 'rolled-back') {
       await this.writeMemory(pending.memoryId!, 'reviewed-lesson', pending.title, pending.text,
         { origin: 'project-hub-lesson', lessonId: id, outcomeId: pending.outcomeId,
+          ...(pending.automatic ? { lessonOriginTool: pending.automatic.tool, originSessionId: pending.automatic.sessionId,
+            lessonOriginChatKey: pending.automatic.nativeChatKey } : {}),
           evaluationMethod: 'operator-reported-comparison', sources: ['Project hub lesson ' + id, 'Reported outcome ' + pending.outcomeId] });
       this.db.transaction(() => {
         const lesson = this.row<HubLesson>('lessons', id);

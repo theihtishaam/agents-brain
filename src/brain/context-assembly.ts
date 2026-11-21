@@ -12,7 +12,16 @@ import { projectFeedbackInfluence, type ProjectFeedbackSnapshot } from './projec
 
 export type { ContextRetrievalCandidate, ContextRetrievalProfile, ContextRetrievalReport } from './context-retrieval.js';
 
+export interface ContextContinuation {
+  sessionId: string;
+  checkpointId: string;
+  sha256: string;
+  title: string;
+  nextStep: string | null;
+}
+
 export interface ContextAssemblyOptions {
+  findContinuation?: (terms: string[]) => ContextContinuation | undefined;
   projectId: string;
   query?: string;
   profile?: ContextRetrievalProfile;
@@ -21,7 +30,7 @@ export interface ContextAssemblyOptions {
   tokenBudget?: number;
   maxChars?: number;
   includeCrossProject?: boolean;
-  features?: Pick<FeatureFlags, 'contextAssembly' | 'crossProjectContext'>;
+  features?: Pick<FeatureFlags, 'contextAssembly' | 'crossProjectContext'> & Partial<Pick<FeatureFlags, 'checkpointContext'>>;
   minImportance?: number;
   lookbackHours?: number;
   alwaysInclude?: readonly string[];
@@ -68,6 +77,7 @@ type ContextExclusion = {
 };
 
 export interface ContextPack {
+  continuation?: ContextContinuation;
   enabled: boolean;
   projectId: string;
   scope: 'project' | 'cross-project';
@@ -417,6 +427,20 @@ function assembleAdaptive(
     ...(candidate?.feedback ? { feedback: candidate.feedback } : {}),
   });
   let markdown = contextHeader(broaden);
+  const saved = maxEntries > 0 ? options.findContinuation?.(pack.queryKeywords) : undefined;
+  if (saved) {
+    const continuation = { title: clip(textLine(saved.title), 120), nextStep: saved.nextStep ? clip(textLine(saved.nextStep), 220) : null,
+      sessionId: saved.sessionId, checkpointId: saved.checkpointId, sha256: saved.sha256 };
+    const block = ['Shared project checkpoint (reference)', '> ' + safeMarkdown(continuation.title),
+      ...(continuation.nextStep ? ['> Saved next step: ' + safeMarkdown(continuation.nextStep)] : []),
+      'sessionId ' + continuation.sessionId, 'checkpointId ' + continuation.checkpointId, 'sha256 ' + continuation.sha256, ''].join('\n');
+    const candidate = markdown + '\n' + block;
+    const reserve = selectedForReview.length > 0 ? 0.60 : 1;
+    if (candidate.length <= pack.budget.maxChars * reserve && estimateAdaptiveTokens(candidate) <= pack.budget.tokenBudget * reserve) {
+      pack.continuation = continuation;
+      markdown = candidate;
+    }
+  }
   const duplicates: ContextRetrievalCandidate[] = [];
   for (const [index, candidate] of selectedForReview.entries()) {
     const diagnostic = describe(candidate.memory, index + 1, candidate);
@@ -460,7 +484,7 @@ function assembleAdaptive(
     { id: 'linked', label: 'Linked candidates', count: expanded.length },
     { id: 'selected', label: 'Included in context', count: pack.entries.length },
   ];
-  if (!selectedForReview.length) pack.warnings.push('No eligible memories matched this context request.');
+  if (!selectedForReview.length && !pack.continuation) pack.warnings.push('No eligible memories matched this context request.');
   else if (!pack.entries.length && report.candidates.some(candidate => candidate.reason === 'budget')) {
     pack.warnings.push('The selected context budget is too small for the matching memories.');
   }
@@ -470,7 +494,7 @@ function assembleAdaptive(
   if (pack.entries.some(entry => entry.related.some(relation => relation.type === 'contradicts'))) {
     pack.warnings.push('Selected memories have recorded contradictions. Check the conflicting evidence.');
   }
-  pack.markdown = pack.entries.length ? markdown : '';
+  pack.markdown = pack.entries.length || pack.continuation ? markdown : '';
   pack.budget.usedChars = pack.markdown.length;
   pack.budget.usedBytes = Buffer.byteLength(pack.markdown, 'utf8');
   pack.budget.estimatedTokens = estimateAdaptiveTokens(pack.markdown);

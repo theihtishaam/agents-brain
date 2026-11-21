@@ -14,10 +14,18 @@ import { ProjectLiveStream } from './project-live-stream.js';
 import { WorkspaceConnectionsApi } from './workspace-connections-api.js';
 import { ProjectFileExplorer } from './project-file-explorer.js';
 import { closeNativeCodex } from './native-codex-api.js';
+import { ProjectPortalPool } from './project-portal-pool.js';
 import { WorkspaceDirectory } from '../brain/workspace-directory.js';
 
 /** Persistent, provider-free project portal. Closing never deletes project files. */
 export async function startProjectWorkspace(directory: string, options: { port?: number } = {}) {
+  const family: ProjectPortalPool = new ProjectPortalPool(root => startScopedWorkspace(root, {}, family));
+  const owner = await startScopedWorkspace(directory, options, family);
+  family.bindOwner(owner.projectId, owner.url);
+  return { ...owner, close: async () => { await family.close(); await owner.close(); } };
+}
+
+async function startScopedWorkspace(directory: string, options: { port?: number }, family: ProjectPortalPool) {
   const port = options.port ?? 0;
   if (!Number.isSafeInteger(port) || port < 0 || port > 65535) throw new TypeError('Project port must be an integer from 0 to 65535.');
   const store = projectStorage(directory);
@@ -62,13 +70,14 @@ export async function startProjectWorkspace(directory: string, options: { port?:
       if (!['127.0.0.1:' + actualPort, 'localhost:' + actualPort].includes(req.headers.host ?? '')) {
         res.writeHead(403); res.end('Unsupported host.'); return;
       }
+      family.touch(store.projectId);
       if (req.url?.startsWith('/api/workspace/')) {
         let url: URL;
         try { url = new URL(req.url, 'http://localhost'); }
         catch { res.writeHead(400); res.end('Invalid request URL.'); return; }
         if (ProjectLiveStream.route(url.pathname)) { live.handle(req, res, url); return; }
         const task = handleWorkspaceRequest(req, res, { brain, settings, annotations, journal, projectDir: store.root, localProject: true,
-          runtime, files, connections, get hub() { return hub; }, prepareStorage });
+          runtime, files, connections, openRegisteredProject: input => family.open(input), get hub() { return hub; }, prepareStorage });
         requests.add(task); void task.finally(() => requests.delete(task)); return;
       }
       if (req.method !== 'GET') { res.writeHead(405); res.end('Method not allowed.'); return; }

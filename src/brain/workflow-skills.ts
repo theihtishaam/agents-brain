@@ -17,6 +17,13 @@ const BLOCK_PREFIX = '<!-- agent-shadow-brain:workflow:';
 const BLOCK_START = BLOCK_PREFIX + 'start -->';
 const BLOCK_END = BLOCK_PREFIX + 'end -->';
 
+export const PROJECT_BRIEF_INSTRUCTION = 'When project-local MCP is available, start each substantive task or continuation with one `project_brief` call if the brief has yet to be supplied. Use a short, shareable task query. If access or context assembly is disabled, continue with the project files and current instructions.';
+export const PROJECT_HANDOFF_INSTRUCTIONS = [
+  'When project-local session tools are available and work is authorized for project sharing, call `session_open` once when starting new work. When continuing an identified task, use `session_handoffs` to find its checkpoint and `session_resume` with its session ID, checkpoint ID and SHA-256. Verify that the checkpoint is for the current task. If shared work stopped without a current checkpoint, use session_list and session_recover with the source revision.',
+  'Use `session_record` with `kind: "checkpoint"` at meaningful milestones, before an authorized handoff or subagent transition, and before marking shared work complete. Save verified progress, decisions, constraints, evidence references and the next action. Reuse the operation key on retry. Keep private reasoning, credentials, transcripts and unrelated chat text out of task queries, checkpoints and telemetry. Respect project and chat sharing controls.',
+  'If the operator enables Exact shared conversation history and a compatible host can supply the original user-visible messages of an authorized project conversation, open an owned session with `hostSessionId` and `exactTranscript: true`. Use `session_append_turn` with that session ID, the stable host message ID, role and original text. Reuse the host message ID and role when retrying. Use `session_transcript_read` for a separately authorized history lookup. Continue to use a selective `project_brief` and checkpoints for normal task context.',
+] as const;
+
 export const WORKFLOW_TARGETS = Object.freeze({
   codex: Object.freeze({ skillRoot: '.agents/skills', instructionFile: 'AGENTS.md' }),
   'claude-code': Object.freeze({ skillRoot: '.claude/skills', instructionFile: 'CLAUDE.md' }),
@@ -255,6 +262,8 @@ function instructionBlock(names: string[], roots: string[], eol: string): string
     'For substantive tasks, use the relevant installed skill: ' + displayed + '.',
     'Skill bundles are in ' + locations + '.',
     'Follow the user’s request and project rules. Handle simple tasks directly, plan when useful, carry out authorized work, and verify the requested result.',
+    PROJECT_BRIEF_INSTRUCTION,
+    ...PROJECT_HANDOFF_INSTRUCTIONS,
     BLOCK_END,
   ].join(eol);
 }

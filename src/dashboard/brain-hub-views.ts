@@ -1,4 +1,6 @@
 import { BRAIN_HUB_DIRECTORY } from './brain-hub-directory.js';
+import { BRAIN_HUB_OVERVIEW_EVIDENCE } from './brain-hub-overview-evidence.js';
+import { BRAIN_HUB_HANDOFF } from './brain-hub-handoff.js';
 import { BRAIN_HUB_GROWTH } from './brain-hub-growth.js';
 import { BRAIN_HUB_SIGNALS } from './brain-hub-signals.js';
 import { BRAIN_HUB_FILES } from './brain-hub-files.js';
@@ -113,11 +115,14 @@ function overviewPage(){
   const event=displayEvent();
   const pack=state.context?.budget;
   const compare=state.comparison;
+  const topology=local?'<div class="observatory">'+agentDock()+growthSide()+'</div>':agentDock();
+  const preview=overviewEvidencePanel();
+  const hasBrainData=(state.graph?.totalMemories??state.growth?.memory?.retained??0)>0||currentDockConnections().length>0;
   const contextBody=pack?'<div class="panel-body stack">'+contextBudget(state.context,state.contextInput??{})+
     (compare?'<p class="small muted">Legacy '+fmt(contextBytes(compare.legacy))+' bytes · Adaptive '+fmt(contextBytes(compare.adaptive))+' bytes</p>':'')+
     view('context','Open context pack')+'</div>':empty('No context pack built','Build a pack to inspect size, sources, and selection reasons.',view('context','Build context pack'));
   return heading('Brain control room','Explore stored memories, inspect tool exchanges, and connect your project.',action('pause',state.motionPaused?'Resume motion':'Pause motion','','id="pause-motion" '+(reduced.matches?'disabled':''))+view('setup','Connection setup'))+
-    (local?'<div id="workspace-nav">'+workspaceNav()+'</div>':'')+telemetryStrip()+(local?'<div class="observatory">'+agentDock()+growthSide()+'</div>':agentDock())+signalMonitor()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector" tabindex="-1" aria-label="Record inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
+    (local?'<div id="workspace-nav">'+workspaceNav()+'</div>':'')+telemetryStrip()+(hasBrainData?topology+preview:preview+topology)+signalMonitor()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector" tabindex="-1" aria-label="Record inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
     panel('Activity journal','<div class="replay"><label for="replay" class="small muted">Seek record</label><input id="replay" type="range" min="0" max="'+Math.max(0,state.events.length-1)+'" value="'+Math.max(0,state.events.indexOf(event))+'" '+(state.events.length?'':'disabled')+'><output class="mono small" id="event-time">'+esc(event?time(event.timestamp):state.replayExpired?'Expired':'—')+'</output>'+action('live','Latest','','id="return-live" '+(state.replayId?'':'hidden'))+'</div><div class="timeline" id="timeline">'+timelineMarkup()+'</div>', '<span id="journal-state">'+chip(state.replayId?(state.replayExpired?'Replay expired':'Replay'):state.live?'Recorded activity':'Activity unavailable',state.replayId?'amber':'cyan')+'</span>')+'</div>';
 }
 function updateOverviewLive(){
@@ -146,7 +151,7 @@ function updateOverviewLive(){
   const strip=$('main').querySelector('.strip');if(strip)strip.outerHTML=telemetryStrip();
   if(state.inspector==='event'&&!$('inspector').matches(':focus-within'))renderInspector();
   const pause=$('pause-motion');pause.textContent=state.motionPaused?'Resume motion':'Pause motion';pause.disabled=reduced.matches;
-  updateGrowth();updateSignalMonitor();updateExchanges();drawGraph();updateAgentDock();
+  updateGrowth();updateSignalMonitor();updateExchanges();drawGraph();updateOverviewEvidence();updateAgentDock();
 }
 ${BRAIN_HUB_CONTEXT}
 ${BRAIN_HUB_AGENT_DOCK}
@@ -157,6 +162,8 @@ ${BRAIN_HUB_FILES}
 ${BRAIN_HUB_SIGNALS}
 ${BRAIN_HUB_GROWTH}
 ${BRAIN_HUB_DIRECTORY}
+${BRAIN_HUB_OVERVIEW_EVIDENCE}
+${BRAIN_HUB_HANDOFF}
 ${BRAIN_HUB_CONTROLS}
 ${BRAIN_HUB_MANAGED_SKILLS}
 ${BRAIN_HUB_CONNECTIONS}
@@ -164,7 +171,8 @@ function setupPage(){
   const features=state.features;
   const flags=features?list(arr(features.definitions).map(item=>{
     const reason=featureLimit(item.id),on=!reason&&features.features[item.id];
-    return '<li class="item"><div class="row"><strong>'+esc(item.label)+'</strong>'+btn(reason?'Unavailable':on?'On':'Off','data-feature="'+esc(item.id)+'" role="switch" aria-checked="'+!!on+'" aria-label="'+esc(item.label)+'" '+(state.pending||reason?'disabled':''))+'</div><p class="small muted">'+esc(reason??item.description)+'</p></li>';
+    const capture=item.id==='exactConversationCapture'&&local;
+    return '<li class="item"'+(capture?' id="exact-capture-setting"':'')+'><div class="row"><strong>'+esc(item.label)+'</strong>'+btn(reason?'Unavailable':on?'On':'Off','data-feature="'+esc(item.id)+'" role="switch" aria-checked="'+!!on+'" aria-label="'+esc(item.label)+'" '+(capture?'id="exact-capture-switch" aria-describedby="exact-capture-coverage" ':'')+(state.pending||reason?'disabled':''))+'</div><p class="small muted">'+esc(reason??item.description)+'</p>'+(capture?exactCaptureSetup(on):'')+'</li>';
   }).join('')):error('features','feature settings')||empty('Loading feature settings','The server supplies the current switches and their descriptions.');
   const hosts=arr(state.integrations?.agents);
   const recipes=hosts.length?list(hosts.map(host=>'<li class="item"><div class="row"><h3>'+esc(host.label)+'</h3>'+chip(host.installation)+'</div><p class="small muted">'+esc(host.detail)+'</p><details><summary>Connection recipe</summary><div class="stack"><pre>'+esc(host.config?.content)+'</pre>'+arr(host.config?.notes).map(note=>'<p class="small muted">'+esc(note)+'</p>').join('')+'<div class="actions">'+action('copy-host','Copy configuration','','data-host="'+esc(host.id)+'"')+action('copy-command','Copy skill command','','data-host="'+esc(host.id)+'"')+'</div></div></details></li>').join('')):error('integrations','host recipes')||empty('Loading host recipes','Configuration recipes are generated locally.');

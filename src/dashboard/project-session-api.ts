@@ -1,11 +1,14 @@
 import type { IncomingMessage } from 'node:http';
 import type { GlobalBrain } from '../brain/global-brain.js';
+import { requireProjectStore } from '../brain/project-memory.js';
+import { ProjectPolicyStore } from '../brain/project-policy.js';
 import { ProjectSessionError, SESSION_OPERATOR, sessionInput, sessionMessageWindow } from '../brain/project-session-contract.js';
 import { ProjectSessions } from '../brain/project-sessions.js';
 import { ProjectSourceIntake } from '../brain/project-source-intake.js';
 import { NATIVE_SESSION_BYTES, parseNativeSession } from '../brain/native-session-import.js';
 
 export function isProjectSessionRoute(route: string): boolean { return route === 'sessions' || route.startsWith('sessions/'); }
+export function isExactTranscriptRoute(route: string): boolean { return /^sessions\/[^/]+\/transcript$/u.test(route); }
 
 async function readNative(req: IncomingMessage): Promise<Buffer> {
   const type = req.headers['content-type']?.split(';', 1)[0].trim().toLowerCase();
@@ -34,6 +37,11 @@ export async function projectSessionRequest(req: IncomingMessage, route: string,
   if (rest.length || id === '' || action === '' || target === '') throw notFound();
   if (req.method === 'GET') {
     if (!id) return sessions.list();
+    if (action === 'transcript' && !target) {
+      const limit = url.searchParams.get('limit');
+      return sessions.readExactTranscript({ sessionId: id, before: url.searchParams.get('before') ?? undefined,
+        limit: limit === null ? undefined : /^\d+$/u.test(limit) ? Number(limit) : NaN }, SESSION_OPERATOR);
+    }
     if (!action && id !== 'import' && id !== 'native') {
       const limit = url.searchParams.get('limit');
       const { before, limit: size } = sessionInput(sessionMessageWindow, {
@@ -65,6 +73,13 @@ export async function projectSessionRequest(req: IncomingMessage, route: string,
     }, SESSION_OPERATOR);
   }
   if (action === 'actions') return sessions.record(id, await readBody(), SESSION_OPERATOR);
+  if (action === 'recover') {
+    const input = await readBody();
+    const local = requireProjectStore(directory, brain);
+    const policy = new ProjectPolicyStore(local.root, local.projectId).get();
+    if (policy.participationEnabled === false) throw new ProjectSessionError('SESSION_SHARING_OFF', 'Project handoff is paused.', 403);
+    return new ProjectSessions(local.root, brain, undefined, policy).recover(id, input, SESSION_OPERATOR);
+  }
   if (action === 'resume') return sessions.resume(id, await readBody(), SESSION_OPERATOR);
   throw notFound();
 }

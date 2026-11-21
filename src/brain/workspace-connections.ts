@@ -14,11 +14,11 @@ type Definition = { label: string; docs: string; file?: string; alternatives?: r
 const portable = { file: '.mcp.json', alternatives: ['.github/mcp.json', '.vscode/mcp.json'] };
 const definitions: Record<WorkspaceConnectionId, Definition> = {
   vscode: { ...portable, label: 'VS Code / Copilot', docs: 'https://code.visualstudio.com/docs/agents/reference/mcp-configuration',
-    note: 'The current Copilot harness reads the same project file as Claude Code. Older editor-managed setups use .vscode/mcp.json.' },
+    note: 'For the current Copilot harness, open this workspace in Copilot Chat and review its shared .mcp.json. The editor-managed .vscode/mcp.json uses a different format.' },
   'claude-code': { ...portable, label: 'Claude Code', docs: 'https://code.claude.com/docs/en/mcp#project-scope',
-    note: 'Claude Code can prompt to approve this project server. The same file can also be used by the current Copilot harness.' },
+    note: 'Claude Code and the current Copilot harness can read this same project file. Approve the project server in Claude Code before checking its status with claude mcp list.' },
   opencode: { file: 'opencode.json', alternatives: ['opencode.jsonc', '.opencode/opencode.json', '.opencode/opencode.jsonc'],
-    label: 'OpenCode', docs: 'https://opencode.ai/docs/mcp-servers/', note: 'This recipe uses the OpenCode V2 configuration format.' },
+    label: 'OpenCode', docs: 'https://opencode.ai/docs/mcp-servers/' },
   cline: { label: 'Cline', docs: 'https://docs.cline.bot/mcp/mcp-overview',
     note: 'Add the server through Cline’s MCP settings. To use a separately saved file with the CLI, set CLINE_MCP_SETTINGS_PATH for that invocation.' },
   'kilo-code': { file: 'kilo.json', alternatives: ['kilo.jsonc', '.kilo/kilo.json', '.kilo/kilo.jsonc', '.kilocode/mcp.json'],
@@ -28,7 +28,7 @@ const definitions: Record<WorkspaceConnectionId, Definition> = {
   openclaw: { label: 'OpenClaw', docs: 'https://docs.openclaw.ai/gateway/config-extensions#mcp',
     note: 'Review the entry in the OpenClaw Gateway configuration you use for this workspace.' },
   'deepseek-harness': { label: 'DeepSeek Harness', docs: 'https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md',
-    note: 'Add the MCP client plugin entry through the Harness profile configuration you use for this workspace.' },
+    note: 'Add the MCP client plugin entry through the Harness profile you use for this workspace, then restart that profile. Desktop’s Manage dsh Command menu can make its bundled CLI available in a new terminal.' },
 };
 
 const metadataName = 'workspace-connections.sqlite';
@@ -39,6 +39,7 @@ const receiptSchema = z.strictObject({
   file: z.enum(['.mcp.json', 'opencode.json', 'kilo.json', '.codex/config.toml']),
   owners: z.array(connectorId).min(1).max(2),
   dev: statValue, ino: statValue, size: statValue, modified: statValue, changed: statValue, born: statValue,
+  openCodeMajor: z.union([z.literal(1), z.literal(2)]).optional(),
 });
 type Receipt = z.infer<typeof receiptSchema>;
 const stateSchema = z.strictObject({ revision: revisionSchema, automatic: z.boolean(),
@@ -59,6 +60,7 @@ export interface WorkspaceConnector {
   status: 'available' | 'configured' | 'conflict' | 'modified' | 'manual';
   allowed: boolean;
   configurationPath: string | null;
+  ownsConfiguration: boolean;
   docs: string;
   recipe: Recipe;
 }
@@ -87,7 +89,7 @@ function unchanged(info: fs.BigIntStats | undefined, receipt: Receipt) {
   return info?.isFile() && info.nlink === 1n && info.ino !== 0n &&
     Object.entries(fingerprint(info)).every(([key, value]) => receipt[key as keyof Receipt] === value);
 }
-function workspaceRecipe(root: string, project: string, id: WorkspaceConnectionId): Recipe {
+function workspaceRecipe(root: string, project: string, id: WorkspaceConnectionId, openCodeMajor: 1 | 2): Recipe {
   const definition = definitions[id];
   const options = { dbPath: path.join(root, storeDirectory, 'project-memory.json'), projectId: project };
   const launch = memoryLaunchCommand(root, options);
@@ -105,7 +107,8 @@ function workspaceRecipe(root: string, project: string, id: WorkspaceConnectionI
     JSON.stringify(launch.command) + '\nargs = ' + JSON.stringify(launch.args) + '\n' };
   if (id === 'opencode' || id === 'kilo-code') {
     const entry = { type: 'local', command: [launch.command, ...launch.args] };
-    return { format: 'json', notes, content: json(id === 'opencode' ?
+    if (id === 'opencode') notes.push('This recipe targets OpenCode V' + openCodeMajor + '. Run opencode mcp list in the project to verify the connection.');
+    return { format: 'json', notes, content: json(id === 'opencode' && openCodeMajor === 2 ?
       { $schema: 'https://opencode.ai/config.json', mcp: { servers: { shadow_brain: entry } } } :
       { mcp: { shadow_brain: entry } }) };
   }
@@ -118,7 +121,7 @@ function workspaceRecipe(root: string, project: string, id: WorkspaceConnectionI
 }
 
 export class WorkspaceConnections {
-  constructor(private readonly root: string, private readonly projectId: string) {}
+  constructor(private readonly root: string, private readonly projectId: string, private readonly openCodeMajor: () => 1 | 2 | undefined = () => 2) {}
 
   private database(write: boolean): DatabaseSync | undefined {
     if (write) ensureProjectDirectory(this.root, storeDirectory);
@@ -207,12 +210,18 @@ export class WorkspaceConnections {
 
   private snapshot(state: State): WorkspaceConnectionsSnapshot {
     const root = projectRoot(this.root);
+    const installedMajor = this.openCodeMajor();
     return { revision: state.revision, automatic: state.automatic, connectors: ids.map(id => {
       const definition = definitions[id];
-      const recipe = workspaceRecipe(root, this.projectId, id);
+      const receipt = state.receipts.find(receipt => receipt.file === definition.file);
+      const savedMajor = receipt?.file === 'opencode.json' ? receipt.openCodeMajor ?? 2 : undefined;
+      const recipe = workspaceRecipe(root, this.projectId, id, savedMajor ?? installedMajor ?? 2);
+      if (id === 'opencode' && savedMajor && installedMajor && savedMajor !== installedMajor) {
+        recipe.notes.push('Installed package evidence indicates V' + installedMajor + '. Disconnect this managed recipe and reconnect to regenerate it for that version.');
+      }
       return { id, label: definition.label, configurationPath: definition.file ?? null, docs: definition.docs,
-        status: definition.file && !recipe.content ? 'conflict' : this.status(root, id, state.receipts.find(receipt => receipt.file === definition.file)),
-        allowed: !state.excluded.includes(id), recipe };
+        status: definition.file && !recipe.content ? 'conflict' : this.status(root, id, receipt),
+        allowed: !state.excluded.includes(id), ownsConfiguration: receipt?.owners.includes(id) === true, recipe };
     }) };
   }
 
@@ -230,7 +239,8 @@ export class WorkspaceConnections {
   }
 
   private create(root: string, id: WorkspaceConnectionId, file: Receipt['file']): Receipt {
-    const recipe = workspaceRecipe(root, this.projectId, id);
+    const openCodeMajor = this.openCodeMajor() ?? 2;
+    const recipe = workspaceRecipe(root, this.projectId, id, openCodeMajor);
     if (!recipe.content) throw conflict();
     const parent = path.dirname(file);
     if (parent !== '.') ensureProjectDirectory(root, parent);
@@ -246,7 +256,7 @@ export class WorkspaceConnections {
       const after = fs.lstatSync(projectLocalPath(root, file), { bigint: true });
       if (!after.isFile() || after.nlink !== 1n || !sameIdentity(before, after) ||
           before.size !== after.size || before.mtimeNs !== after.mtimeNs) throw conflict();
-      return receiptSchema.parse({ file, owners: [id], ...fingerprint(after) });
+      return receiptSchema.parse({ file, owners: [id], ...fingerprint(after), ...(id === 'opencode' ? { openCodeMajor } : {}) });
     } finally {
       try { fs.unlinkSync(staged); } catch (error) { if (fileError(error) !== 'ENOENT') throw error; }
     }

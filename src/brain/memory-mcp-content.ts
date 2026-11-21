@@ -3,11 +3,13 @@ import type { FeatureSettingsStore } from './feature-settings.js';
 import { assembleContext, type ContextAssemblyOptions } from './context-assembly.js';
 import { memoryAnnotationsFor, type MemoryAnnotationSnapshot } from './memory-annotations.js';
 import { inspectMemory, requireMemoryIdentifier } from './memory-inspection.js';
-import { listBundledSkills } from './workflow-skills.js';
+import { listBundledSkills, PROJECT_BRIEF_INSTRUCTION, PROJECT_HANDOFF_INSTRUCTIONS } from './workflow-skills.js';
 
 const GUIDE = `# Agent Shadow Brain
 
-In a project-local connection, call project_brief with a question for a compact shared-memory briefing with original record IDs. Use memory_evidence to trace a record to its approved source.
+${PROJECT_BRIEF_INSTRUCTION} Use memory_evidence to trace a returned record ID to its approved source.
+
+${PROJECT_HANDOFF_INSTRUCTIONS.join('\n\n')}
 
 Use workflow_analyze for proportionate task guidance. For project memory, request context_pack with an explicit projectId, query, profile: "adaptive", and tokenBudget. The legacy profile remains the default for compatibility.
 

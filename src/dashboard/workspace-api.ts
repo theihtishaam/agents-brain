@@ -23,12 +23,14 @@ import { WorkspaceRuntime } from './workspace-status.js';
 import { isProjectHubRoute, handleProjectHubRequest } from './project-hub-api.js';
 import { ModelUsageStore } from '../brain/model-usage.js';
 import { readProjectGrowth } from '../brain/project-growth.js';
-import { directoryCodexIndex } from './workspace-directory-codex.js';
-import { workspaceDirectoryRequest } from './workspace-directory-api.js';
+import { addDiscoveredCodexWorkspace, directoryCodexIndex, discoverCodexWorkspaces, watchCodexWorkspaces } from './workspace-directory-codex.js';
+import { directoryOpenCodeIndex } from './workspace-directory-opencode.js';
+import { portfolioSnapshot, workspaceDirectoryRequest } from './workspace-directory-api.js';
+import { ProjectSourceIntake } from '../brain/project-source-intake.js';
 import { isSourceRoute, sourceRequest } from './project-source-api.js';
-import { isProjectSessionRoute, projectSessionRequest } from './project-session-api.js';
+import { isExactTranscriptRoute, isProjectSessionRoute, projectSessionRequest } from './project-session-api.js';
 import { isManagedSkillsRoute, managedSkillsRequest } from './managed-project-skills-api.js';
-import { isNativeCodexRoute, nativeCodexRequest } from './native-codex-api.js';
+import { isNativeCodexFollowRoute, isNativeCodexRoute, nativeCodexRequest } from './native-codex-api.js';
 import type { ProjectHubService } from '../brain/project-hub.js';
 import type { ProjectFileExplorer } from './project-file-explorer.js';
 
@@ -47,6 +49,7 @@ export interface WorkspaceDependencies {
   runtime?: WorkspaceRuntime;
   hub?: ProjectHubService;
   files?: ProjectFileExplorer;
+  openRegisteredProject?: (input: Record<string, unknown>) => Promise<{ projectId: string; url: string }>;
   prepareStorage?: () => Promise<string | null>;
 }
 
@@ -147,9 +150,9 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
     const route = url.pathname.slice('/api/workspace/'.length);
     const method = req.method ?? 'GET';
     const expectedProject = req.headers['x-shadow-brain-project'];
-    if (route === 'directory/codex') {
+    if (route === 'directory/codex' || route === 'directory/codex/discover' || route === 'directory/opencode') {
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-      if (method !== 'POST') return send({ error: 'Select a registered workspace to check its Codex index.' }, 405);
+      if (method !== 'POST') return send({ error: 'Select a registered workspace to check its local chat index.' }, 405);
       if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') ||
           (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) ||
           ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']))) return send({ error: 'Use the local project portal.' }, 403);
@@ -160,13 +163,36 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
       const disconnected = () => { if (!res.writableEnded) controller.abort(); };
       res.once('close', disconnected);
       try {
-        const index = await directoryCodexIndex(await body(req), undefined, undefined, controller.signal);
-        if (!controller.signal.aborted) return send(index);
+        const input = await body(req);
+        const scope = dependencies.runtime.serverInstanceId;
+        let result: unknown;
+        if (route === 'directory/codex') result = await directoryCodexIndex(input, undefined, undefined, controller.signal, scope);
+        else if (route === 'directory/opencode') result = await directoryOpenCodeIndex(input, scope, undefined, undefined, controller.signal);
+        else {
+          if (!dependencies.projectDir) throw new TypeError('Open a local project workspace to discover Codex roots.');
+          if (input.kind === 'add') {
+            const index = await addDiscoveredCodexWorkspace(input, dependencies.projectDir, scope);
+            result = portfolioSnapshot(index, dependencies.runtime.project.id, undefined, true);
+          } else if (typeof input.kind === 'string' && input.kind.startsWith('watch-')) {
+            result = await watchCodexWorkspaces(input, dependencies.projectDir, scope, undefined, undefined, controller.signal);
+          } else result = await discoverCodexWorkspaces(input, dependencies.projectDir, scope, undefined, undefined, controller.signal);
+        }
+        if (!controller.signal.aborted) return send(result);
         return;
       } catch (error) {
         if (!controller.signal.aborted) throw error;
         return;
       } finally { res.off('close', disconnected); }
+    }
+    if (route === 'directory/open') {
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      if (method !== 'POST') return send({ error: 'Choose a project in Workspaces.' }, 405);
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') ||
+          (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) ||
+          ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']))) return send({ error: 'Use the local project portal.' }, 403);
+      if (!dependencies.openRegisteredProject || dependencies.runtime?.mode !== 'project' || !expectedProject ||
+          expectedProject !== dependencies.runtime.project?.id) return send({ error: 'Reload the project portal before switching workspaces.' }, 409);
+      return send(await dependencies.openRegisteredProject(await body(req)));
     }
     if (route === 'directory') {
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -185,6 +211,17 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
         return send({ error: 'Reload the portal for this project before managing connections.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);
       }
       return send(method === 'GET' ? dependencies.connections.read() : await dependencies.connections.change(await body(req)));
+    }
+    if (route === 'files/review') {
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      if (method !== 'POST') return send({ error: 'Select a document in Files to review it.' }, 405);
+      if ((req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) || ['cross-site','same-site'].includes(String(req.headers['sec-fetch-site']))) return send({ error: 'Open the project portal to review documents.' }, 403);
+      if (!dependencies.files || !dependencies.brain || !dependencies.projectDir || dependencies.runtime?.mode !== 'project' ||
+          !expectedProject || expectedProject !== dependencies.runtime.project?.id) return send({ error: 'Reload the current project before reviewing a document.' }, 409);
+      const document = dependencies.files.readDocument(await body(req));
+      const intake = new ProjectSourceIntake(dependencies.projectDir, dependencies.brain);
+      try { return send({ source: intake.previewImport(document.name, document.bytes, document.path) }); }
+      finally { intake.close(); }
     }
     if (url.pathname === '/api/workspace/files') {
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
@@ -259,6 +296,27 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
     }
     if (isProjectSessionRoute(route)) {
       if (!local) return send({ error: 'Open a project-local workspace to use shared sessions.', code: 'SESSION_LOCAL_PROJECT_REQUIRED' }, 409);
+      if (isExactTranscriptRoute(route)) {
+        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        if (method !== 'GET') return send({ error: 'Use GET to read a page of shared conversation history.' }, 405);
+        if ((req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) ||
+            ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']))) {
+          return send({ error: 'Read shared conversation history from the same local project portal.' }, 403);
+        }
+        if (expectedProject !== local.projectId) return send({ error: 'Reload the current project before reading shared conversation history.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);
+      }
+      if (isNativeCodexFollowRoute(route)) {
+        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        const controller = new AbortController();
+        const disconnect = () => { if (!res.writableEnded) controller.abort(); };
+        res.once('close', disconnect);
+        try {
+          const result = await nativeCodexRequest(req, route, url, local.root, dependencies.brain!, () => body(req), controller.signal);
+          if (!controller.signal.aborted) send(result);
+        } catch (error) { if (!controller.signal.aborted) throw error; }
+        finally { res.off('close', disconnect); }
+        return;
+      }
       if (isNativeCodexRoute(route)) return send(await nativeCodexRequest(req, route, url, local.root, dependencies.brain!, () => body(req)));
       return send(await projectSessionRequest(req, route, url, local.root, dependencies.brain!, () => body(req)));
     }

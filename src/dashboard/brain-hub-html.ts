@@ -1,4 +1,6 @@
 import { BRAIN_HUB_DIRECTORY_CSS } from './brain-hub-directory.js';
+import { BRAIN_HUB_OVERVIEW_EVIDENCE_CSS } from './brain-hub-overview-evidence.js';
+import { BRAIN_HUB_HANDOFF_CSS } from './brain-hub-handoff.js';
 import { BRAIN_HUB_GROWTH_CSS } from './brain-hub-growth.js';
 import { BRAIN_HUB_SIGNALS_CSS } from './brain-hub-signals.js';
 import { BRAIN_HUB_TOPOLOGY_CSS } from './brain-hub-topology.js';
@@ -82,6 +84,8 @@ ${BRAIN_HUB_CONNECTIONS_CSS}
 ${BRAIN_HUB_SIGNALS_CSS}
 ${BRAIN_HUB_GROWTH_CSS}
 ${BRAIN_HUB_DIRECTORY_CSS}
+${BRAIN_HUB_OVERVIEW_EVIDENCE_CSS}
+${BRAIN_HUB_HANDOFF_CSS}
 </style></head><body>
 <a class="btn skip" href="#main">Skip to content</a>
 <div class="frame"><header class="top"><div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16 2 28 9v14l-12 7-12-7V9Zm0 0v28M4 9l24 14M28 9 4 23" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="16" cy="16" r="3.3" fill="currentColor"/></svg>Agent Shadow Brain</div><div class="actions"><span class="chip" id="connection"><i class="dot" aria-hidden="true"></i> Connecting to workspace</span><label for="project" class="small muted">Project</label><select id="project" disabled><option>Loading…</option></select><button class="btn" id="reload" type="button">Refresh</button><button class="btn" id="menu-launch" type="button" aria-haspopup="dialog" title="Workspace actions (Ctrl or Command + K)">Actions</button><label class="hub-theme">Theme <select id="hub-theme"><option value="midnight">Midnight</option><option value="daylight">Daylight</option><option value="contrast">High contrast</option></select></label></div></header>

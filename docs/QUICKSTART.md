@@ -51,6 +51,21 @@ shadow-brain skills install . --target codex
 
 Merge the recipe into the selected host’s configuration. Preview the skill-file changes, then use `--apply` if you want them. Reconnect the host and confirm it can call a tool such as `project_inspect` or `context_pack`. Host file presence, recorded activity, and model evidence are shown separately. [Supported client recipes](INTEGRATIONS.md)
 
+## Capture exact shared conversation history
+
+In **Setup → Features**, you can enable **Exact shared conversation history** for the current project. It starts off. A connected host needs explicit support for reporting original user-visible messages and permission to share the selected conversation. Setup shows the count for enrolled project conversations that report coverage, including a confirmed zero. **Exact message counts unreported** means there is no confirmed count for this project view. In **Sessions**, open the conversation and choose **Read original messages** to load a page under the current sharing controls.
+
+For a compatible MCP host, call `session_open` with `hostSessionId` and `exactTranscript: true` alongside the session key, title and goal. Call `session_append_turn` with the returned `sessionId`, a stable `hostMessageId`, the `user` or `assistant` role, and the original message `text` (up to 64 KiB of UTF-8). Reuse the same message ID and role when retrying. After reconnecting, use `session_resume` or `session_recover` to enroll a new linked session before reporting new messages. An authorized history lookup uses `session_transcript_read` with the session ID and follows `nextBefore` using `before` for earlier pages. `project_brief` still returns selected evidence and saved next steps. [Sessions guide](SESSIONS.md)
+
+## Continue the same task in another agent
+
+1. In **Workspaces**, open the dashboard for the project you want. Its file browser, memories and saved sessions use that project directory.
+2. Ask the first connected agent to save a checkpoint in **Sessions**. Include the goal, working approach, constraints, evidence and the next unfinished step. You can also save a checkpoint yourself.
+3. In the second agent, ask “Find the handoff for my task and continue from the saved next step.” With the same project MCP server available, it can call `session_handoffs`, choose a matching checkpoint and call `session_resume`. If several tasks match, identify the conversation title you want.
+4. When **Shared checkpoints in context** is on, a matching task brief automatically includes a saved next step and fingerprint within its token budget. Change this in the project's feature settings. Hiding a conversation also excludes its inherited handoffs from agent context.
+5. A host without MCP can receive a text handoff. Open the saved checkpoint and choose **Copy handoff for any agent**. Paste it into your chosen conversation. An MCP-connected host can record its next checkpoint back in the project.
+6. To carry over a decision from a project document, select the Markdown or text file in **Files**, choose the review action and approve the relevant passage in **Knowledge**. The passage retains its original relative path and evidence link.
+
 ## Explore shared work
 
 Create a room in **Collaboration**, add a task, and record a proposal or critique. A participant can claim the task, attach a project-relative artifact, and record a result. **Learning** turns recorded outcomes into candidates with explicit evaluation and promotion. [Workspace guide](WORKSPACE.md)

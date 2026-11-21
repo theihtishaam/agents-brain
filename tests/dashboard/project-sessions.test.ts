@@ -49,6 +49,56 @@ it('distinguishes stale reports from recent host reports without creating storag
   });
 });
 
+it('asks for task specificity when automatic continuation would mix distinct work', () => {
+  for (const subject of ['attendance rules', 'payroll report']) {
+    const { id } = store.open({ title: 'Quarterly audit', goal: 'Review ' + subject, ...key() }, agent).session;
+    store.record(id, { kind: 'checkpoint', summary: 'Prepare the audit', nextSteps: ['Review ' + subject], ...key() }, agent);
+  }
+  expect(store.relatedHandoff(['please','resume','work'])).toBeUndefined();
+  expect(store.relatedHandoff(['quarterly','audit'])).toBeUndefined();
+  expect(store.handoffs({ query: 'quarterly audit' }).total).toBe(2);
+  expect(store.relatedHandoff(['continue','attendance','rules'])?.goal).toBe('Review attendance rules');
+});
+
+it('recovers interrupted shared work into another client with a stable checkpoint and readable original messages', () => {
+  const first = store.open({ title: 'Compile the project', goal: 'Ship the signed build', ...key() }, agent).session;
+  const second = { ...agent, id: 'other-client', tool: 'another-tool' };
+  expect(() => store.recover(first.id, { expectedRevision: 0, ...key() }, second)).toThrow(/no shared messages/u);
+  const texts = ['Earlier design', 'First measured change', 'Second measured change', 'Exact 🗺️ text '.repeat(75)];
+  texts.forEach(text => store.record(first.id, { kind: 'message', role: 'note', text, ...key() }, agent));
+  const source = store.read(first.id);
+  expect(() => store.recover(first.id, { expectedRevision: 0, ...key() }, second)).toThrow(/changed/u);
+  const command = { expectedRevision: source.session.revision, ...key() };
+  const next = store.recover(first.id, command, second);
+  expect(next.session).toMatchObject({ goal: first.goal, title: first.title, actor: second, parentSessionId: first.id });
+  expect(next.handoff?.recovery).toMatchObject({ totalMessages: 4, sourceRevision: source.session.revision, messages: [
+    { excerpt: texts[1], truncated: false }, { excerpt: texts[2], truncated: false }, { truncated: true, id: source.messages.at(-1)?.id }] });
+  expect(texts[3].startsWith(next.handoff!.recovery!.messages[2].excerpt)).toBe(true);
+  expect(store.recover(first.id, command, second).session.id).toBe(next.session.id);
+  expect(store.recover(first.id, { ...command, ...key() }, { ...second, id: 'third-client' }).handoff?.sha256).toBe(next.handoff?.sha256);
+  expect(store.read(first.id).messages.map(message => message.text)).toEqual(texts);
+  expect(store.read(first.id).checkpoints).toHaveLength(1);
+  expect(store.read(first.id).session.lastReportedAt).toBe(source.session.lastReportedAt);
+});
+
+it('carries the goal, approach and constraints across three clients and keeps the original fingerprint readable', () => {
+  const first = store.open({ title: 'Restore the drawing', goal: 'Retain the original geometry', ...key() }, agent).session;
+  const base = { approach: 'Check the outline first', constraints: ['Keep scale fixed'] };
+  const checkpoint = store.record(first.id, { kind: 'checkpoint', summary: 'Outline checked', ...base, nextSteps: ['Check dimensions'], ...key() }, agent).checkpoints[0];
+  const secondActor = { ...agent, id: 'second', tool: 'second-tool' };
+  const second = store.resume(first.id, { checkpointId: checkpoint.id, sha256: checkpoint.sha256, ...key() }, secondActor).session;
+  const progress = store.record(second.id, { kind: 'checkpoint', summary: 'Measured the outline', ...key() }, secondActor).checkpoints[0];
+  expect(store.readCheckpoint(second.id, progress.id).checkpoint).toMatchObject(base);
+  const newer = store.record(second.id, { kind: 'checkpoint', summary: 'Added a scale check', approach: 'Check dimensions and outline together', ...key() }, secondActor).checkpoints.at(-1)!;
+  const fresh = new ProjectSessions(root, brain);
+  const match = fresh.handoffs({ query: 'dimensions together' }).handoffs;
+  expect(match).toHaveLength(1);
+  const third = fresh.resume(match[0].sessionId, { checkpointId: match[0].checkpointId, sha256: match[0].sha256, ...key() }, { ...agent, id: 'third', tool: 'third-tool' });
+  expect(third.session.goal).toBe(first.goal);
+  expect(third.handoff).toMatchObject({ constraints: base.constraints, approach: 'Check dimensions and outline together', id: newer.id });
+  expect(fresh.readCheckpoint(first.id, checkpoint.id).checkpoint).toMatchObject({ ...base, sha256: checkpoint.sha256, nextSteps: ['Check dimensions'] });
+});
+
 it('pages older messages without overlap and keeps terminal history immutable except explicit checkpoints', () => {
   const { id } = store.open({ title: 'Page history', goal: 'Read the older messages', ...key() }, agent).session;
   for (let index = 1; index <= 4; index++) store.record(id, { kind: 'message', role: 'note', text: `Message ${index}`, ...key() }, agent);

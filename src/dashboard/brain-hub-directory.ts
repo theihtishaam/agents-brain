@@ -1,5 +1,5 @@
 export const BRAIN_HUB_DIRECTORY = String.raw`
-const portfolio={selected:null,epoch:0,timer:0,reading:false,nativeWatch:false,nativeChecks:new Map(),watchEpoch:0,nextIndexCheck:0,watchRequest:null};
+const portfolio={selected:null,epoch:0,timer:0,reading:false,nativeWatch:false,nativeChecks:new Map(),nativeDetail:null,openCodePage:null,discovery:null,watchEpoch:0,nextIndexCheck:0,watchRequest:null,recent:null};
 const directoryLabels={'available':'Project reports available','awaiting-host':'Awaiting project data','unavailable':'Unavailable','private':'Sharing paused','not-inspected':'Summary on demand'};
 function directoryHeader(){return {'X-Shadow-Brain-Project':state.server?.project?.id??state.project};}
 function directoryRoute(selected,summary=state.view==='workspaces'){
@@ -20,6 +20,29 @@ function installDirectory(snapshot){
       changed=true;
     }
   }
+  const detail=portfolio.nativeDetail;
+  if(detail&&!nativeIndexVisible(arr(snapshot.workspaces).find(row=>row.projectId===detail.projectId),detail)){
+    portfolio.nativeDetail=null;changed=true;
+  }
+  if(portfolio.openCodePage&&!openCodeIndexVisible(arr(snapshot.workspaces).find(row=>row.projectId===portfolio.openCodePage.projectId),portfolio.openCodePage)){
+    portfolio.openCodePage=null;changed=true;
+  }
+  for(const discovery of [portfolio.discovery,portfolio.recent?.result]){
+    if(!discovery)continue;
+    const excluded=new Set([...arr(snapshot.workspaces),...arr(snapshot.forgotten)].map(row=>row.projectId));
+    const now=Date.now();
+    if(Date.parse(discovery.expiresAt)<=now){
+      if(discovery===portfolio.discovery)portfolio.discovery=null;
+      else portfolio.recent.result=null;
+      changed=true;
+    }
+    else {
+      const candidates=discovery.candidates.filter(row=>!excluded.has(row.projectId)&&Date.parse(row.expiresAt)>now);
+      if(candidates.length!==discovery.candidates.length){discovery.candidates=candidates;changed=true;}
+    }
+  }
+  const current=arr(snapshot.workspaces).find(row=>row.projectId===snapshot.currentProjectId);
+  if(portfolio.recent&&current?.codexIndexAllowed!==true){stopDirectoryRecent();changed=true;}
   return changed;
 }
 function selectedDirectory(rows=arr(state.directory?.workspaces)){
@@ -44,10 +67,78 @@ function projectProgress(progress){
   return '<span class="portfolio-progress"><span><b>'+percent+'</b> · '+fmt(progress.completed)+' of '+fmt(progress.total)+' recorded tasks</span>'+
     '<progress value="'+progress.completed+'" max="'+progress.total+'" aria-label="Recorded tasks complete"></progress></span>';
 }
+function nativeIndexVisible(project,index){
+  return project?.codexIndexAllowed===true&&state.connection==='reachable'&&!state.errors.directory&&
+    index?.policyRevision===project.policyRevision&&Date.parse(index.expiresAt)>Date.now();
+}
 function shownNativeIndex(project){
-  if(project.codexIndexAllowed!==true||state.connection!=='reachable'||state.errors.directory)return null;
   const index=portfolio.nativeChecks.get(project.projectId);
-  return index&&index.policyRevision===project.policyRevision&&Date.parse(index.expiresAt)>Date.now()?index:null;
+  return nativeIndexVisible(project,index)?index:null;
+}
+function directoryTitlePage(project){
+  const detail=portfolio.nativeDetail;
+  return detail?.projectId===project.projectId&&nativeIndexVisible(project,detail)?detail:shownNativeIndex(project);
+}
+function directoryTitlePanel(project){
+  const native=directoryTitlePage(project);
+  if(!native)return '';
+  if(native.issue)return '<p class="small muted">'+esc(native.issue)+'</p>';
+  const id=esc(project.projectId),page=arr(native.cursors).length||1;
+  const button=(label,kind)=>btn(label,'id="directory-titles-'+kind+'" data-directory-titles="'+id+'" data-step="'+kind+'"','quiet');
+  const items=arr(native.threads).map(thread=>'<li class="item"><div class="row"><strong class="preserve">'+
+    esc(thread.name??'Title unavailable')+'</strong>'+chip(thread.status==='active'?'Active in app-server':thread.status==='notLoaded'?'Indexed':thread.status)+
+    '</div><small class="muted">'+esc(isoTime(thread.updatedAt))+'</small></li>').join('');
+  return '<section class="stack portfolio-native" aria-label="Codex chat titles"><div class="row"><h3>Codex chat titles</h3>'+
+    '<span class="small muted">'+(native.archived?'Archived':'Recent')+' · Page '+fmt(page)+'</span></div>'+
+    (items?list(items):'<p class="small muted">No shared titles on this page.</p>')+'<div class="actions">'+
+    (page>1?button('Newer titles','previous'):'')+(native.nextPageToken?button('Older titles','next'):'')+
+    button(native.archived?'Recent titles':'Archived titles',native.archived?'recent':'archive')+'</div></section>';
+}
+function openCodeIndexVisible(project,index){
+  return project?.opencodeIndexAllowed===true&&state.connection==='reachable'&&!state.errors.directory&&
+    index?.policyRevision===project.policyRevision&&Date.parse(index.expiresAt)>Date.now();
+}
+function directoryOpenCodePanel(project){
+  const index=portfolio.openCodePage;
+  if(index?.projectId!==project.projectId||!openCodeIndexVisible(project,index))return '';
+  const id=esc(project.projectId),page=arr(index.cursors).length||1;
+  const button=(label,kind)=>btn(label,'id="directory-opencode-'+kind+'" data-directory-opencode="'+id+'" data-step="'+kind+'"','quiet');
+  const items=arr(index.sessions).map(session=>'<li class="item"><strong class="preserve">'+esc(session.name??'Title unavailable')+'</strong>'+
+    '<small class="muted">'+esc(isoTime(session.updatedAt))+'</small></li>').join('');
+  return '<section class="stack portfolio-native" aria-label="OpenCode session titles"><div class="row"><h3>OpenCode session titles</h3>'+
+    '<span class="small muted">Local ACP index · Page '+fmt(page)+'</span></div>'+
+    (items?list(items,'','section-list'):'<p class="small muted">No shared OpenCode sessions on this page.</p>')+
+    '<div class="actions">'+(page>1?button('Newer OpenCode titles','previous'):'')+
+    (index.nextPageToken?button('Older OpenCode titles','next'):'')+'</div></section>';
+}
+function directoryCandidateRows(candidates,prefix){
+  return candidates.map(row=>'<li class="item"><div class="row"><strong>'+esc(row.projectName)+'</strong>'+
+    btn('Add workspace','id="'+prefix+esc(row.projectId)+'" data-directory-candidate="'+esc(row.candidateToken)+'"','quiet')+
+    '</div><p class="small mono preserve">'+esc(row.root)+'</p></li>').join('');
+}
+function discoveryPanel(){
+  const discovery=portfolio.discovery;
+  if(!discovery)return '';
+  const cards=directoryCandidateRows(discovery.candidates,'directory-add-');
+  return '<section class="panel" id="directory-discovery"><div class="panel-head"><h2>Discovered workspace folders</h2>'+
+    btn('Close','id="directory-discovery-close" data-directory-discover="close"','quiet')+'</div><div class="panel-body stack">'+
+    (cards?list(cards):'<p class="small muted">No new folders on the pages checked.</p>')+
+    (discovery.nextPageToken?'<div class="actions">'+btn('Check older indexed folders','id="directory-discovery-next" data-directory-discover="next"','quiet')+'</div>':'')+
+    (discovery.capped?'<p class="small muted">This check reached the workspace limit.</p>':'')+'</div></section>';
+}
+function directoryRecentPanel(){
+  const watch=portfolio.recent;
+  const current=arr(state.directory?.workspaces).find(row=>row.projectId===state.directory?.currentProjectId);
+  const result=watch?.result;
+  const cards=directoryCandidateRows(arr(result?.candidates),'directory-recent-add-');
+  return '<details class="panel panel-body stack" id="directory-recent" data-keep-open'+(watch?' open':'')+'><summary>Recent Codex workspace changes</summary>'+
+    '<p class="small muted">Check for newly created top-level Codex chats once per minute while this view is visible. Choose a parent folder to automatically list new folders inside it. Review any other suggestions before adding.</p>'+
+    (watch?'<div class="actions">'+btn('Stop watching','id="directory-recent-stop" data-directory-recent-stop="true"','quiet')+'</div>'+
+      (watch.parent?'<p class="small muted">Automatic additions under <span class="mono">'+esc(watch.parent)+'</span></p>':'')+
+      '<p class="small muted" role="status">'+esc(watch.issue??(result?(result.added?fmt(result.added)+' added in the latest check. ':'')+
+        (cards?'Review the folders below.':'No folders awaiting review.')+(result.limited?' Checked the newest page.':''):'Checking the local index…'))+'</p>'+(cards?list(cards):''):
+      '<form class="form" data-form="directory-recent"><label>Folder for automatic additions (optional)<input id="directory-recent-parent" name="parent" placeholder="Absolute path" maxlength="2048"></label>'+
+      '<div class="actions"><button class="btn quiet" type="submit" id="directory-recent-start" '+(current?.codexIndexAllowed===true?'':'disabled')+'>Watch recent Codex changes</button></div></form>')+'</details>';
 }
 function outcomeLabel(receipt){
   return receipt?esc({pass:'Passed',fail:'Failed',partial:'Partial'}[receipt.result]??'Unknown')+
@@ -61,9 +152,13 @@ function projectCard(project,selected){
   const hosts=active.map(host=>host.label??hostName(host.id)).join(', ');
   const index=shownNativeIndex(project);
   const nativeThread=arr(index?.threads).find(thread=>thread.status==='active')??arr(index?.threads)[0];
+  const openCode=portfolio.openCodePage;
+  const openCodeSession=openCode?.projectId===project.projectId&&openCode.cursors.length===1&&openCodeIndexVisible(project,openCode)?arr(openCode.sessions)[0]:null;
   const shared=arr(project.sessions)[0];
-  const chat=shared?.title??nativeThread?.name;
-  const chatLabel=chat?esc(chat)+(shared?'':'<small class="muted"> · '+(nativeThread.status==='active'?'Active in app-server':'Codex index')+'</small>'):'<span class="muted small">Unreported</span>';
+  const indexedName=nativeThread?.name??openCodeSession?.name;
+  const source=nativeThread?.name?(nativeThread.status==='active'?'Active in app-server':'Codex index'):'OpenCode index';
+  const chat=shared?.title??indexedName;
+  const chatLabel=chat?esc(chat)+(shared?'':'<small class="muted"> · '+source+'</small>'):'<span class="muted small">Unreported</span>';
   return '<li class="portfolio-card"><button type="button" class="portfolio-card-select" id="workspace-card-'+id+'" data-open-workspace="'+id+'" aria-pressed="'+selected+'">'+
     '<span class="portfolio-name"><i class="'+(live?'current':'')+'" aria-hidden="true"></i><strong>'+esc(project.projectName)+'</strong></span></button>'+
     '<p class="small muted">'+esc(directoryLabels[project.status]??'Awaiting status')+'</p><dl class="portfolio-summary">'+
@@ -76,20 +171,21 @@ function directoryDetail(project){
   if(!project)return '';
   const id=esc(project.projectId),{live,active}=workspaceCounts(project),sessions=arr(project.sessions);
   const hosts=active.map(h=>chip((h.label??hostName(h.id))+' · '+fmt(h.connections),'cyan')).join(' ');
-  const receipt=project.latestOutcome,native=shownNativeIndex(project);
+  const receipt=project.latestOutcome;
   const table=sessions.length?'<div class="table-wrap" role="region" aria-label="Shared chats" tabindex="0"><table><thead><tr><th scope="col">Chat</th><th scope="col">Host</th><th scope="col">Reported work</th><th scope="col">Model</th><th scope="col">Last report</th></tr></thead><tbody>'+
     sessions.map(s=>'<tr><td>'+esc(s.title??'Untitled session')+'</td><td>'+esc(hostName(s.host))+'</td><td>'+esc(s.phase??s.reportedStatus??'Unavailable')+'</td><td>'+
     esc(s.responseModel??s.requestModel??'Unreported')+(s.reasoningEffort?' · '+esc(s.reasoningEffort):'')+'</td><td>'+esc(isoTime(s.phaseReportedAt??s.lastReportedAt))+'</td></tr>').join('')+
     '</tbody></table></div>':'<p class="small muted">'+(Array.isArray(project.sessions)?'No shared chat reports':'Chat reports unavailable')+'</p>';
-  const nativePanel=native?.issue?'<p class="small muted">'+esc(native.issue)+'</p>':native?'<div class="stack portfolio-native"><strong>Codex index · '+esc(isoTime(native.observedAt))+'</strong>'+
-    (arr(native.threads).length?list(native.threads.map(t=>'<li class="item"><div class="row"><strong>'+esc(t.name??'Untitled chat')+'</strong>'+chip(t.status==='active'?'Active in app-server':t.status==='notLoaded'?'Indexed':t.status)+'</div><small class="muted">'+esc(isoTime(t.updatedAt))+'</small></li>').join('')):'<span class="small muted">No visible indexed chats on this page.</span>')+'</div>':'';
   return '<section class="panel portfolio-detail"><div class="panel-head"><h2>'+esc(project.projectName)+'</h2>'+chip(directoryLabels[project.status]??project.status)+'</div>'+
     '<div class="panel-body stack"><details id="workspace-folder-'+id+'" data-keep-open><summary>Project folder</summary><p class="mono small muted">'+esc(project.root)+'</p></details><dl class="portfolio-facts">'+
     portfolioFact('MCP connections',live===null?'Unavailable':hosts||'No current connections')+
     portfolioFact('Latest outcome',outcomeLabel(receipt)+(receipt?'<small class="muted"> · '+esc(receipt.provenance)+'</small>':''))+
     portfolioFact('Task progress',projectProgress(project.progress))+'</dl><h3>Shared chats</h3>'+table+
     '<div class="actions">'+(project.codexIndexAllowed===true?btn('Check Codex chat index','id="directory-native-'+id+'" data-directory-native="'+id+'"','quiet'):'')+
-    btn('Stop listing project','id="directory-forget-'+id+'" data-directory-forget="'+id+'"','quiet')+'</div>'+nativePanel+'</div></section>';
+    (project.opencodeIndexAllowed===true?btn('Check OpenCode sessions','id="directory-opencode-'+id+'" data-directory-opencode="'+id+'"','quiet'):'')+
+    (project.status!=='private'?btn('Open project dashboard','data-launch-workspace="'+id+'"','primary')+
+      btn('Project files','data-launch-workspace="'+id+'" data-landing="files"','quiet')+btn('Project sessions','data-launch-workspace="'+id+'" data-landing="sessions"','quiet'):'')+
+    btn('Stop listing project','id="directory-forget-'+id+'" data-directory-forget="'+id+'"','quiet')+'</div>'+directoryTitlePanel(project)+directoryOpenCodePanel(project)+'</div></section>';
 }
 function workspacesPage(){
   const data=state.directory,rows=arr(data?.workspaces),selected=selectedDirectory(rows);
@@ -97,8 +193,11 @@ function workspacesPage(){
     empty(data?'No registered projects':'Loading workspace directory',data?'Open a project portal, connect its MCP service, or add the folder below.':'Reading registered project metadata.');
   return heading('Workspaces','See current MCP connections, reported chats, and progress on recorded tasks.',action('refresh','Refresh'))+
     '<div class="stack" id="workspace-portfolio"><div class="portfolio-nav"><span>Codex project indexes <small class="muted"> · up to six workspaces, checked once per minute in this view</small></span>'+
-    btn(portfolio.nativeWatch?'Stop observing':'Observe Codex indexes','id="directory-watch" data-directory-watch="true" role="switch" aria-checked="'+portfolio.nativeWatch+'"','quiet')+'</div>'+
+    '<div class="actions">'+btn('Discover Codex workspaces','id="directory-discover" data-directory-discover="start" '+(!data||state.pending?'disabled':''),'quiet')+
+    btn(portfolio.nativeWatch?'Stop observing':'Observe Codex indexes','id="directory-watch" data-directory-watch="true" role="switch" aria-checked="'+portfolio.nativeWatch+'"','quiet')+'</div></div>'+
     (state.errors.directory?'<div class="panel-body red" role="status">'+esc(state.errors.directory)+'</div>':'')+
+    discoveryPanel()+
+    directoryRecentPanel()+
     '<section class="panel"><div class="panel-head"><h2>Local directory</h2>'+chip(data?fmt(data.total):'Loading')+'</div>'+listing+'</section>'+
     directoryDetail(selected)+'<details class="panel panel-body" id="directory-add" data-keep-open><summary>Add a workspace</summary>'+
     '<form class="form" data-form="directory-add"><div class="form-grid"><label>Project folder<input id="directory-add-root" name="root" placeholder="Absolute project path" required></label>'+
@@ -106,6 +205,7 @@ function workspacesPage(){
     '</div></form></details></div>';
 }
 async function selectDirectory(id){
+  if(portfolio.selected!==id){portfolio.nativeDetail=null;portfolio.openCodePage=null;}
   portfolio.selected=id;
   const epoch=++portfolio.epoch;
   if(state.view!=='workspaces'){openView('workspaces');return;}
@@ -119,7 +219,7 @@ function cancelDirectoryIndexChecks(){
   portfolio.watchEpoch++;portfolio.watchRequest?.abort();portfolio.watchRequest=null;
 }
 async function directoryWrite(command){
-  portfolio.epoch++;cancelDirectoryIndexChecks();portfolio.nativeChecks.clear();
+  portfolio.epoch++;cancelDirectoryIndexChecks();portfolio.nativeChecks.clear();portfolio.nativeDetail=null;portfolio.openCodePage=null;
   const expectedRevision=state.directory?.revision??0;
   try {installDirectory(await api(directoryRoute(portfolio.selected,true),json({...command,expectedRevision})));}
   catch(e){
@@ -128,16 +228,97 @@ async function directoryWrite(command){
   }
 }
 function stopDirectoryWatch(){
-  portfolio.nativeWatch=false;cancelDirectoryIndexChecks();portfolio.nativeChecks.clear();portfolio.nextIndexCheck=0;
+  portfolio.nativeWatch=false;cancelDirectoryIndexChecks();portfolio.nativeChecks.clear();portfolio.nativeDetail=null;portfolio.openCodePage=null;portfolio.discovery=null;portfolio.nextIndexCheck=0;
 }
-async function checkDirectoryIndex(id,options={}){
+function stopDirectoryRecent(){
+  const watch=portfolio.recent;portfolio.recent=null;
+  watch?.controller?.abort();
+  if(watch?.token)void api('directory/codex/discover',json({kind:'watch-stop',watchToken:watch.token})).catch(()=>{});
+}
+async function startDirectoryRecent(parent){
+  if(portfolio.recent||state.view!=='workspaces'||document.hidden)return;
+  const watch={parent,token:null,result:null,issue:null,controller:null,nextAt:0};portfolio.recent=watch;
+  render(true);
+  try{
+    const started=await api('directory/codex/discover',json({kind:'watch-start',...(parent?{parent}:{})}));
+    if(portfolio.recent!==watch||state.view!=='workspaces'||document.hidden){
+      void api('directory/codex/discover',json({kind:'watch-stop',watchToken:started.watchToken})).catch(()=>{});return;
+    }
+    watch.token=started.watchToken;
+    await checkDirectoryRecent();
+  }catch(e){if(portfolio.recent===watch){portfolio.recent=null;render(true);status(e.message,true);}}
+}
+async function checkDirectoryRecent(){
+  const watch=portfolio.recent;
+  if(!watch?.token||watch.controller||Date.now()<watch.nextAt||state.view!=='workspaces'||document.hidden)return;
+  const controller=new AbortController();watch.controller=controller;watch.nextAt=Date.now()+60000;
+  const current=()=>portfolio.recent===watch&&state.view==='workspaces'&&!document.hidden&&!controller.signal.aborted;
+  try{
+    const next=await api('directory/codex/discover',{...json({kind:'watch-check',watchToken:watch.token}),signal:controller.signal,timeoutMs:16000});
+    if(!current())return;
+    watch.result=next;watch.issue=null;
+    if(next.added){const index=await readDirectory(portfolio.selected);if(current())installDirectory(index);}
+  }catch(e){
+    if(current()){
+      watch.result=null;watch.issue=e.message;
+      if(e.status===409||e.status===403){stopDirectoryRecent();status(e.message,true);}
+    }
+  }finally{watch.controller=null;if(state.view==='workspaces'&&!document.hidden)render(true);}
+}
+async function checkDirectoryIndex(id,options={},input={}){
   const epoch=portfolio.watchEpoch,row=arr(state.directory?.workspaces).find(project=>project.projectId===id);
   if(row?.codexIndexAllowed!==true)return;
-  const snapshot=await api('directory/codex',{...json({projectId:id}),timeoutMs:16000,...options});
+  const snapshot=await api('directory/codex',{...json({projectId:id,...input}),timeoutMs:16000,...options});
   const latest=arr(state.directory?.workspaces).find(project=>project.projectId===id);
   if(epoch===portfolio.watchEpoch&&state.view==='workspaces'&&!document.hidden&&
       latest?.codexIndexAllowed===true&&latest.policyRevision===snapshot.policyRevision){
-    portfolio.nativeChecks.set(id,snapshot);
+    if(!input.archived&&!input.pageToken)portfolio.nativeChecks.set(id,snapshot);
+    return snapshot;
+  }
+}
+async function loadDirectoryTitles(id,step='start'){
+  const row=selectedDirectory();
+  if(row?.projectId!==id)return;
+  const old=directoryTitlePage(row);
+  const archive=step==='archive'||(step!=='recent'&&step!=='start'&&old?.archived===true);
+  let cursors=[null];
+  if(step==='next'&&old?.nextPageToken)cursors=[...(old.cursors??[null]),old.nextPageToken];
+  if(step==='previous')cursors=arr(old?.cursors).slice(0,-1);
+  const token=cursors.at(-1);
+  const snapshot=await checkDirectoryIndex(id,{}, {...(archive?{archived:true}:{}),...(token?{pageToken:token}:{})});
+  if(snapshot&&selectedDirectory()?.projectId===id)portfolio.nativeDetail={...snapshot,cursors};
+}
+async function loadDirectoryOpenCode(id,step='start'){
+  const row=selectedDirectory(),old=portfolio.openCodePage,epoch=portfolio.watchEpoch;
+  if(row?.projectId!==id||row.opencodeIndexAllowed!==true)return;
+  let cursors=[null];
+  if(step==='next'&&old?.projectId===id&&old.nextPageToken)cursors=[...old.cursors,old.nextPageToken];
+  if(step==='previous'&&old?.projectId===id)cursors=old.cursors.slice(0,-1);
+  const token=cursors.at(-1);
+  const snapshot=await api('directory/opencode',{...json({projectId:id,...(token?{pageToken:token}:{})}),timeoutMs:16000});
+  const current=selectedDirectory();
+  if(epoch===portfolio.watchEpoch&&state.view==='workspaces'&&!document.hidden&&
+      current?.projectId===id&&snapshot.projectId===id&&openCodeIndexVisible(current,snapshot)){
+    portfolio.openCodePage={...snapshot,cursors};
+  }
+}
+async function discoverDirectoryWorkspaces(step){
+  const epoch=portfolio.epoch,viewEpoch=state.viewEpoch,previous=portfolio.discovery,token=step==='next'?previous?.nextPageToken:null;
+  const snapshot=await api('directory/codex/discover',{...json({kind:'scan',...(token?{pageToken:token}:{})}),timeoutMs:16000});
+  if(epoch!==portfolio.epoch||viewEpoch!==state.viewEpoch||state.view!=='workspaces'||document.hidden)return;
+  const candidates=new Map((token?arr(previous?.candidates):[]).map(row=>[row.projectId,row]));
+  const excluded=new Set([...arr(state.directory?.workspaces),...arr(state.directory?.forgotten)].map(row=>row.projectId));
+  for(const row of arr(snapshot.candidates))if(!excluded.has(row.projectId))candidates.set(row.projectId,row);
+  portfolio.discovery={...snapshot,candidates:[...candidates.values()]};
+}
+async function addDirectoryCandidate(candidateToken){
+  portfolio.epoch++;cancelDirectoryIndexChecks();
+  try {
+    const snapshot=await api('directory/codex/discover',json({kind:'add',candidateToken,expectedRevision:state.directory?.revision??0}));
+    installDirectory(snapshot);
+  }catch(error){
+    if(error.status===409){try{installDirectory(await readDirectory(portfolio.selected));}catch{}}
+    throw error;
   }
 }
 async function checkDirectoryIndexes(){
@@ -170,7 +351,7 @@ function directoryPoll(){
       const next=await readDirectory(view==='workspaces'?portfolio.selected:null);
       if(epoch===portfolio.epoch&&view===state.view&&!state.pending){
         const changed=installDirectory(next);
-        if(view==='workspaces'){if(changed)render(true);if(portfolio.nativeWatch)void checkDirectoryIndexes();}
+        if(view==='workspaces'){if(changed)render(true);if(portfolio.nativeWatch)void checkDirectoryIndexes();if(portfolio.recent)void checkDirectoryRecent();}
         else if(changed)updateWorkspaceNav();
       }
     }catch(failure){if(epoch===portfolio.epoch&&view===state.view){state.errors.directory=failure.message;if(view==='overview')updateWorkspaceNav();else render(true);}}
@@ -180,6 +361,10 @@ function directoryPoll(){
 function updateWorkspaceNav(){
   const target=$('workspace-nav');if(!target)return;
   const html=workspaceNav();if(target.dataset.html!==html){target.dataset.html=html;target.innerHTML=html;}
+  if(state.view==='overview'){
+    if(typeof updateOverviewEvidence==='function')updateOverviewEvidence(false);
+    if(typeof updateAgentDock==='function')updateAgentDock();
+  }
 }
 `;
 export const BRAIN_HUB_DIRECTORY_CSS = String.raw`

@@ -10,6 +10,24 @@ Open [the project Hub](http://127.0.0.1:62595/hub). Keep the process running and
 
 ![Running Brain Hub with stored memories and observed tool exchanges](assets/7.25.0-brain-network.png)
 
+## Find workspace folders and native session titles
+
+Open [Workspaces](http://127.0.0.1:62595/hub?view=workspaces) and choose **Discover Codex workspaces** to find folders from the current local Codex index. Review the returned paths and choose **Add workspace** for each folder you want listed. Discovery keeps existing, forgotten, and excluded folders out of the results. Adding a folder registers its metadata. [Codex app-server index](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md#thread-list-id-filters)
+
+**Recent Codex workspace changes** is off until you select **Watch recent Codex changes**. It requires stable Codex app-server 0.169.1 or later. It checks the newest 25 entries once per minute while Workspaces is visible and considers only top-level local Codex chats created after you opted in. Enter an absolute parent folder to automatically register new folders inside it. The parent must contain the current project or be inside it. Suggestions elsewhere need **Add workspace**. Closing, hiding, or leaving Workspaces ends the watch. **Stop listing project** still excludes that folder from later checks. Automatic additions write folder metadata to the local directory only. Native update times report index changes. The Codex account filter can include rows without account ownership metadata. [Codex account filter and DB-only listing](https://github.com/openai/codex/blob/rust-v0.169.1/codex-rs/app-server/README.md#local-history-by-account)
+
+Select a registered workspace to check its native index. **Check Codex chat index** shows exact titles in recent and archived pages. **Check OpenCode sessions** uses the host’s local ACP session index with the selected folder as its filter. These on-demand views show titles and timestamps, and apply project, host, and conversation sharing settings. [OpenCode ACP](https://opencode.ai/docs/cli/acp/)
+
+In **Native Sessions**, long Codex messages appear as exact text sections. A section’s `#utf16=start,end` locator records its offsets in the original message, with the end excluded. The preview and any saved snapshot report how many text sections fell outside the page limit.
+
+### Share exact conversation text
+
+**Exact conversation capture** is off by default. To use it, enable it under **Setup → Features** in the project workspace and explicitly opt an approved host conversation in with `session_open`, `session_resume`, or `session_recover` by supplying `exactTranscript: true` and the original `hostSessionId`. A cooperating host sends `session_append_turn` with `sessionId`, its stable `hostMessageId`, `role` (`user` or `assistant`), and the original `text`. An optional `model` is a host-reported label. Original line endings, Unicode, and spacing are preserved. Use this channel for user-approved visible messages. The adapter must keep tool results, private instructions, and hidden reasoning out of it.
+
+`session_read` and exact-only recovery provide a pointer or count, and agents use `session_transcript_read` with `nextBefore` to request exact originals as needed. Project briefings and automatic context delivery use relevant saved memory and bounded checkpoint material. A reconnected same-tool client can safely replay an identical saved message, and continuing work uses a new linked session. The original owner’s message records stay unchanged. Turning capture off blocks new messages and agent reads while keeping the stored record. Workspace, host, and chat sharing controls also apply.
+
+The host can append up to 64 KiB of UTF-8 per message. A session retains up to 2,000 messages or 8 MiB of text. The project retains up to 64 MiB of exact text. A rejected write reports the limit and keeps previously recorded messages available.
+
 ## Inspect records and activity
 
 Select a project, agent, or memory node. **Find node** lists the displayed graph records and searches stored memories in the selected scope. Selecting a search result brings the exact record into the graph even when it falls outside the current sample. Use **+**, **−**, and **Fit** to adjust the view, or drag the zoomed canvas with a pointer. The relationship filters show project membership, recorded authors, or explicit memory links. The inspector shows the record, its recorded sources, and its links.
@@ -48,7 +66,7 @@ Use **Usage** to filter retained reports by time, host, model label, and outcome
 
 Create or open a **Collaboration** room. Post a proposal, critique, question, decision, or handoff. Add a task and claim it before attaching a project-relative file. The task’s lease and revision control ownership. Accept the current submitted artifact and record the result with its check and evidence. A participant can acknowledge another participant’s message or artifact. These operations are shared with project-local MCP clients. [Workflow integration](WORKFLOW_INTEGRATION.md)
 
-In **Learning**, propose a lesson from a recorded outcome. Record the baseline, candidate, controls, and evidence. Promotion is an explicit operator action. Rollback archives the promoted memory so it no longer influences normal retrieval. Use the classic workspace to manage separate task-scoped retrieval feedback. [Learning guide](LEARNING.md)
+In **Learning**, review automatic drafts from passing work-room checks or propose a lesson from a recorded outcome. Record the baseline, candidate, controls, and evidence. Promotion is an explicit operator action. Rollback archives the promoted memory so it no longer influences normal retrieval. Use the classic workspace to manage separate task-scoped retrieval feedback. [Learning guide](LEARNING.md)
 
 ## Change runtime controls
 

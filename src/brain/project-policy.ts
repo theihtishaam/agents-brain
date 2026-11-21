@@ -77,19 +77,25 @@ export function toolParticipates(snapshot: ProjectPolicy, tool: string): boolean
 export function nativeChatKey(tool: string, sessionId: string): string {
   return 'native:' + createHash('sha256').update(JSON.stringify([toolPolicyLabel(tool), sessionId])).digest('hex');
 }
-type SessionIdentity = Pick<SessionRecord, 'id' | 'native' | 'sourceId' | 'resumedFrom' | 'parentSessionId'>;
+type SessionIdentity = Pick<SessionRecord, 'id' | 'native' | 'sourceId' | 'resumedFrom' | 'parentSessionId'> &
+  Partial<Pick<SessionRecord, 'actor' | 'hostSessionId' | 'exactTranscript'>>;
 export function projectChatKey(session: SessionIdentity): string {
   if (session.native) return nativeChatKey(session.native.tool, session.native.sessionId);
+  if (session.exactTranscript && session.actor && session.hostSessionId) return nativeChatKey(session.actor.tool, session.hostSessionId);
   if (session.sourceId) return 'source:' + session.sourceId;
   return 'session:' + session.id;
 }
 export function disabledChatKeys(snapshot: ProjectPolicy): Set<string> {
   return new Set(snapshot.chats.filter(item => !item.shareContext).map(item => item.key));
 }
-export function hiddenChatSessions(snapshot: ProjectPolicy, sessions: readonly SessionIdentity[]): Set<string> {
+export function hiddenChatSessions(snapshot: ProjectPolicy, sessions: readonly SessionIdentity[], archiveAllowed?: (tool: string) => boolean): Set<string> {
   const keys = disabledChatKeys(snapshot);
-  if (!keys.size) return new Set();
-  const hidden = new Set(sessions.filter(item => keys.has(projectChatKey(item))).map(item => item.id));
+  if (!keys.size && !archiveAllowed) return new Set();
+  const hidden = new Set(sessions.filter(item => {
+    const captureTool = item.native?.format === 'codex-app-server-follow-v1' ? item.native.tool : item.exactTranscript ? item.actor?.tool : undefined;
+    return keys.has(projectChatKey(item)) || keys.has('session:' + item.id) ||
+      (!!archiveAllowed && !!captureTool && !archiveAllowed(captureTool));
+  }).map(item => item.id));
   // A resumed child includes an ancestor checkpoint. Worker links without a handoff do not copy text.
   for (let changed = true; changed;) {
     changed = false;

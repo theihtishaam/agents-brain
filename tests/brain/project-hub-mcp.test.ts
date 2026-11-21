@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawn, spawnSync, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -11,6 +11,7 @@ import { HUB_OPERATOR } from '../../src/brain/project-hub-contract.js';
 import { ProjectHubService } from '../../src/brain/project-hub.js';
 import { projectStorage } from '../../src/brain/project-memory.js';
 import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
+import { ProjectPolicyStore } from '../../src/brain/project-policy.js';
 import { MCPPresenceStore, MCP_PRESENCE_FILE, MCP_PRESENCE_LIMITS } from '../../src/brain/mcp-presence.js';
 import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
 
@@ -313,7 +314,9 @@ it('shares project-local rooms through two independent stdio clients, persists r
     payload(await action(other, roomId, { kind: 'ack', targetType: 'artifact', targetId: artifact.targetId, sha256: attachment.sha256, ...key() }));
     hub.roomAction(roomId, { kind: 'accept', artifactId: artifact.targetId, ...key() }, HUB_OPERATOR);
     const outcome = payload(await action(winner, roomId, { kind: 'outcome', taskId: task.targetId, artifactId: artifact.targetId, result: 'pass', check: 'fixture assertion', evidence: 'see artifact', ...key() })).applied;
-    payload(await winner.call('hub_lesson_propose', { outcomeId: outcome.targetId, title: 'Keep the operation key', text: 'Retry using the existing operation key.', ...key() }));
+    expect(outcome.lessonId).toEqual(expect.any(String));
+    const refinement = payload(await winner.call('hub_lesson_propose', { outcomeId: outcome.targetId, title: 'Keep the operation key', text: 'Retry using the existing operation key.', ...key() }));
+    expect(refinement.lesson).toMatchObject({ id: outcome.lessonId, outcomeId: outcome.targetId, status: 'candidate', memoryId: null });
     await worker.stop();
     const resumed = new FixtureClient(a, pa.storagePath);
     clients.push(resumed);
@@ -355,7 +358,7 @@ it('opens, inspects and resumes exact handoff checkpoints across independent cli
   try {
     const tools = await Promise.all(clients.map(client => client.initialize()));
     expect(tools[0].filter((tool: any) => tool.name.startsWith('session_')).map((tool: any) => tool.name)).toEqual([
-      'session_list', 'session_read', 'session_checkpoint_read', 'session_open', 'session_record', 'session_resume',
+      'session_handoffs', 'session_list', 'session_read', 'session_transcript_read', 'session_append_turn', 'session_checkpoint_read', 'session_open', 'session_record', 'session_recover', 'session_resume',
     ]);
     expect(tools[3].some((tool: any) => tool.name.startsWith('session_'))).toBe(false);
     expect((await unpinned.call('session_list')).error.code).toBe(-32601);
@@ -379,9 +382,14 @@ it('opens, inspects and resumes exact handoff checkpoints across independent cli
     expect(result(await command(first, id, firstMessage)).messages[0].text).toBe(firstMessage.text);
     expect(result(await command(first, id, firstMessage)).messages).toHaveLength(1);
     expect((await command(first, id, { ...firstMessage, ...key() })).result.structuredContent.code).toBe('SESSION_CONFLICT');
-    const savedRef = result(await command(first, id, { kind: 'checkpoint', summary: 'First verified checkpoint', completed: ['Checked artifacts'],
+    const savedRef = result(await command(first, id, { kind: 'checkpoint', summary: 'First verified checkpoint', constraints: ['Keep public output compatible'], approach: 'Exercise the installed binary', completed: ['Checked artifacts'],
       nextSteps: ['Run the test fixture'], evidence: ['tests/evidence.md'], ...key() })).checkpoints[0];
     expect(savedRef.summary).toBeUndefined();
+    expect(result(await second.call('session_handoffs', { query: 'installed binary' }))).toMatchObject({
+      total: 1, handoffs: [{ sessionId: id, checkpointId: savedRef.id, sha256: savedRef.sha256, nextStep: 'Run the test fixture' }],
+    });
+    expect(result(await second.call('session_handoffs', { query: 'unrelated' })).handoffs).toEqual([]);
+    expect(result(await foreign.call('session_handoffs', {})).handoffs).toEqual([]);
     const saved = result(await second.call('session_checkpoint_read', { sessionId: id, checkpointId: savedRef.id })).checkpoint;
     result(await command(first, id, { kind: 'checkpoint', summary: 'Newer checkpoint', ...key() }));
     const page = result(await second.call('session_read', { sessionId: id, limit: 1 }));
@@ -411,6 +419,93 @@ it('opens, inspects and resumes exact handoff checkpoints across independent cli
       if (dirname(canonical) !== realpathSync.native(tmpdir()) || !basename(canonical).startsWith('hub-mcp-session-')) throw new Error('Unexpected fixture path.');
       rmSync(canonical, { recursive: true, force: true });
     }
+  }
+}, 30_000);
+
+it('retains exact visible turns across MCP processes without implicit delivery or reconnect ownership', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'hub-mcp-exact-'));
+  const other = mkdtempSync(join(tmpdir(), 'hub-mcp-exact-'));
+  const project = projectStorage(root), settings = new FeatureSettingsStore({ filePath: project.settingsPath });
+  const [owner, reader, foreign] = [new FixtureClient(root, project.storagePath, 'codex-fixture'),
+    new FixtureClient(root, project.storagePath, 'claude-fixture'), new FixtureClient(other, projectStorage(other).storagePath, 'codex-fixture')];
+  const clients = [owner, reader, foreign];
+  const result = (reply: any) => {
+    expect(reply.error).toBeUndefined();
+    expect(reply.result.isError).toBeUndefined();
+    return reply.result.structuredContent;
+  };
+  const errorCode = (reply: any) => reply.result?.structuredContent?.code ?? reply.error?.code;
+  const opening = { title: 'Shared retry fixture', goal: 'Verify byte-exact ownership', hostSessionId: 'synthetic-host-chat', exactTranscript: true, ...key() };
+  try {
+    await Promise.all(clients.map(client => client.initialize()));
+    expect(errorCode(await owner.call('session_open', opening))).toBe('SESSION_CAPTURE_DISABLED');
+    await settings.update({ exactConversationCapture: true }, 0);
+    const opened = result(await owner.call('session_open', opening)).session;
+    const sessionId = opened.id;
+    const user = { sessionId, hostMessageId: 'fixture/turn:1', role: 'user', text: '  Visible-Only-Marker\r\n\t🧪\u00a0\u2028\u2029 \n' };
+    const assistant = { sessionId, hostMessageId: user.hostMessageId, role: 'assistant', text: 'é'.repeat(32 * 1024), model: 'fixture-model' };
+    const append = (client: FixtureClient, input: object) => client.call('session_append_turn', input);
+    const exact = (client: FixtureClient, input: object = {}) => client.call('session_transcript_read', { sessionId, ...input });
+    const userSaved = result(await append(owner, user));
+    const saved = result(await append(owner, assistant));
+    expect(saved).toMatchObject({ replay: false, bytes: 64 * 1024, sha256: createHash('sha256').update(assistant.text).digest('hex') });
+    expect(userSaved.messageId).not.toBe(saved.messageId);
+    expect(result(await append(owner, user))).toEqual({ ...userSaved, replay: true });
+    expect(errorCode(await append(owner, { ...user, text: user.text.trim() }))).toBe('SESSION_CONFLICT');
+    expect(errorCode(await append(owner, { ...assistant, text: assistant.text + 'a' }))).toBe(-32602);
+    expect(errorCode(await append(owner, { ...user, role: 'tool' }))).toBe(-32602);
+    expect(errorCode(await exact(foreign))).toBe('SESSION_NOT_FOUND');
+    expect(errorCode(await append(reader, user))).toBe('SESSION_OWNER_REQUIRED');
+
+    const detail = result(await reader.call('session_read', { sessionId }));
+    expect(detail).toMatchObject({ messages: [], exactTranscript: { tool: 'session_transcript_read', sessionId, totalMessages: 2 } });
+    const newest = result(await exact(reader, { limit: 1 }));
+    expect(newest).toMatchObject({ source: { tool: 'codex', hostSessionId: opening.hostSessionId, provenance: 'host-report' },
+      totalMessages: 2, totalBytes: Buffer.byteLength(user.text) + saved.bytes, nextBefore: saved.messageId });
+    expect(newest.messages[0].text).toBe(assistant.text);
+    expect(newest.messages[0].model).toBe(assistant.model);
+    const older = result(await exact(reader, { before: newest.nextBefore, limit: 1 }));
+    expect(older.messages.map((message: { text: string }) => message.text)).toEqual([user.text]);
+    expect(older.nextBefore).toBeNull();
+
+    await owner.stop();
+    const restarted = new FixtureClient(root, project.storagePath, 'codex-fixture');
+    clients.push(restarted);
+    await restarted.initialize();
+    expect(result(await append(restarted, user))).toEqual({ ...userSaved, replay: true });
+    expect(errorCode(await append(restarted, { ...user, hostMessageId: 'fixture/turn:2' }))).toBe('SESSION_OWNER_REQUIRED');
+    expect(errorCode(await append(restarted, { ...user, text: 'Changed' }))).toBe('SESSION_OWNER_REQUIRED');
+
+    const linked = result(await reader.call('session_recover', { sessionId, expectedRevision: detail.session.revision,
+      exactTranscript: true, hostSessionId: 'second-synthetic-host-chat', ...key() }));
+    expect(linked).toMatchObject({ session: { parentSessionId: sessionId, exactTranscript: { totalMessages: 0 } },
+      handoff: { sessionId, recovery: { messages: [], exactTranscript: { totalMessages: 2 } } } });
+    expect(JSON.stringify(linked)).not.toContain('Visible-Only-Marker');
+    expect(JSON.stringify(result(await reader.call('context_pack', { query: 'retry fixture', profile: 'adaptive' })))).not.toContain('Visible-Only-Marker');
+    expect(JSON.stringify(await reader.call('project_brief', { query: 'retry fixture' }))).not.toContain('Visible-Only-Marker');
+    expect(result(await append(reader, { ...user, sessionId: linked.session.id, text: 'New owner fixture.' })).replay).toBe(false);
+
+    const policy = new ProjectPolicyStore(root, project.projectId);
+    const paused = await policy.update({ kind: 'set-chat-sharing', sessionId, expectedRevision: 0, shareContext: false }, detail.session);
+    expect(errorCode(await exact(reader))).toBe('SESSION_SHARING_OFF');
+    expect(errorCode(await exact(reader, { sessionId: linked.session.id }))).toBe('SESSION_SHARING_OFF');
+    expect(errorCode(await append(restarted, user))).toBe('SESSION_SHARING_OFF');
+    const shared = await policy.update({ kind: 'set-chat-sharing', sessionId, expectedRevision: paused.revision, shareContext: true }, detail.session);
+    const hostPaused = await policy.update({ kind: 'set-tool-participation', tool: 'codex', expectedRevision: shared.revision, enabled: false });
+    expect(errorCode(await exact(reader))).toBe('SESSION_SHARING_OFF');
+    expect(errorCode(await reader.call('session_read', { sessionId: linked.session.id }))).toBe('SESSION_SHARING_OFF');
+    await policy.update({ kind: 'set-tool-participation', tool: 'codex', expectedRevision: hostPaused.revision, enabled: true });
+    await settings.update({ exactConversationCapture: false }, 1);
+    expect(errorCode(await exact(reader))).toBe('SESSION_CAPTURE_DISABLED');
+    expect(errorCode(await append(restarted, user))).toBe('SESSION_CAPTURE_DISABLED');
+    expect(errorCode(await reader.call('session_read', { sessionId }))).toBe('SESSION_SHARING_OFF');
+    expect(errorCode(await reader.call('session_read', { sessionId: linked.session.id }))).toBe('SESSION_SHARING_OFF');
+    await settings.update({ exactConversationCapture: true }, 2);
+    expect(result(await reader.call('session_read', { sessionId })).session.exactTranscript.totalMessages).toBe(2);
+  } finally {
+    await Promise.allSettled(clients.map(client => client.stop()));
+    rmSync(root, { recursive: true, force: true });
+    rmSync(other, { recursive: true, force: true });
   }
 }, 30_000);
 

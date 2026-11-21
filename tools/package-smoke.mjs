@@ -172,7 +172,10 @@ assert(context.budget.estimatedTokens <= 250);
 const featureFile = path.join(sandbox, 'flags.json');
 const defaults = JSON.parse(runNode([cli, 'features', 'list', '--settings', featureFile]));
 assert.equal(defaults.features.crossProjectContext, false);
-assert.equal(defaults.definitions.length, 6);
+assert.equal(defaults.features.exactConversationCapture, false);
+assert.equal(defaults.features.checkpointContext, true);
+assert.equal(defaults.features.automaticLearning, true);
+assert.equal(defaults.definitions.length, Object.keys(defaults.features).length);
 assert.equal(defaults.features.projectFileActivity, false);
 assert.equal(defaults.features.activityRecording, true);
 assert(!fs.existsSync(featureFile), 'listing default settings must not create a file');
@@ -499,6 +502,10 @@ for (const [, target] of readmeImages) {
 const workspaceProof = JSON.parse(runNode([path.join(installed, 'tools/verify-workspace-memory.mjs')], 0, undefined, undefined, 120_000));
 assert.equal(workspaceProof.passed, true);
 assert.equal(workspaceProof.knowledge.returnedMemoryIds, 1);
+assert.equal(workspaceProof.handoff.automaticBriefMatched, true);
+assert.equal(workspaceProof.exactHistory.crossClientRead, true);
+assert.equal(workspaceProof.exactHistory.preservedUnicodeWhitespace, true);
+assert.equal(workspaceProof.exactHistory.survivedRestart, true);
 assert.equal(workspaceProof.workspaceCounts.foreignMemoryMatches, 0);
 assert(!fs.existsSync(path.join(sandbox, 'config')), 'isolated memory, workflow, activity and workspace probes must avoid provider configuration');
 console.log(JSON.stringify({

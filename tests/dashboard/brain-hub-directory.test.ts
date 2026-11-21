@@ -100,3 +100,66 @@ it('fills all three cards from explicit native observation even if the directory
   const cards = output.match(/<ul class="portfolio-list">([\s\S]*?)<\/ul>/u)?.[1] ?? '';
   for (const row of rows) expect(cards).toContain('Indexed ' + row.projectId);
 });
+
+it('presents an opt-in recent Codex watcher, reviewable folders, and a stop action', async () => {
+  const row = { ...base, projectId: 'project-1', projectName: 'Fixture', root: '/synthetic/current' };
+  const state = { view: 'workspaces', project: row.projectId, directory: { currentProjectId: row.projectId, revision: 1, total: 1, workspaces: [row] },
+    errors: {}, connection: 'reachable' };
+  const requests: Array<{ kind?: string }> = [];
+  const result = await runInNewContext(BRAIN_HUB_DIRECTORY + String.raw`;
+    (async()=>{
+      const initial=directoryRecentPanel();
+      await startDirectoryRecent('/synthetic');
+      const enabled=directoryRecentPanel();
+      await checkDirectoryRecent();
+      stopDirectoryRecent();
+      const stopped=directoryRecentPanel();
+      return {initial,enabled,stopped};
+    })();
+  `, { state, document: { hidden: false }, AbortController, render() {}, status() {}, json: (value: object) => value,
+    api: async (_route: string, options: { kind?: string }) => {
+      requests.push(options);
+      if (options.kind === 'watch-start') return { watchToken: 'fixture-token' };
+      if (options.kind === 'watch-check') return { added: 0, candidates: [{ projectName: 'Outside fixture', root: '/elsewhere/project', candidateToken: 'outside-token' }] };
+      return { enabled: false };
+    }, ...helpers, btn: (label: string, attributes: string) => '<button ' + attributes + '>' + label + '</button>' });
+  expect(result.initial).toContain('Folder for automatic additions (optional)');
+  expect(result.initial).not.toContain('Outside fixture');
+  expect(result.enabled).toContain('Automatic additions under');
+  expect(result.enabled).toContain('data-directory-candidate="outside-token"');
+  expect(result.enabled).toContain('Stop watching');
+  expect(result.stopped).not.toContain('Outside fixture');
+  expect(requests).toMatchObject([{ kind: 'watch-start', parent: '/synthetic' }, { kind: 'watch-check', watchToken: 'fixture-token' },
+    { kind: 'watch-stop', watchToken: 'fixture-token' }]);
+});
+
+it('pages exact titles for the selected card without replacing its latest chat', async () => {
+  const row = { ...base, projectId: 'project-1', projectName: 'Fixture', root: '/synthetic/fixture' };
+  const state = { view: 'workspaces', project: row.projectId, directory: { revision: 1, total: 1, workspaces: [row] },
+    errors: {}, connection: 'reachable' };
+  const requests: Array<{ projectId: string; pageToken?: string }> = [];
+  const makeIndex = (threads: Array<{ name: string }>, nextPageToken: string | null = null) => ({
+    projectId: row.projectId, policyRevision: row.policyRevision, expiresAt: new Date(Date.now() + 30_000).toISOString(), threads, nextPageToken,
+  });
+  const first = makeIndex(Array.from({ length: 12 }, (_, index) => ({ name: 'Recent  title ' + index })), 'fixture-page-two');
+  const older = makeIndex([{ name: 'Earlier exact  title ✓' }]);
+  const result = await runInNewContext(BRAIN_HUB_DIRECTORY + String.raw`;
+    (async()=>{
+      await loadDirectoryTitles(row.projectId);
+      const current=directoryTitlePanel(row);
+      await loadDirectoryTitles(row.projectId,'next');
+      const previous=directoryTitlePanel(row);
+      const card=projectCard(row,true);
+      await loadDirectoryTitles(row.projectId,'previous');
+      return {current,previous,card,newest:directoryTitlePanel(row)};
+    })();
+  `, { state, row, document: { hidden: false }, json: (input: unknown) => input,
+    api: async (_route: string, options: { projectId: string; pageToken?: string }) => { requests.push(options); return options.pageToken ? older : first; },
+    ...helpers });
+  expect(result.current).toContain('Recent  title 11');
+  expect(result.previous).toContain('Page 2');
+  expect(result.previous).toContain('Earlier exact  title ✓');
+  expect(result.card).toContain('Recent  title 0');
+  expect(result.newest).toContain('Page 1');
+  expect(requests.map(request => request.pageToken)).toEqual([undefined, 'fixture-page-two', undefined]);
+});

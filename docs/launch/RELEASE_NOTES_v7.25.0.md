@@ -2,6 +2,16 @@
 
 See the [visual guide](../VISUAL_GUIDE_v7.25.0.md) for browser captures of setup, context, usage and collaboration, plus the reproducible four-fact comparison.
 
+## Continue the right task
+
+The overview shows saved handoffs next to chat titles and project files. A supported project client can ask for a brief when work begins. If a checkpoint matches the subject of the task, the brief includes its next step and fingerprint within the context budget. A generic request to continue or a tie between different goals leaves the choice with the user. Explicit checkpoint search still lists the alternatives.
+
+A receiving agent can improve the working approach while preserving the source goal, constraints and checkpoint. **Continue from last shared update** handles an interrupted session with shared messages. **Automatic lesson candidates** drafts one review item from an eligible passing check with evidence. Hiding a chat excludes its inherited checkpoints from delivery. [Session handoffs](../SESSIONS.md) · [Learning](../LEARNING.md)
+
+## Keep original words when the project needs them
+
+Enable **Exact shared conversation history** in Setup for a project where the team wants a transcript. A cooperating host enrolls the conversation and reports visible user and assistant turns. Message IDs make retries idempotent. The reader can page through the original whitespace and Unicode text or continue with the saved goal and checkpoint. Queries about other work still receive a focused project brief. Codex also has an explicit follow option for a selected native conversation. [Capture methods and limits](../FEATURES_AND_LIMITS.md)
+
 ## One project brain across your tools
 
 Point the Codex, Claude Code, DeepSeek Harness and OpenCode project recipes at the same directory. Each participating client can call `project_brief` with a question and receive the latest matching project notes as cited Markdown. Each passage carries the original memory ID, so another tool can check the same evidence. Chat visibility, curation, tool participation and context budgets apply when the brief is built.
@@ -30,7 +40,7 @@ When a measured project `context_pack` or `project_brief` succeeds, its receipt 
 
 ## Discover and manage project hosts
 
-**Setup → Host connections** recognizes command and extension installation evidence for eight host families. The portal can prepare project configurations for Codex, Claude Code, OpenCode V2, Kilo Code, and current VS Code/Copilot. Cline, DeepSeek Harness, and OpenClaw have host-specific setup guides. Existing configurations needing a merge are surfaced for review. After reload or host approval, a live MCP connection appears when the host actually opens the transport. [Host documentation and compatibility](../INTEGRATIONS.md)
+**Setup → Host connections** recognizes command, bundled launcher and extension installation evidence for eight host families. The portal can prepare project configurations for Codex, Claude Code, OpenCode, Kilo Code, and current VS Code/Copilot. OpenCode uses the detected V1 or V2 configuration format. Cline, DeepSeek Harness, and OpenClaw have host-specific setup guides. Existing configurations needing a merge are surfaced for review. After reload or host approval, a live MCP connection appears when the host opens the transport. [Host documentation and compatibility](../INTEGRATIONS.md)
 
 Enable automatic connections to recheck installed hosts while the portal is open. The project switch pauses agent-facing project memory access. An individual host’s admission switch applies on its next request. A running host may keep its transport open while access is paused. These controls use the identity declared by the client or its project launch configuration.
 

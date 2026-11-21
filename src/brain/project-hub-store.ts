@@ -6,7 +6,7 @@ import { HUB_LIMITS, ProjectHubError, type HubActor, type HubEvent, type HubLess
 
 const relative = '.shadow-brain/project-hub.sqlite';
 type Table = 'documents' | 'rooms' | 'tasks' | 'messages' | 'artifacts' | 'outcomes' | 'acknowledgements' | 'lessons' |
-  'sessions' | 'session-messages' | 'session-checkpoints';
+  'sessions' | 'session-messages' | 'session-checkpoints' | 'session-transcript';
 type Row = { id: string; scope: string; data: string };
 
 export function digest(value: string | Uint8Array): string {
@@ -221,6 +221,11 @@ export class HubStore {
       ? db.prepare('SELECT count(*) AS count FROM hub_rows WHERE kind=?').get(kind)
       : db.prepare('SELECT count(*) AS count FROM hub_rows WHERE kind=? AND scope=?').get(kind, scope);
     return Number(row?.count);
+  }
+
+  transcriptBytes(): number {
+    const row = this.active().prepare("SELECT coalesce(sum(json_extract(data,'$.exactTranscript.totalBytes')),0) AS bytes FROM hub_rows WHERE kind='sessions'").get();
+    return Number(row?.bytes);
   }
 
   put<T extends { id: string }>(kind: Table, value: T, scope = ''): T {

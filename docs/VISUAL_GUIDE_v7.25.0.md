@@ -33,7 +33,7 @@ Use **Check Codex chat index** to request local titles, timestamps, and index st
 
 ![Host cards showing installation evidence, project setup, admission and current MCP presence](assets/7.25.0-setup.png)
 
-Open **Setup** to see host installation evidence, workspace configuration, tool admission and MCP presence. Host discovery checks known commands on the process PATH and known extensions in VS Code’s default local installation directory. Configure an available host or use its manual setup guide, reload it, and check **MCP presence**. Automatic connections are opt-in. The capture used fixture launchers and extension folders, plus a scripted client reporting an OpenCode connection. Its current connection remains visible with project tool admission switched off. [Integration recipes](INTEGRATIONS.md) · [VS Code extension locations](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace)
+Open **Setup** to see host installation evidence, workspace configuration, tool admission and MCP presence. Discovery checks known commands, fixed installation launchers and VS Code extension directories. Configure an available host or use its manual setup guide, reload it, and check **MCP presence**. Automatic connections are opt-in. The capture used fixture launchers and extension folders, plus a scripted client reporting an OpenCode connection. Its current connection remains visible with project tool admission switched off. [Integration recipes](INTEGRATIONS.md) · [VS Code extension locations](https://code.visualstudio.com/docs/configure/extensions/extension-marketplace)
 
 ## Retrieve context with sources
 

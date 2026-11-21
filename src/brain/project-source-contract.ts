@@ -8,7 +8,7 @@ export interface SourceItem {
 }
 export interface SourceImport {
   id: string; projectId: string; kind: SourceKind; name: string; sha256: string; bytes: number;
-  parser: string; createdAt: string; title: string; items: SourceItem[];
+  workspacePath?: string; parser: string; createdAt: string; title: string; items: SourceItem[];
 }
 export type SourceImportPreview = SourceImport;
 export interface MemoryEvidenceResult {

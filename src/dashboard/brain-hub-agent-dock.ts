@@ -40,6 +40,15 @@ function rosterState(){
     return record;
   }
   const connections=new Map(),hostChats=new Map();
+  if(state.view==='overview'&&typeof overviewNativeRows==='function'){
+    const id=overviewProjectId();
+    for(const tool of Object.keys(overviewIndexHosts))if(accepts(id,tool)){
+      const index=overviewNativeIndex(tool);
+      overviewNativeRows(tool).slice(0,12).forEach((thread,ordinal)=>{
+        group(id,tool,'native-index',String(ordinal)).index={thread,observedAt:index.observedAt};
+      });
+    }
+  }
   for(const session of arr(state.sessions?.sessions)){
     const projectId=state.sessions.projectId,tool=session.native?.tool??session.actor?.tool;
     const hostId=session.hostSessionId,connection=session.actor?.kind==='agent'&&session.actor?.id?.startsWith(tool+':mcp-')
@@ -82,7 +91,8 @@ function rosterState(){
   }
   const tools=new Map();
   for(const record of groups.values()){
-    const latest=[record.event?.timestamp,record.receipt?.recordedAt,record.session?.lastReportedAt,record.presence?.lastSeenAt].filter(Boolean).sort().at(-1);
+    const latest=[record.event?.timestamp,record.receipt?.recordedAt,record.session?.lastReportedAt,record.presence?.lastSeenAt,
+      record.index?.observedAt].filter(Boolean).sort().at(-1);
     record.latest=latest;
     if(!tools.has(record.tool))tools.set(record.tool,[]);
     tools.get(record.tool).push(record);
@@ -110,6 +120,18 @@ function dockAction(record){
   return record.presence?['No recorded action','Transport heartbeat'] : ['Unavailable','No evidence'];
 }
 function toolDockInspector(record,records){
+  const labelFor=item=>item.index?.thread?.name??(item.session?(item.session.native?item.session.native.titleExact??'Untitled native snapshot':item.session.title):
+    (item.kind==='connection'?'MCP connection ':item.kind==='report'?'Host report ':item.sharedReceipt?'Shared chat usage ':'Usage receipt ')+item.identity);
+  if(record.kind==='native-index'){
+    const selected=record.index.thread;
+    const title=esc(hostName(record.tool))+' index';
+    return '<section class="tool-dock-details" id="tool-dock-details" aria-label="'+title+' details">'+
+      '<div class="row"><h3>'+title+'</h3><div class="actions">'+view('sessions','Open Sessions')+btn('Close details','data-dock-close','quiet')+'</div></div>'+
+      list(records.map(item=>'<li><button class="tool-dock-record" type="button" data-dock-record="'+esc(item.key)+'" aria-pressed="'+(item.key===record.key)+'">'+
+        esc(labelFor(item))+'</button></li>').join(''),'aria-label="Chats and connection evidence"','tool-dock-record-list')+
+      '<dl class="facts">'+fact('Exact chat title',selected.name)+fact('Index status',selected.status==='active'?'Active in app-server':'Indexed')+
+      fact('Index checked',isoTime(record.index.observedAt))+fact('Evidence source',record.tool==='opencode'?'OpenCode ACP index':'Codex app-server index')+'</dl></section>';
+  }
   const {event,receipt,session}=record;
   const [actionLabel,provenance]=dockAction(record);
   const actualTitle=session?.native?session.native.titleExact??'Unavailable':session?.title??'Not reported';
@@ -117,8 +139,6 @@ function toolDockInspector(record,records){
   const workspace=arr(state.overview?.projects).find(project=>project.id===record.projectId)?.name??record.projectId;
   const counter=value=>Number.isFinite(value)?fmt(value):'Not reported';
   const availability=toolEnabled(record.tool);
-  const labelFor=item=>item.session?(item.session.native?item.session.native.titleExact??'Untitled native snapshot':item.session.title):
-    (item.kind==='connection'?'MCP connection ':item.kind==='report'?'Host report ':item.sharedReceipt?'Shared chat usage ':'Usage receipt ')+item.identity;
   const chooser=records.length>1?list(records.map(item=>{
     const model=item.receipt?.responseModel??item.receipt?.requestModel;
     return '<li><button class="tool-dock-record" type="button" data-dock-record="'+esc(item.key)+'" aria-pressed="'+(item.key===record.key)+'"><strong>'+

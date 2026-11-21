@@ -13,6 +13,25 @@ A user enters a project fact in everyday language. One connected agent retrieves
 | [7.22.0 Brain Hub](RELEASE_NOTES_v7.22.0.md) | Explicit session checkpoints, scoped host access, and activity receipts separate saved work, live transport, and host-reported progress. |
 | [7.22.2 package and attribution](RELEASE_NOTES_v7.22.2.md) | Keep repository and creator links visible at entry points. The distribution stats badge stays dynamic. |
 
+## Recovering the original design
+
+The published 5.1.1 package described persistent project memory available to multiple tools through MCP. Version 6.0.0 added a shared workspace and sending selected context to subagents. Version 6.3.0 documented project lessons, task-focused context and fresh-session resume packs. These are design precedents. Their README descriptions alone cannot establish how well an installed host works today. [5.1.1 archive](https://registry.npmjs.org/@theihtisham/agent-shadow-brain/-/agent-shadow-brain-5.1.1.tgz) · [6.0.0 archive](https://registry.npmjs.org/@theihtisham/agent-shadow-brain/-/agent-shadow-brain-6.0.0.tgz) · [6.3.0 archive](https://registry.npmjs.org/@theihtisham/agent-shadow-brain/-/agent-shadow-brain-6.3.0.tgz)
+
+### Continuity across models
+
+The project goal is continuity across cooperating agents. A second agent should recover the exact task, working approach, constraints, decisions, evidence and next action from a saved checkpoint. It can improve the approach in a new session while the author’s original checkpoint stays available.
+
+The workspace directory is a navigation index. Each project owns its notes, visible conversations, checkpoints and access policy. Opening a different project changes the active store and file explorer together. A user may inspect local chat titles before choosing any conversation content to share.
+
+### Implementation and acceptance sequence
+
+1. **Identify the workspace and source.** Resolve a registered project to its canonical root, open its scoped dashboard, and display the selected root alongside available host indexes. Test with identically named files in different roots. A private or forgotten registration must not open through the directory.
+2. **Find existing work.** Ask supported hosts for pages of their native session index. Display their reported name, relationship and status when supplied. Exercise recent and archived pagination, hidden chats, unsupported hosts, and a legitimately empty index. The Codex app-server and ACP session list expose different fields. [Codex app-server](https://developers.openai.com/codex/app-server/) · [ACP session list](https://agentclientprotocol.com/protocol/session-list)
+3. **Capture what matters.** Save an ordinary project note or select a passage in an existing workspace document. Record the project-relative filename, original passage and content digest. Test that a preview alone adds zero memories and that repeating approval delivers one memory.
+4. **Hand work to a different agent.** Search the shared checkpoint index by task. Give the receiving host the selected session ID, checkpoint ID and fingerprint. Preserve the goal, inherited constraints and approach across a third handoff. Verify that a new approach leaves the earlier checkpoint readable and that an unrelated task returns no match. [MCP tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools)
+5. **Make missing evidence legible.** Show the distinct sources behind a native chat, a live MCP connection, a recorded exchange, and a saved memory. Animate measured traffic when it occurs. Show token counts only when the host supplies them. An agent can report a model or task outcome independently of connecting.
+6. **Verify the running product.** Exercise the public CLI and browser, an actual native host handshake, a cross-client continuation, a fresh project, a restart and paused sharing. Record which checks used fixtures and which used an installed host. Defer release until the user reviews the running local build.
+
 ## What the interfaces actually expose
 
 | Question | Evidence available to the workspace | Product decision |

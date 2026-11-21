@@ -1,6 +1,12 @@
 # Package and repository statistics
 
-Last successful refresh: **2026-11-14T11:49:13.195Z**. Counts are snapshots from public npm and GitHub APIs.
+[![npm downloads](https://img.shields.io/npm/dt/%40theihtisham%2Fagent-shadow-brain?label=Total%20Downloads&color=087f73)](https://www.npmjs.com/package/@theihtisham/agent-shadow-brain)
+
+The badge refreshes from npm and rounds the displayed number. npm limits a single download-count request to 18 months. That window covers this package back to its first release on April 10, 2026. For a longer history, select the full date range in the download chart. [Download history from first release](https://npm-stat.com/charts.html?package=%40theihtisham%2Fagent-shadow-brain&from=2026-04-10) · [npm counting method](https://github.com/npm/registry/blob/main/docs/download-counts.md)
+
+## Archived November 14 snapshot
+
+These counts were collected on **2026-11-14 at 11:49 UTC**. The badge above is the current source.
 
 | Metric | Count | Coverage |
 | --- | ---: | --- |
