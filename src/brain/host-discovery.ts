@@ -15,6 +15,7 @@ const HOSTS = [
 
 export type DiscoverableHostId = typeof HOSTS[number]['id'];
 export const isDiscoverableHost = (id: string): id is DiscoverableHostId => HOSTS.some(host => host.id === id);
+export const hostDisplayLabel = (id: DiscoverableHostId) => HOSTS.find(host => host.id === id)!.label;
 
 /** Normalize only recognized client labels for project attribution. The transport declares this identity. */
 export function reportedHost(name: string): DiscoverableHostId | undefined {

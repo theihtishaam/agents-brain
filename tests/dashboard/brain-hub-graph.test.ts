@@ -35,6 +35,25 @@ describe('Brain Hub graph and exchanges', () => {
     expect(result).toEqual({ paired: ['result', 'request'], pairCount: 2, incoming: true, outgoing: true, report: null });
   });
 
+  it('links returned memories to their own project and distinguishes empty from unavailable receipts', () => {
+    const markup = run<string[]>(`
+      state.graph={nodes:[
+        {kind:'memory',id:'foreign',project:'other',memoryId:'same',label:'Foreign project label'},
+        {kind:'memory',id:'local',project:'here',memoryId:'same',label:'Local <cupboard>'}
+      ]};
+      const done={kind:'tool-end',source:'measured',transport:'mcp',projectId:'here',tool:'project_brief',outcome:'success'};
+      [returnedContextMarkup({...done,contextMemoryIds:['same','older']}),
+        returnedContextMarkup({...done,contextMemoryIds:[]}),returnedContextMarkup(done),
+        returnedContextMarkup({...done,kind:'tool-start',contextMemoryIds:['same']})]
+    `);
+    expect(markup[0]).toContain('Local &lt;cupboard&gt;');
+    expect(markup[0]).toContain('Outside the loaded graph');
+    expect(markup[0]).not.toContain('Foreign project label');
+    expect(markup[1]).toContain('zero selected memories');
+    expect(markup[2]).toContain('no per-memory selection');
+    expect(markup[3]).toBe('');
+  });
+
   it('reports loaded-history eviction without displaying a newer event in replay', () => {
     const result = run(`
       const makeEvent=sequence=>({id:'event-'+sequence,sequence});

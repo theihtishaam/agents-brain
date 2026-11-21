@@ -4,10 +4,14 @@
 
 ---
 
-## Release Timeline
+## Current release
+
+[7.25.0 release notes](../launch/RELEASE_NOTES_v7.25.0.md) · [Visual guide](../VISUAL_GUIDE_v7.25.0.md) · [Full changelog](../../CHANGELOG.md)
+
+## Archived release timeline
 
 ```
-v5.2.0  2026-04-24  Agent Trust & Handoff Edition             ← Current
+v5.2.0  2026-04-24  Agent Trust & Handoff Edition
 v5.1.1  2026-04-18  Hyper-Cognitive Intelligence Edition
 v5.0.1  2026-04-15  Zero-Config Intelligence Edition
 v5.0.0  2026-04-12  Infinite Intelligence Edition
@@ -55,4 +59,4 @@ v5.1 █████████████████████████
 - [Full Changelog](../../CHANGELOG.md) — compact format following Keep a Changelog
 - [README](../../README.md) — project overview, installation, usage
 - [npm](https://www.npmjs.com/package/@theihtisham/agent-shadow-brain) — package page
-- [GitHub](https://github.com/theihtisham/agent-shadow-brain) — source code
+- [GitHub](https://github.com/theihtishaam/agents-brain) — source code

@@ -28,6 +28,8 @@ export interface ActivityEventInput {
   durationMs?: number;
   argumentBytes?: number;
   resultTextBytes?: number;
+  /** Exact selection in a completed project-local context response. Missing on older receipts. */
+  contextMemoryIds?: string[];
 }
 
 export interface ActivityJournalEvent extends ActivityEventInput {
@@ -84,7 +86,7 @@ export class ActivityJournalError extends Error {
 
 const INPUT_KEYS = new Set([
   'kind', 'source', 'transport', 'projectId', 'sessionId', 'agent', 'phase', 'tool', 'correlationId', 'outcome', 'durationMs',
-  'argumentBytes', 'resultTextBytes',
+  'argumentBytes', 'resultTextBytes', 'contextMemoryIds',
 ]);
 const SNAPSHOT_KEYS = new Set(['schemaVersion', 'journalId', 'revision', 'nextSequence', 'events']);
 const LOCK_TIMEOUT_MS = 3000;
@@ -114,6 +116,12 @@ function label(value: unknown, max = 128): value is string {
   return typeof value === 'string' && value.length <= max && SAFE_LABEL.test(value);
 }
 
+/** Opaque identifiers only. Bound receipt size so a full journal still fits its existing disk limit. */
+export function validContextMemoryIds(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= 30 && value.every(id => label(id)) &&
+    new Set(value).size === value.length && value.join(',').length <= 1200;
+}
+
 function instant(value: unknown): value is string {
   if (typeof value !== 'string') return false;
   const time = Date.parse(value);
@@ -136,6 +144,12 @@ function eventInput(value: unknown): ActivityEventInput | undefined {
     typeof count === 'number' && Number.isSafeInteger(count) && count >= 0;
   if (argumentBytes !== undefined && (kind !== 'tool-start' || !exactBytes(argumentBytes))) return undefined;
   if (resultTextBytes !== undefined && (kind !== 'tool-end' || outcome !== 'success' || !exactBytes(resultTextBytes))) return undefined;
+  if (input.contextMemoryIds !== undefined) {
+    const ids = input.contextMemoryIds;
+    if (source !== 'measured' || transport !== 'mcp' || !projectId || kind !== 'tool-end' || outcome !== 'success' ||
+        (tool !== 'project_brief' && tool !== 'context_pack') || !validContextMemoryIds(ids)) return undefined;
+    input.contextMemoryIds = [...ids];
+  }
   if (kind === 'tool-start' || kind === 'tool-end') {
     if (phase !== undefined || !label(tool, 64) || !label(correlationId)) return undefined;
     if (kind === 'tool-start' && (outcome !== undefined || durationMs !== undefined)) return undefined;

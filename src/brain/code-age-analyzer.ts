@@ -2,6 +2,7 @@
 // v3.0.0 — Tracks file modification age, churn, and staleness risk
 
 import { BrainInsight, CodeAgeResult } from '../types.js';
+import { execFileSync } from 'node:child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -24,9 +25,10 @@ export class CodeAgeAnalyzer {
     const results: CodeAgeResult[] = [];
 
     const now = Date.now();
+    const inGit = files.length > 0 && this.gitOutput(['rev-parse', '--is-inside-work-tree']) === 'true';
 
     for (const filePath of files) {
-      const result = this.analyzeFileAge(filePath, now);
+      const result = this.analyzeFileAge(filePath, now, inGit);
       if (result) {
         results.push(result);
       }
@@ -64,7 +66,7 @@ export class CodeAgeAnalyzer {
     return insights;
   }
 
-  private analyzeFileAge(filePath: string, now: number): CodeAgeResult | null {
+  private analyzeFileAge(filePath: string, now: number, inGit: boolean): CodeAgeResult | null {
     let stat: fs.Stats;
     try { stat = fs.statSync(filePath); } catch { return null; }
 
@@ -84,7 +86,8 @@ export class CodeAgeAnalyzer {
     const stalenessScore = Math.min(1, daysSinceModification / 365);
 
     // Try to get git blame info (simplified — just count unique authors from recent changes)
-    const authors = this.getFileAuthors(filePath);
+    const history = inGit ? this.gitOutput(['--literal-pathspecs', 'log', '--format=%an', '--follow', '--', relPath]) : '';
+    const authors = [...new Set(history.split(/\r?\n/u).filter(Boolean))].slice(0, 5);
 
     return {
       file: relPath,
@@ -98,18 +101,13 @@ export class CodeAgeAnalyzer {
     };
   }
 
-  private getFileAuthors(filePath: string): string[] {
-    // Try reading git log for authors (best-effort)
+  private gitOutput(args: string[]): string {
     try {
-      const { execSync } = require('child_process');
-      const output = execSync(
-        `git log --format="%an" --follow -- "${path.relative(this.projectDir, filePath)}"`,
-        { cwd: this.projectDir, timeout: 5000, encoding: 'utf-8' }
-      );
-      const authors = [...new Set(output.trim().split('\n').filter(Boolean) as string[])];
-      return authors.slice(0, 5);
+      return execFileSync('git', args, {
+        cwd: this.projectDir, windowsHide: true, timeout: 5000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+      }).trim();
     } catch {
-      return [];
+      return '';
     }
   }
 

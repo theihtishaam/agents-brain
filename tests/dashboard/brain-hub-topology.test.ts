@@ -14,7 +14,7 @@ const browser = BRAIN_HUB_EXCHANGES + BRAIN_HUB_AGENT_DOCK + BRAIN_HUB_TOPOLOGY 
   const clearTimeout=()=>{};
   const arr=value=>Array.isArray(value)?value:[];
   const esc=value=>String(value??'').replaceAll('<','&lt;').replaceAll('"','&quot;');
-  const fmt=String,time=value=>value.slice(11,19),hostName=value=>value;
+  const fmt=String,time=value=>value.slice(11,19),isoTime=value=>value,hostName=value=>value;
   const scopeName=()=>'Fixture Workspace';
   const list=(contents,attributes,classes)=>'<ul class="'+classes+'" '+attributes+'>'+contents+'</ul>';
   const displayEvent=()=>state.events.find(event=>event.id===state.replayId);
@@ -71,6 +71,8 @@ it('projects a lease and retained MCP history into distinct states and shows rec
   expect(result.initial).toContain('2 connected via MCP');
   expect(result.initial).toContain('data-dock-tool="codex"');
   expect(result.initial).toContain('data-dock-tool="claude-code"');
+  expect(result.initial.match(/data-strand-tool="codex"/g)).toHaveLength(1);
+  expect(result.initial.match(/data-strand-tool="claude-code"/g)).toHaveLength(1);
   expect(result.initial).toContain('MCP connected');
   expect(result.initial).toContain('Latest recorded exchange');
   expect(result.initial).toContain('Last operation');
@@ -97,6 +99,63 @@ it('moves the request toward the brain and the result toward the tool on both si
   expect(routes[0][1][0]).toBeGreaterThan(routes[0][1].at(-2)!);
   expect(routes[1][0][0]).toBeGreaterThan(routes[1][0].at(-2)!);
   expect(routes[1][1][0]).toBeLessThan(routes[1][1].at(-2)!);
+  for (const [request, result] of routes) {
+    const points = request.reduce<number[][]>((all, coordinate, index) => {
+      if (index % 2 === 0) all.push([coordinate, request[index + 1]]);
+      return all;
+    }, []);
+    expect(result).toEqual(points.reverse().flat());
+  }
+});
+
+it('shows only scoped records, retains marker positions, and labels exact measured context deliveries', () => {
+  const result = runInNewContext(browser + `
+    const alpha={kind:'memory',id:'memory:alpha',memoryId:'alpha',project:'project-a',label:'Alpha <note>',
+      snippet:'A saved excerpt',sources:['Synthetic source'],updatedAt:'2026-01-01T00:00:04Z'};
+    const bravo={kind:'memory',id:'memory:bravo',memoryId:'bravo',project:'project-a',label:'Bravo'};
+    state.graph={nodes:[
+      alpha,alpha,bravo,
+      {kind:'memory',memoryId:'excluded',project:'project-b'},
+      {kind:'agent',id:'not-a-memory',project:'project-a'},
+    ]};
+    const initial=topologyMemoryPoints().find(item=>item.node===alpha).position;
+    const earlier={...measured,id:'earlier',sequence:1,kind:'tool-start'};
+    state.events=[earlier,{...measured,sequence:2,agent:'codex',kind:'tool-end',outcome:'success',contextMemoryIds:['alpha']},
+      {...measured,sequence:3,agent:'opencode',projectId:'project-b',kind:'tool-end',outcome:'success',contextMemoryIds:['alpha']},
+      {...measured,sequence:4,agent:'claude-code',source:'reported',kind:'tool-end',outcome:'success',contextMemoryIds:['alpha']}];
+    state.graph.nodes.reverse();
+    const after=topologyMemoryPoints().find(item=>item.node===alpha).position;
+    const markup=topologyCore();
+    state.replayId='earlier';
+    ({markup,replay:topologyCore(earlier),stable:initial===after});
+  `, {}) as { markup: string; replay: string; stable: boolean };
+  expect(result.markup.match(/class="topology-memory-point"/g)).toHaveLength(2);
+  expect(result.markup).toContain('2 memories shown');
+  expect(result.markup).toContain('Alpha &lt;note>');
+  expect(result.markup).toContain('A saved excerpt');
+  expect(result.markup).toContain('Source · Synthetic source');
+  expect(result.markup).toContain('Saved · 2026-01-01T00:00:04Z');
+  expect(result.markup).toContain('Last returned to codex');
+  expect(result.markup).not.toContain('Last returned to opencode');
+  expect(result.markup).not.toContain('Last returned to claude-code');
+  expect(result.replay).not.toContain('Last returned to codex');
+  expect(result.stable).toBe(true);
+});
+
+it('promotes a fresh returned memory from the loaded graph and keeps later revisions unlit', () => {
+  const result = runInNewContext(browser + `
+    const nodes=Array.from({length:50},(_,i)=>({kind:'memory',id:'memory:'+i,memoryId:String(i),
+      project:'project-a',updatedAt:i===49?'2026-01-01T00:00:04.900Z':'2026-01-01T00:00:00Z'}));
+    state.graph={nodes,totalMemories:50};
+    const shown=()=>topologyMemoryPoints().map(point=>point.node.memoryId);
+    const initial=shown();
+    noteTopologyActivity([{...measured,id:'delivery',kind:'tool-end',outcome:'success',contextMemoryIds:['48','49']}]);
+    const current=shown();
+    elapsed+=topologyLifetimeMs+1;
+    const expired=shown();
+    ({count:current.length,initiallyShown:initial.includes('48'),freshShown:current.includes('48'),retiredVersionShown:current.includes('49'),expiredShown:expired.includes('48')});
+  `, {});
+  expect(result).toEqual({count:36,initiallyShown:false,freshShown:true,retiredVersionShown:false,expiredShown:false});
 });
 
 it('renders each measured direction once, then removes travelling signals and temporary tool labels', () => {
@@ -109,7 +168,7 @@ it('renders each measured direction once, then removes travelling signals and te
     const regions=['retrieval','knowledge','sessions','workspace'].map(operation=>({
       dataset:{operation},active:false,toggleAttribute(key,value){this.active=value;}
     }));
-    const core={toggleAttribute(key,value){signal=value;},querySelectorAll:()=>regions};
+    const core={toggleAttribute(key,value){signal=value;},querySelectorAll:selector=>selector==='[data-topology-memory]'?[]:regions};
     const visibleRegions=()=>regions.filter(region=>region.active).map(region=>region.dataset.operation);
     const $=id=>id==='topology-travel'?travel:id==='topology-core'?core:{querySelectorAll:()=>[tool]};
     document.createElementNS=()=>({attributes:{},style:{},setAttribute(key,value){this.attributes[key]=value;}});

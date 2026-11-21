@@ -64,6 +64,38 @@ function untrustedHostStatus(url: string): Promise<number | undefined> {
 }
 
 describe('Brain Hub project runtime', () => {
+  it('reports project-pinned growth through a read-only route', async () => {
+    const portal = await launch();
+    const initial = await read(portal, 'growth');
+    expect(initial.status).toBe(200);
+    const growth = await initial.json();
+    expect(growth).toMatchObject({ projectId: portal.projectId, memory: { retained: 0 },
+      learning: { proposed: 0, evaluated: 0, promoted: 0, rolledBack: 0 }, context: { maxTokens: 12000, maxEntries: 30 } });
+    expect(growth.memory.days).toHaveLength(14);
+    expect((await post(portal, 'project-knowledge', { title: 'Growth fixture', content: 'A committed workspace memory.' })).status).toBe(200);
+    expect(await (await read(portal, 'growth')).json()).toMatchObject({ memory: { retained: 1 } });
+    expect((await read(portal, 'growth?project=other-project')).status).toBe(409);
+    expect((await post(portal, 'growth', {})).status).toBe(405);
+  });
+
+  it('mounts the private workspace directory and adds other roots without initializing them', async () => {
+    const portal = await launch();
+    const another = fixture();
+    const route = portal.url + '/api/workspace/directory';
+    expect((await fetch(route)).status).toBe(409);
+    const headers = { 'X-Shadow-Brain-Project': portal.projectId };
+    expect((await fetch(route, { headers: { ...headers, Origin: 'https://foreign.invalid' } })).status).toBe(403);
+    const initial = await fetch(route, { headers });
+    expect(initial.status).toBe(200);
+    const snapshot = await initial.json();
+    expect(snapshot).toMatchObject({ currentProjectId: portal.projectId });
+    expect(snapshot.workspaces).toEqual(expect.arrayContaining([expect.objectContaining({ projectId: portal.projectId, lastSource: 'portal' })]));
+    const added = await post(portal, 'directory', { kind: 'add', root: another, projectName: 'Second project', expectedRevision: snapshot.revision }, headers);
+    expect(added.status).toBe(200);
+    expect((await added.json()).workspaces).toEqual(expect.arrayContaining([expect.objectContaining({ projectName: 'Second project', status: 'awaiting-host' })]));
+    expect(fs.readdirSync(another)).toEqual(['package.json']);
+  });
+
   it('records bounded, paired portal operation results when recording is enabled', async () => {
     const portal = await launch();
     const created = await post(portal, 'hub/rooms', { goal: 'Pair synthetic room operations', key: randomUUID() });

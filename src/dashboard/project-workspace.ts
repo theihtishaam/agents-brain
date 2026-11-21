@@ -14,6 +14,7 @@ import { ProjectLiveStream } from './project-live-stream.js';
 import { WorkspaceConnectionsApi } from './workspace-connections-api.js';
 import { ProjectFileExplorer } from './project-file-explorer.js';
 import { closeNativeCodex } from './native-codex-api.js';
+import { WorkspaceDirectory } from '../brain/workspace-directory.js';
 
 /** Persistent, provider-free project portal. Closing never deletes project files. */
 export async function startProjectWorkspace(directory: string, options: { port?: number } = {}) {
@@ -84,6 +85,7 @@ export async function startProjectWorkspace(directory: string, options: { port?:
       listener!.once('error', reject);
       listener!.listen(port, '127.0.0.1', () => { listener!.off('error', reject); resolve(); });
     });
+    await new WorkspaceDirectory().register(store.root, 'portal').catch(() => { /* Directory bookkeeping never blocks a project portal. */ });
     connections.start();
     return { ...store, url: 'http://127.0.0.1:' + (listener.address() as { port: number }).port, close };
   } catch (error) { await close(); throw error; }

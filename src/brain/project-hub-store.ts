@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureProjectDirectory, projectLocalPath } from './project-kit-paths.js';
-import { HUB_LIMITS, ProjectHubError, type HubActor, type HubEvent } from './project-hub-contract.js';
+import { HUB_LIMITS, ProjectHubError, type HubActor, type HubEvent, type HubLesson } from './project-hub-contract.js';
 
 const relative = '.shadow-brain/project-hub.sqlite';
 type Table = 'documents' | 'rooms' | 'tasks' | 'messages' | 'artifacts' | 'outcomes' | 'acknowledgements' | 'lessons' |
@@ -149,6 +149,54 @@ export class HubStore {
   }
 
   private active() { return this.database ?? this.db(); }
+
+  /** Summarize retained lessons without materializing proposals, evaluations, or other Hub records. */
+  countLessonStates(): Record<HubLesson['status'], number> {
+    const counts = { candidate: 0, evaluated: 0, promoted: 0, 'rolled-back': 0 };
+    return this.read(() => {
+      const rows = this.active().prepare(
+        "SELECT json_extract(data,'$.status') AS status, count(*) AS count FROM hub_rows WHERE kind='lessons' GROUP BY status",
+      ).all();
+      for (const row of rows) {
+        if (typeof row.status !== 'string' || !Object.hasOwn(counts, row.status) ||
+            typeof row.count !== 'number' || !Number.isSafeInteger(row.count) || row.count < 0) {
+          throw new ProjectHubError('HUB_STORAGE_UNAVAILABLE', 'Project lesson states could not be read.', 503);
+        }
+        counts[row.status as HubLesson['status']] = row.count;
+      }
+      return counts;
+    }) ?? counts;
+  }
+
+  /** Project-directory metadata only. Read aggregate task states and the latest visible outcome. */
+  directoryWorkSummary(allowedAgent: (actorId: string) => boolean) {
+    return this.read(() => {
+      let completed = 0;
+      let total = 0;
+      const tasks = this.active().prepare(
+        "SELECT json_extract(data,'$.status') AS status, json_extract(data,'$.owner.kind') AS ownerKind, "
+        + "json_extract(data,'$.owner.id') AS actor, count(*) AS count FROM hub_rows WHERE kind='tasks' GROUP BY status,ownerKind,actor",
+      ).all();
+      for (const row of tasks) {
+        if (row.ownerKind === 'agent' && (typeof row.actor !== 'string' || !allowedAgent(row.actor))) continue;
+        if (typeof row.count !== 'number' || !Number.isSafeInteger(row.count) || row.count < 0 ||
+            !['open', 'claimed', 'completed'].includes(String(row.status))) throw new Error('Invalid project task summary.');
+        total += row.count;
+        if (row.status === 'completed') completed += row.count;
+      }
+      const outcomes = this.active().prepare(
+        "SELECT json_extract(data,'$.result') AS result, json_extract(data,'$.createdAt') AS recordedAt, "
+        + "json_extract(data,'$.author.id') AS actor, json_extract(data,'$.provenance') AS provenance "
+        + "FROM hub_rows WHERE kind='outcomes' ORDER BY rowid DESC LIMIT 24",
+      ).all();
+      const latestOutcome = outcomes.find(row =>
+        (row.provenance === 'user-report' || (row.provenance === 'agent-report' && typeof row.actor === 'string' && allowedAgent(row.actor))) &&
+        typeof row.recordedAt === 'string' && Number.isFinite(Date.parse(row.recordedAt)) &&
+        (row.result === 'pass' || row.result === 'fail' || row.result === 'partial'));
+      return { progress: total ? { completed, total } : null, latestOutcome: latestOutcome ?
+        { result: latestOutcome.result, recordedAt: latestOutcome.recordedAt, provenance: latestOutcome.provenance } : null };
+    }) ?? { progress: null, latestOutcome: null };
+  }
 
   revision(): number {
     return Number(this.active().prepare('SELECT revision FROM hub_revision WHERE singleton=1').get()?.revision);

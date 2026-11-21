@@ -23,12 +23,12 @@ Agent Shadow Brain 7.25.0 provides a local workspace, CLI, and standalone MCP se
 - [Component guide](COMPONENTS.md) maps the shared paths and retained modules.
 - [Agent memory approaches](COMPARISON.md) compares the documented architectures and tradeoffs of related systems.
 - [Paired retrieval evaluation](evaluation/CONTEXT_EVALUATION_v7.1.4.md) reports 14 author-generated diagnostic cases against both profiles. [Raw results](evaluation/CONTEXT_EVALUATION_v7.1.4.json)
-- [Research and acceptance plan](launch/RESEARCH_AND_PLAN_v7.22.0.md) records the research, implementation scope, and verification gates.
+- [Research and acceptance plan](launch/RESEARCH_AND_PLAN_v7.25.0.md) records the research, implementation scope, and verification gates.
 
 ## Release and support
 
 - [7.25.0 release notes](launch/RELEASE_NOTES_v7.25.0.md) cover the live topology, shared briefing, file explorer and usage filtering.
-- [Verification record](launch/RELEASE_ACCEPTANCE_v7.22.0.md) separates tested behavior, local measurements and native-client coverage.
+- [7.22.0 verification archive](launch/RELEASE_ACCEPTANCE_v7.22.0.md) separates tested behavior, local measurements and native-client coverage.
 - [Changelog](../CHANGELOG.md) · [Historical versions](versions/README.md) · [7.0 migration notes](launch/RELEASE_NOTES_v7.0.0.md)
 - [Troubleshooting](TROUBLESHOOTING.md) covers installation, storage, context, and local activity checks.
 - [Open an issue](https://github.com/theihtishaam/agents-brain/issues) with the version, reproduction steps, and relevant diagnostics.

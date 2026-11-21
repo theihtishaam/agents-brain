@@ -130,7 +130,9 @@ export class WorkspaceConnections {
     let info = fs.lstatSync(file, { throwIfNoEntry: false });
     if (!info) {
       if (!write) return undefined;
-      const temporary = file + '.' + randomUUID() + '.tmp';
+      // SQLite adds a journal suffix while initializing this file. Keep the
+      // staging basename short enough for deep Windows project paths.
+      const temporary = path.join(path.dirname(file), 'wc-' + randomUUID().replaceAll('-', '').slice(0, 20) + '.tmp');
       fs.closeSync(fs.openSync(temporary, 'wx', 0o600));
       try {
         const fresh = new DatabaseSync(temporary, { allowExtension: false });
@@ -221,6 +223,10 @@ export class WorkspaceConnections {
   /** Runtime gate reads the project-owned state only. */
   allows(id: string): boolean {
     return !this.update(false, state => state).excluded.some(excluded => excluded === id);
+  }
+
+  excludedHosts(): readonly WorkspaceConnectionId[] {
+    return this.update(false, state => state).excluded;
   }
 
   private create(root: string, id: WorkspaceConnectionId, file: Receipt['file']): Receipt {

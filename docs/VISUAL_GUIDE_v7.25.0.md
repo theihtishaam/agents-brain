@@ -6,13 +6,28 @@ Start the project portal from the directory you want to share with your tools. O
 
 ![Four scripted MCP clients around a shared project brain](assets/7.25.0-brain-network.png)
 
-In **Brain overview**, a pulse toward the brain represents a recorded request. A pulse back to the tool represents its result. Select a tool to inspect its reported conversation, latest action and available model details. The [traffic recording](assets/7.25.0-agent-traffic.gif) uses four scripted clients connected by MCP stdio. [MCP architecture](https://modelcontextprotocol.io/docs/learn/architecture) · [Sessions and transport evidence](SESSIONS.md)
+In **Brain overview**, a measured request travels toward the brain and its result travels back along the same strand. Select a tool to inspect its reported conversation, latest action, and available model details. Each cortex point represents a saved memory in the current graph. Hover or focus it to read its excerpt, source, date, and latest measured return when known. Select it to open the record or use **Find memories** to search beyond the visible points. **Project knowledge** shows retained saves by date and counts for recorded lesson stages. The fixture uses four scripted MCP clients. [Traffic recording](assets/7.25.0-agent-traffic.gif) · [Sessions and transport evidence](SESSIONS.md)
+
+### Follow one memory through the dots
+
+1. Save “The cupboard is black. Keep its brass handles.” in **Knowledge**. Return to **Brain overview** and look for the saved memory in the brain’s displayed sample.
+2. Focus the dot to see its saved excerpt and available source label. Select it to open the memory inspector.
+3. Have a connected tool ask `project_brief` for the cupboard finish. Watch the request move toward the brain and the result travel back. The receipt records the selected memory IDs.
+4. Focus the returned dot again. **Last returned to** identifies the tool and time if that receipt remains in the loaded activity history. Open **Payload traffic** to inspect the result’s measured text size.
 
 ## Read the traffic beneath the map
 
 ![Payload traffic by completed MCP call next to a reported work phase and a real file change in the test workspace](assets/7.25.0-payload-traffic.png)
 
 Each column is one completed call with measured request-argument and returned-text sizes. Select it to inspect the matching receipt. The project feed shows the latest host-reported phase and the watcher’s most recent file change. Select the file to look up relevant project memory.
+
+## Compare registered workspaces
+
+![Three registered fixture workspaces with separate connected hosts, chat reports, task percentages, and outcomes](assets/7.25.0-workspaces.png)
+
+Open **All workspaces** in the overview strip and select a project for its shared chats. The directory shows current MCP presence and each project's latest visible report. Task percentages use completed recorded tasks divided by all recorded tasks. Projects without recorded tasks show **Unreported** under **Task progress**. The capture uses three isolated projects, scripted MCP clients, and stored fixture task records.
+
+Use **Check Codex chat index** to request local titles, timestamps, and index status for the selected project. An indexed conversation and an open MCP transport are separate observations. **Stop listing project** hides it until you explicitly add it again. [Workspace guide](WORKSPACE.md) · [Session handoffs](SESSIONS.md)
 
 ## Set up project participation
 
@@ -25,6 +40,8 @@ Open **Setup** to see host installation evidence, workspace configuration, tool 
 ![Context pack for the Atlas release checklist showing selected passages and recorded source references](assets/7.25.0-context.png)
 
 Save a note in **Knowledge**, then ask a question in **Context**. Inspect the selected passages and source references before copying the pack. A connected client can ask the project for a compact Markdown briefing with `project_brief`. From [Files](assets/7.25.0-files.png), select a file and use **Look up in Context** to start with its relative path. [Context guide](CONTEXT_LAB.md) · [Source intake](SOURCE_INTAKE.md)
+
+Open **Size and limits** for the exact UTF-8 byte count and the estimated token count. **Exact text available to copy** shows the Markdown tied to those figures. Compare profiles using the same task and inspect which passages each selected.
 
 ## Check reported usage
 

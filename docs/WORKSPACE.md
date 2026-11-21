@@ -64,4 +64,4 @@ Turn on **Project file activity** in Setup to see eligible relative paths and gr
 
 A local Windows fixture measured 30 writes through to the visible Chrome page. Ten independent MCP memory writes, ten session API writes, and ten allowed file creates delivered in 241 ms median and 386 ms p95, with an 888 ms maximum. Over 60 seconds idle on the same fixture and Node 24.15.0, workspace RSS moved from 82.33 to 82.21 MiB, average server CPU was 0.365% of one core, and the open Sessions page made no workspace API refetches.
 
-[Visual guide](VISUAL_GUIDE_v7.22.0.md) · [Troubleshooting](TROUBLESHOOTING.md)
+[Visual guide](VISUAL_GUIDE_v7.25.0.md) · [Troubleshooting](TROUBLESHOOTING.md)

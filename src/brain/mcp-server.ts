@@ -9,7 +9,8 @@ import { performance } from 'node:perf_hooks';
 import { MCPRequest, MCPResponse, MCPTool, MCPServerOptions, SymbolInfo } from '../types.js';
 import type { GlobalBrain } from './global-brain.js';
 import type { FeatureSettingsStore } from './feature-settings.js';
-import type { ActivityEventInput } from './activity-journal.js';
+import type { ContextPack } from './context-assembly.js';
+import { validContextMemoryIds, type ActivityEventInput } from './activity-journal.js';
 import { parseContextRequest } from './context-request.js';
 import { inspectMemory, inspectMemoryHealth, requireMemoryIdentifier } from './memory-inspection.js';
 import { excludedMemoryIds, memoryAnnotationsFor } from './memory-annotations.js';
@@ -556,16 +557,15 @@ export class MCPServer {
     return params.name === undefined ? listBundledSkills() : getBundledSkill(params.name as string);
   }
 
-  private async handleProjectBrief(params: Record<string, unknown>): Promise<string> {
+  private async handleProjectBrief(params: Record<string, unknown>): Promise<ContextPack> {
     if (Object.keys(params).some(key => !['query', 'tokenBudget'].includes(key))) {
       throw new TypeError('Provide a query and optional tokenBudget. The project is selected at connection time.');
     }
     if (typeof params.query !== 'string' || !params.query.trim()) throw new TypeError('Provide the task or question.');
-    const pack = await this.handleContextPack({
+    return this.handleContextPack({
       query: params.query, tokenBudget: params.tokenBudget ?? 900, maxEntries: 6,
       projectId: await this.telemetryProject(), profile: 'adaptive',
     });
-    return pack.markdown || pack.warnings[0] || 'No matching project memory fits this briefing.';
   }
 
   private async handleContextPack(params: Record<string, unknown>) {
@@ -919,17 +919,28 @@ export class MCPServer {
             const started = performance.now();
             let result: unknown;
             let text: string | undefined;
+            let contextMemoryIds: string[] | undefined;
             let durationMs: number | undefined;
             const elapsed = () => Math.max(0, Math.round((performance.now() - started) * 1000) / 1000);
             try {
               result = await handler(toolArgs);
               if (measured) durationMs = elapsed();
-              text = toolName === 'project_brief' && typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+              if (toolName === 'context_pack' || toolName === 'project_brief') {
+                // Both registered handlers return the policy-filtered ContextPack before wire formatting.
+                const pack = result as ContextPack;
+                if (measurePayload) {
+                  const ids = pack.entries.map(entry => entry.id);
+                  if (validContextMemoryIds(ids)) contextMemoryIds = ids;
+                }
+                if (toolName === 'project_brief') result = pack.markdown || pack.warnings[0] || 'No matching project memory fits this briefing.';
+              }
+              text = toolName === 'project_brief' ? result as string : JSON.stringify(result, null, 2);
             } catch (error) {
               if (measured) await this.recordMeasured({ ...event, kind: 'tool-end', outcome: 'error', durationMs: durationMs ?? elapsed() });
               throw error;
             }
-            if (measured) await this.recordMeasured({ ...event, kind: 'tool-end', outcome: 'success', durationMs },
+            if (measured) await this.recordMeasured({ ...event, kind: 'tool-end', outcome: 'success', durationMs,
+              ...(contextMemoryIds ? { contextMemoryIds } : {}) },
               measurePayload ? { field: 'resultTextBytes', text: () => text } : undefined);
             return this.makeResult(request.id, { content: [{ type: 'text', text }],
               ...(result && typeof result === 'object' && !Array.isArray(result) ? { structuredContent: result } : {}) });

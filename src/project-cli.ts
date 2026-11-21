@@ -7,6 +7,17 @@ import { ProjectFeedbackStore, type ProjectFeedbackCommand } from './brain/proje
 
 export function registerProjectCommands(program: Command): void {
   const project = program.command('project').description('Workspace-local knowledge, observed project context, and tailored skills');
+  project.command('register').argument('<directory>', 'Existing project directory')
+    .option('--name <name>', 'Display name in the local workspace directory')
+    .description('List this project in the local dashboard without importing its memory or changing its files')
+    .action(async (directory, options) => {
+      const { WorkspaceDirectory, verifiedWorkspaceRoot } = await import('./brain/workspace-directory.js');
+      const index = new WorkspaceDirectory();
+      const root = verifiedWorkspaceRoot(directory);
+      const result = await index.register(root, 'operator', { projectName: options.name, reenable: true, expectedRevision: index.list().revision });
+      const entry = result.projects.find(item => item.projectId === GlobalBrain.projectIdFor(root));
+      console.log(JSON.stringify({ projectId: entry?.projectId, projectName: entry?.projectName, registered: !!entry }, null, 2));
+    });
   project.command('inspect').argument('[directory]', 'Existing project directory', process.cwd())
     .description('Inspect bounded manifest and tree evidence without executing scripts or reading private configuration')
     .action(directory => console.log(JSON.stringify(inspectProject(directory), null, 2)));

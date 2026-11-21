@@ -537,6 +537,14 @@ export class GlobalBrain {
     this.refreshSnapshot();
   }
 
+  /** Scope the durable snapshot's timestamps without including staged writes or recording access. */
+  *savedMemoryCreationTimes(projectId: string): IterableIterator<number> {
+    const { data } = this.readLatestSnapshot();
+    for (const entry of data.entries) {
+      if (entry.projectId === projectId) yield dateTime(entry.createdAt);
+    }
+  }
+
   /** Chronological memory stream for dashboards and handoffs. */
   timeline(opts: Pick<RecallOptions, 'projectId' | 'agentTool' | 'category' | 'limit' | 'excludeIds'> = {}): BrainTimelineEvent[] {
     if (!this.initialized) return [];

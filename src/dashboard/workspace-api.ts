@@ -22,6 +22,9 @@ import type { AgentTool, BrainTimelineEvent, ScoredGlobalEntry } from '../types.
 import { WorkspaceRuntime } from './workspace-status.js';
 import { isProjectHubRoute, handleProjectHubRequest } from './project-hub-api.js';
 import { ModelUsageStore } from '../brain/model-usage.js';
+import { readProjectGrowth } from '../brain/project-growth.js';
+import { directoryCodexIndex } from './workspace-directory-codex.js';
+import { workspaceDirectoryRequest } from './workspace-directory-api.js';
 import { isSourceRoute, sourceRequest } from './project-source-api.js';
 import { isProjectSessionRoute, projectSessionRequest } from './project-session-api.js';
 import { isManagedSkillsRoute, managedSkillsRequest } from './managed-project-skills-api.js';
@@ -144,6 +147,34 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
     const route = url.pathname.slice('/api/workspace/'.length);
     const method = req.method ?? 'GET';
     const expectedProject = req.headers['x-shadow-brain-project'];
+    if (route === 'directory/codex') {
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      if (method !== 'POST') return send({ error: 'Select a registered workspace to check its Codex index.' }, 405);
+      if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress ?? '') ||
+          (req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) ||
+          ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']))) return send({ error: 'Use the local project portal.' }, 403);
+      if (dependencies.runtime?.mode !== 'project' || !expectedProject || expectedProject !== dependencies.runtime.project?.id) {
+        return send({ error: 'Reload the project portal before checking another workspace.' }, 409);
+      }
+      const controller = new AbortController();
+      const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+      res.once('close', disconnected);
+      try {
+        const index = await directoryCodexIndex(await body(req), undefined, undefined, controller.signal);
+        if (!controller.signal.aborted) return send(index);
+        return;
+      } catch (error) {
+        if (!controller.signal.aborted) throw error;
+        return;
+      } finally { res.off('close', disconnected); }
+    }
+    if (route === 'directory') {
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      if (dependencies.runtime?.mode !== 'project' || !dependencies.runtime.project) {
+        return send({ error: 'Open a project-local workspace to inspect the directory.' }, 409);
+      }
+      return send(await workspaceDirectoryRequest(req, url, dependencies.runtime.project.id, () => body(req)));
+    }
     if (url.pathname === '/api/workspace/connections') {
       res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
       if (!['GET', 'POST'].includes(method)) return send({ error: 'Use GET or POST for host connections.' }, 405);
@@ -169,6 +200,27 @@ export async function handleWorkspaceRequest(req: IncomingMessage, res: ServerRe
         return send({ error: 'This port now serves a different project. Reload the portal before browsing its files.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);
       }
       return send(dependencies.files.list(url.searchParams));
+    }
+    if (route === 'growth') {
+      res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+      if (method !== 'GET') return send({ error: 'Use GET to inspect project growth.' }, 405);
+      if ((req.headers.origin && req.headers.origin !== 'http://' + req.headers.host) ||
+          ['cross-site', 'same-site'].includes(String(req.headers['sec-fetch-site']))) {
+        return send({ error: 'Project growth is available to same-origin requests.' }, 403);
+      }
+      if (!dependencies.localProject || !dependencies.projectDir || !dependencies.brain) {
+        return send({ error: 'Open a project-local workspace to inspect its growth.' }, 409);
+      }
+      const requestedProject = query(url.searchParams, 'project');
+      try {
+        const local = requireProjectStore(dependencies.projectDir, dependencies.brain);
+        if ((expectedProject !== undefined && expectedProject !== local.projectId) ||
+            (requestedProject !== undefined && requestedProject !== local.projectId)) {
+          return send({ error: 'Reload the portal for this project to inspect its growth.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);
+        }
+        return send(readProjectGrowth(local.root, local.projectId, dependencies.brain));
+      }
+      catch { return send({ error: 'Saved project memory could not be read.', code: 'WORKSPACE_STORAGE_UNAVAILABLE' }, 503); }
     }
     if (method === 'POST' && expectedProject !== undefined && expectedProject !== dependencies.runtime?.project?.id) {
       return send({ error: 'This port now serves a different project. Reload the portal before making changes.', code: 'WORKSPACE_PROJECT_CHANGED' }, 409);

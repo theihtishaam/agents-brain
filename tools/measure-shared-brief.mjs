@@ -17,6 +17,7 @@ const facts = [
 const agents = ['codex', 'claude-code', 'opencode', 'deepseek-harness'];
 const query = 'What does the Atlas release checklist require?';
 const root = fs.realpathSync.native(fs.mkdtempSync(join(tmpdir(), 'sb-brief-measurement-')));
+process.env.SHADOW_BRAIN_DIRECTORY_HOME = join(root, 'workspace-directory');
 
 async function run(label, storedFacts, clients) {
   const folder = join(root, label);

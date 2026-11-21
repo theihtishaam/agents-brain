@@ -17,13 +17,13 @@
 
 <p align="center"><a href="#try-it">Try it</a> · <a href="#inside-the-brain-hub">Visual tour</a> · <a href="#connect-your-agent">Connect your agent</a> · <a href="docs/README.md">Documentation</a></p>
 
-![Measured requests and results between the project brain and four scripted MCP clients](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-agent-traffic.gif)
+![Measured requests and results between the project brain and four scripted MCP clients](docs/assets/7.25.0-agent-traffic.gif)
 
 ## New in 7.25.0
 
 Watch a request travel from a connected tool into the project brain and the result travel back. Select a tool to inspect its recorded chat, model and latest action. The recording above comes from an isolated workspace with four scripted MCP clients. The cortex highlights retrieval, knowledge writes and session work. Select a column in **Payload traffic** to inspect measured request and result sizes, or select an observed file change to look up its project context.
 
-Any participating agent can call **project_brief** with its current question to retrieve a compact, cited briefing from shared project memory. Use **Files** to look up what the team already knows about a path. **Usage** lets you filter reported token counts by host, model, outcome and time. [7.25.0 visual guide](docs/VISUAL_GUIDE_v7.25.0.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.25.0.md) · [Capabilities and limits](docs/FEATURES_AND_LIMITS.md)
+Any participating agent can call **project_brief** with its current question to retrieve a compact, cited briefing from shared project memory. Use **Files** to look up a path in memory and **Usage** to filter reported token counts. **Workspaces** brings together registered projects' current MCP connections, shared session reports and recorded task outcomes. Each project retains its own memory and controls. [7.25.0 visual guide](docs/VISUAL_GUIDE_v7.25.0.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.25.0.md) · [Capabilities and limits](docs/FEATURES_AND_LIMITS.md)
 
 ## Try it
 
@@ -48,11 +48,12 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 
 ## Inside the Brain Hub
 
-![Current project brain and connected tools in an isolated workspace](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-brain-network.png)
+![Current project brain and connected tools in an isolated workspace](docs/assets/7.25.0-brain-network.png)
 
 | View | What you can do |
 | --- | --- |
-| **Brain overview** | Recognize your tools by their icons, inspect reported agents and models, follow stored memory relationships, and seek through recorded activity. An empty store has zero graph nodes and edges. |
+| **Brain overview** | Follow measured requests and results along one strand per tool, inspect saved-memory points, and review project knowledge growth and recorded activity. |
+| **Workspaces** | Compare local projects by connected host, latest shared chat, recorded task progress, and latest outcome. Check Codex index metadata by request. |
 | **Files** | Browse project files and use a relative path to find related team knowledge. |
 | **Knowledge** | Paste ordinary text and click Add to memory. Review longer notes, inspect original sources, or optionally import a document. Generate a project-specific skill. |
 | **Sessions** | Inspect reported work, original conversation snapshots, saved checkpoints and linked continuations. Connect the supported Codex history API explicitly or select an export from another tool. |
@@ -64,15 +65,13 @@ To build from this checkout while preparing a release, use `npm ci`, `npm run bu
 
 ### What shared project memory changes
 
-![The four-fact fixture returned 4 of 16 possible citations from isolated stores and 16 of 16 from the shared store](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-shared-brief-comparison.png)
+![The four-fact fixture returned 4 of 16 possible citations from isolated stores and 16 of 16 from the shared store](docs/assets/7.25.0-shared-brief-comparison.png)
 
 Four scripted clients asked the same question. Each isolated store held one fact. The shared store held all four. The returned Markdown contained **4 of 16** possible citations across the isolated replies and **16 of 16** across the shared replies. Both setups recorded four successful request–result pairs. These figures measure retrieved evidence in this fixture. [Method and reproduction](docs/VISUAL_GUIDE_v7.25.0.md#four-facts-two-setups) · [Measured receipts](docs/evaluation/SHARED_BRIEF_v7.25.0.json)
 
 ### See which tool reported the work
 
-![Actual event-driven indicator and tool details in the running test workspace](https://raw.githubusercontent.com/theihtishaam/agents-brain/main/docs/assets/7.22.0-agent-dock.gif)
-
-The tool activity panel uses local Codex/OpenAI, Claude, DeepSeek and OpenCode icons. Hover, focus or select a tool to inspect its project, recorded conversations, coordination role, latest observed action and optional model receipts. Separate conversations stay identifiable when one tool has several workers.
+Select a tool to inspect its recorded conversations, coordination role, latest observed action, and optional model receipts. Hover or focus a cortex point to inspect its saved excerpt, source, and date. When a measured receipt identifies the memory, the preview shows the last host it was returned to. **Project knowledge** shows saved-memory counts by day and recorded lesson stages.
 
 Model, provider, effort and token counts come from explicit host reports. Missing values say **Not reported**. Activity indicators respond to new recorded events, respect **Pause motion** and reduced-motion preferences, and do not animate old history as new work. The icon identifies the tool, not the model it may be running.
 
@@ -81,6 +80,12 @@ Model, provider, effort and token counts come from explicit host reports. Missin
 The panel captures use four scripted MCP clients and synthetic model receipts. They demonstrate the working interface and transport, not four native applications or model inference.
 
 [Activity and session guide](docs/SESSIONS.md) · [Icon sources and license](docs/BRAND_ASSETS.md)
+
+### Compare registered workspaces
+
+![Three isolated registered projects with separate host, chat, task progress and outcome reports](docs/assets/7.25.0-workspaces.png)
+
+Open **All workspaces** from the overview, then select a project to review its visible chat reports and outcomes. The percentage uses completed recorded tasks divided by all recorded tasks for that project. A project without task records shows an unavailable percentage. [Visual guide](docs/VISUAL_GUIDE_v7.25.0.md#compare-registered-workspaces)
 
 ### Start with ordinary words
 
@@ -188,7 +193,7 @@ Preview the skill installation before adding `--apply`. Merge the printed recipe
 
 The Codex history adapter completed a 0.145.0 handshake and an empty-project indexed list. History paging and imports were verified with controlled process fixtures.
 
-![Setup view showing host detection, project setup, tool admission and MCP presence in an isolated fixture](https://raw.githubusercontent.com/theihtishaam/agents-brain/v7.25.0/docs/assets/7.25.0-setup.png)
+![Setup view showing host detection, project setup, tool admission and MCP presence in an isolated fixture](docs/assets/7.25.0-setup.png)
 
 ### Keep the workspace under your control
 

@@ -36,14 +36,15 @@ const tarball = path.join(sandbox, pack.filename);
 assert.equal('sha512-' + createHash('sha512').update(fs.readFileSync(tarball)).digest('base64'), pack.integrity);
 assert(pack.files.some(file => file.path === 'dist/brain/global-brain.js'));
 for (const file of ['activity-cli', 'curation-cli', 'project-cli', 'brain/activity-journal', 'brain/memory-annotations', 'brain/mcp-stdio',
-  'brain/context-retrieval', 'brain/context-request', 'brain/client-config', 'brain/memory-inspection', 'brain/memory-mcp-content', 'brain/mcp-presence',
+  'brain/context-retrieval', 'brain/context-request', 'brain/client-config', 'brain/memory-inspection', 'brain/memory-mcp-content', 'brain/mcp-presence', 'brain/workspace-directory',
   'brain/project-kit', 'brain/project-kit-paths', 'brain/project-kit-inspection', 'brain/project-memory', 'brain/project-feedback',
   'brain/project-source-intake', 'brain/project-source-contract', 'brain/model-usage', 'dashboard/project-source-api',
   'brain/project-sessions', 'brain/project-session-mcp', 'brain/native-session-import', 'brain/native-codex', 'brain/project-policy', 'brain/project-policy-delivery',
   'brain/managed-project-skills', 'dashboard/managed-project-skills-api', 'dashboard/brain-hub-managed-skills',
   'dashboard/project-session-api', 'dashboard/native-codex-api', 'dashboard/project-policy-api', 'dashboard/project-live-stream', 'dashboard/project-file-watch',
   'brain/project-hub', 'brain/project-hub-contract', 'brain/project-hub-store', 'brain/project-hub-pdf-worker', 'brain/project-hub-mcp', 'brain/file-identity',
-  'dashboard/project-workspace', 'dashboard/project-hub-api', 'dashboard/brain-hub-html', 'dashboard/brain-hub-agent-dock', 'dashboard/brain-hub-brand-icons', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
+  'brain/workspace-directory', 'brain/project-growth', 'dashboard/workspace-directory-api', 'dashboard/workspace-directory-codex',
+  'dashboard/brain-hub-directory', 'dashboard/brain-hub-growth', 'dashboard/project-workspace', 'dashboard/project-hub-api', 'dashboard/brain-hub-html', 'dashboard/brain-hub-agent-dock', 'dashboard/brain-hub-brand-icons', 'dashboard/demo-workspace', 'dashboard/project-kit-html', 'dashboard/live-workspace-html']) {
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.js'), 'missing packaged module ' + file);
   assert(pack.files.some(entry => entry.path === 'dist/' + file + '.d.ts'), 'missing packaged declaration ' + file);
 }
@@ -54,7 +55,7 @@ assert(pack.files.some(file => file.path === 'docs/assets/context-flow-v7.2.png'
 assert(pack.files.some(file => file.path === 'docs/WORKSPACE.md'));
 assert(pack.files.some(file => file.path === 'docs/BRAND_ASSETS.md'), 'Bundled icon attribution and license must ship with the package');
 assert(!pack.files.some(file => /(^|\/)(tests|node_modules|work|outputs|\.git|\.env|\.npmrc)(\/|$)/.test(file.path)));
-assert(!pack.files.some(file => /(^|\/)(global|project-memory|memory-feedback|memory-annotations|feature-settings|activity-journal)\.json$/.test(file.path)));
+assert(!pack.files.some(file => /(^|\/)(global|project-memory|memory-feedback|memory-annotations|feature-settings|activity-journal|workspace-directory)\.json$/.test(file.path)));
 fs.writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ private: true, type: 'module' }));
 npm(['install', '--prefix', consumer, '--ignore-scripts', '--no-audit', '--no-fund', tarball]);
 const installed = path.join(consumer, 'node_modules', '@theihtisham', 'agent-shadow-brain');
@@ -66,12 +67,13 @@ assert.equal(manifest.scripts.postinstall, undefined);
 // altering HOME/USERPROFILE or accessing any real provider configuration.
 const isolatedHome = path.join(sandbox, 'home');
 fs.mkdirSync(isolatedHome);
+const isolatedDirectoryHome = path.join(fs.realpathSync.native(sandbox), 'workspace-directory');
 const preload = path.join(sandbox, 'isolate.mjs');
 fs.writeFileSync(preload, `import os from 'node:os';\nimport { syncBuiltinESMExports } from 'node:module';\nos.homedir = () => ${JSON.stringify(isolatedHome)};\nsyncBuiltinESMExports();\n`);
-const runNode = (args, status = 0, input, configDir = path.join(sandbox, 'config')) => {
+const runNode = (args, status = 0, input, configDir = path.join(sandbox, 'config'), timeout = 30_000) => {
   const result = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, ...args], {
-    cwd: consumer, encoding: 'utf8', timeout: 30_000, input,
-    env: { ...childEnv, SHADOW_BRAIN_CONFIG_DIR: configDir },
+    cwd: consumer, encoding: 'utf8', timeout, input,
+    env: { ...childEnv, SHADOW_BRAIN_CONFIG_DIR: configDir, SHADOW_BRAIN_DIRECTORY_HOME: isolatedDirectoryHome },
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, status, result.stderr || result.stdout);
@@ -481,9 +483,9 @@ for (const [modulePath, name, marker] of [
 }
 const readme = fs.readFileSync(path.join(installed, 'README.md'), 'utf8');
 const packedPaths = new Set(pack.files.map(file => file.path));
-for (const artifact of ['docs/VISUAL_GUIDE_v7.25.0.md', 'docs/evaluation/SHARED_BRIEF_v7.25.0.json', 'tools/measure-shared-brief.mjs',
+for (const artifact of ['docs/VISUAL_GUIDE_v7.25.0.md', 'docs/evaluation/SHARED_BRIEF_v7.25.0.json', 'tools/measure-shared-brief.mjs', 'tools/verify-workspace-memory.mjs',
   'tools/plot-shared-brief.py', ...['agent-traffic.gif', 'brain-network.png', 'files.png', 'setup.png', 'context.png', 'usage.png', 'workflow.png',
-    'shared-brief-comparison.png'].map(asset => 'docs/assets/7.25.0-' + asset)]) {
+    'shared-brief-comparison.png', 'workspaces.png', 'payload-traffic.png'].map(asset => 'docs/assets/7.25.0-' + asset)]) {
   assert(packedPaths.has(artifact), 'Release visual guide file is missing from the tarball: ' + artifact);
 }
 const readmeImages = [...readme.matchAll(/!\[[^\]]*]\((?:https:\/\/raw\.githubusercontent\.com\/theihtishaam\/agents-brain\/(?:main|v\d+\.\d+\.\d+)\/)?(docs\/assets\/[^)]+\.(?:png|gif))\)/g)];
@@ -494,6 +496,10 @@ for (const [, target] of readmeImages) {
   if (target.endsWith('.png')) assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
   else assert.match(png.subarray(0, 6).toString(), /^GIF8[79]a$/);
 }
+const workspaceProof = JSON.parse(runNode([path.join(installed, 'tools/verify-workspace-memory.mjs')], 0, undefined, undefined, 120_000));
+assert.equal(workspaceProof.passed, true);
+assert.equal(workspaceProof.knowledge.returnedMemoryIds, 1);
+assert.equal(workspaceProof.workspaceCounts.foreignMemoryMatches, 0);
 assert(!fs.existsSync(path.join(sandbox, 'config')), 'isolated memory, workflow, activity and workspace probes must avoid provider configuration');
 console.log(JSON.stringify({
   status: 'PASS', version: manifest.version, tarball, integrity: pack.integrity,
@@ -507,5 +513,5 @@ console.log(JSON.stringify({
     'project inspection without script execution', 'local knowledge and protected skill apply', 'reversible task feedback and reporter attribution',
     'fresh MCP project recipe, resources and prompts', 'persistent project portal and isolated demo teardown', 'packed PDF extraction and approval',
     'plain text recall with exact source evidence and retry identity', 'immutable session checkpoint and resume', 'effective project context ceilings',
-    'compact shared briefing from a packaged MCP service', 'managed skill disable and byte-exact restoration', 'demo CLI invalid-port validation'],
+    'compact shared briefing from a packaged MCP service', 'managed skill disable and byte-exact restoration', 'demo CLI invalid-port validation', 'three fresh workspaces, measured receipt IDs, cross-client resume and restart from an installed package'],
 }, null, 2));

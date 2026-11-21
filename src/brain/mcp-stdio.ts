@@ -17,6 +17,7 @@ export async function serveMCPStdio(
   server: Pick<MCPServer, 'handleRequest'> & Partial<Pick<MCPServer, 'startStdioPresence'>>,
   input: Readable,
   output: Writable,
+  onInitialized?: () => Promise<unknown>,
 ): Promise<void> {
   const decoder = new StringDecoder('utf8');
   let pending = '';
@@ -74,6 +75,7 @@ export async function serveMCPStdio(
     if (request.id === undefined) {
       if (request.method === 'notifications/initialized' && initialized && !ready) {
         ready = true;
+        if (onInitialized) await onInitialized();
         if (!transportClosed && !input.destroyed && !input.readableEnded && !output.destroyed && !output.writableEnded) {
           stopPresence = server.startStdioPresence?.();
           if (transportClosed) stopPresence?.();
@@ -135,6 +137,13 @@ export async function runMemoryMCPStdio(options: { clientId?: string; dbPath?: s
   const settings = new FeatureSettingsStore({ filePath: options.settingsPath ??
     (storagePath ? path.join(path.dirname(storagePath), 'feature-settings.json') : undefined) });
   const server = new MCPServer(null, { authToken: '', toolProfile: 'memory' }, { brain, settings, clientId: options.clientId, projectDir: local?.root ?? options.projectDir, projectId: local?.projectId ?? options.projectId, localProject: !!local });
-  try { await serveMCPStdio(server, process.stdin, process.stdout); }
+  try {
+    await serveMCPStdio(server, process.stdin, process.stdout, local ? async () => {
+      try {
+        const { WorkspaceDirectory } = await import('./workspace-directory.js');
+        await new WorkspaceDirectory().register(local.root, 'mcp');
+      } catch { /* Keep project transport available if the optional directory is unavailable. */ }
+    } : undefined);
+  }
   finally { await server.finishMemorySession(); await brain.shutdown(); }
 }

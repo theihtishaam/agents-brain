@@ -7,6 +7,7 @@ import { join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { expect, it } from 'vitest';
 import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
+import { ActivityJournal } from '../../src/brain/activity-journal.js';
 import { projectStorage } from '../../src/brain/project-memory.js';
 const cli = resolve('dist/cli.js');
 const key = () => ({ key: randomUUID() });
@@ -104,6 +105,9 @@ it('shares reviewed source evidence, artifacts, lessons and feedback across two 
     expect(await call(foreign, 'global_recall', { keywords: ['cupboard'] })).toHaveLength(0);
     const other = await foreign.call('project_brief', { query: 'cupboard' });
     expect(other.result.content[0].text).not.toContain(cupboard.items[0].memoryId);
+    const receipt = new ActivityJournal({ filePath: projectStorage(foreignRoot).journalPath }).read().events
+      .find(event => event.kind === 'tool-end' && event.tool === 'project_brief');
+    expect(receipt?.contextMemoryIds).toEqual([]);
     expect((await foreign.call('project_brief', { query: 'cupboard', projectId: portal.projectId })).error.code).toBe(-32602);
     const pdf = await post('hub/documents?name=source.pdf', pdfFixture(), 'application/pdf');
     const knowledge = json({ schemaVersion: 1, kind: 'knowledge', title: 'Fixture', records: [{ title: 'ProbeIntake knowledge', content: 'ProbeIntake JSON approved source.' }, { title: 'Rejected', content: 'ProbeIntake rejected hidden sentinel.' }, { title: 'Pending', content: 'ProbeIntake pending hidden sentinel.' }] });

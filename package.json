@@ -20,6 +20,7 @@
     "pack:dry": "npm pack --dry-run",
     "prepublishOnly": "npm run verify",
     "test:package": "node tools/package-smoke.mjs",
+    "test:workspace-memory": "node tools/verify-workspace-memory.mjs",
     "test:context-eval": "node tools/evaluate-context.mjs"
   },
   "keywords": [
@@ -99,6 +100,7 @@
     "tools/export-resume-pack.mjs",
     "tools/record-global-memory.mjs",
     "tools/measure-shared-brief.mjs",
+    "tools/verify-workspace-memory.mjs",
     "tools/plot-shared-brief.py",
     "docs/launch/RELEASE_NOTES_v7.0.0.md",
     "docs/launch/RELEASE_CHECKLIST_v7.0.0.md",

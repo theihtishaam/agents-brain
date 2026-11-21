@@ -2,8 +2,9 @@ import { createServer, type Server } from 'node:http';
 import * as fs from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ProjectFileExplorer, PROJECT_FILE_LIMITS } from '../../src/dashboard/project-file-explorer.js';
+import { ProjectFileWatch } from '../../src/dashboard/project-file-watch.js';
 import { startProjectWorkspace } from '../../src/dashboard/project-workspace.js';
 import { handleWorkspaceRequest } from '../../src/dashboard/workspace-api.js';
 
@@ -36,6 +37,35 @@ afterEach(async () => {
 const query = (path = '', offset = 0) => new URLSearchParams({ path, offset: String(offset) });
 
 describe('project file explorer', () => {
+  it.skipIf(process.platform !== 'win32')('recognizes canonical projects when Windows reports the temporary directory through an alias', async () => {
+    const runner = join(fixture, 'runneradmin');
+    const physicalTemp = join(runner, 'AppData', 'Local', 'Temp');
+    const project = join(physicalTemp, 'release-fixture');
+    const outsideTemp = join(runner, 'AppData', 'Local', 'another-folder');
+    const privateTree = join(physicalTemp, 'Chrome', 'Default');
+    for (const directory of [project, outsideTemp, privateTree]) fs.mkdirSync(directory, { recursive: true });
+    fs.writeFileSync(join(project, 'readme.txt'), 'synthetic');
+    const alias = join(fixture, 'RUNNER~1');
+    if (!fs.existsSync(alias)) fs.symlinkSync(runner, alias, 'junction');
+    const reportedTemp = join(alias, 'AppData', 'Local', 'Temp');
+    vi.stubEnv('TEMP', reportedTemp);
+    vi.stubEnv('TMP', reportedTemp);
+    const watcher = new ProjectFileWatch(project, () => {}, () => {});
+    try {
+      expect(tmpdir()).toBe(reportedTemp);
+      expect(fs.realpathSync.native(reportedTemp)).toBe(physicalTemp);
+      expect(new ProjectFileExplorer(project).list(query()).items.map(item => item.path)).toEqual(['readme.txt']);
+      expect(() => new ProjectFileExplorer(outsideTemp).list(query())).toThrow(/protected/);
+      expect(() => new ProjectFileExplorer(privateTree).list(query())).toThrow(/protected/);
+      watcher.start();
+      await expect.poll(() => watcher.summary().status).toBe('watching');
+      expect(watcher.inventory()).toEqual([{ path: 'readme.txt', entry: 'file' }]);
+      vi.stubEnv('TEMP', join(runner, 'AppData'));
+      vi.stubEnv('TMP', join(runner, 'AppData'));
+      expect(() => new ProjectFileExplorer(outsideTemp).list(query())).toThrow(/protected/);
+    } finally { watcher.stop(); vi.unstubAllEnvs(); }
+  });
+
   it('returns one directory and only relative path metadata, with navigable breadcrumbs', () => {
     const src = join(root, 'src');
     fs.mkdirSync(src);

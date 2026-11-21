@@ -1,3 +1,5 @@
+import { BRAIN_HUB_DIRECTORY } from './brain-hub-directory.js';
+import { BRAIN_HUB_GROWTH } from './brain-hub-growth.js';
 import { BRAIN_HUB_SIGNALS } from './brain-hub-signals.js';
 import { BRAIN_HUB_FILES } from './brain-hub-files.js';
 import { BRAIN_HUB_SESSIONS } from './brain-hub-sessions.js';
@@ -115,7 +117,7 @@ function overviewPage(){
     (compare?'<p class="small muted">Legacy '+fmt(contextBytes(compare.legacy))+' bytes · Adaptive '+fmt(contextBytes(compare.adaptive))+' bytes</p>':'')+
     view('context','Open context pack')+'</div>':empty('No context pack built','Build a pack to inspect size, sources, and selection reasons.',view('context','Build context pack'));
   return heading('Brain control room','Explore stored memories, inspect tool exchanges, and connect your project.',action('pause',state.motionPaused?'Resume motion':'Pause motion','','id="pause-motion" '+(reduced.matches?'disabled':''))+view('setup','Connection setup'))+
-    telemetryStrip()+agentDock()+signalMonitor()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
+    (local?'<div id="workspace-nav">'+workspaceNav()+'</div>':'')+telemetryStrip()+(local?'<div class="observatory">'+agentDock()+growthSide()+'</div>':agentDock())+signalMonitor()+'<div class="control-grid">'+rail()+graphMarkup()+'<section class="panel inspect" id="inspector" tabindex="-1" aria-label="Record inspector">'+inspectorBody()+'</section></div><div class="lower">'+panel('Context efficiency',contextBody,chip('Estimates','pink'))+
     panel('Activity journal','<div class="replay"><label for="replay" class="small muted">Seek record</label><input id="replay" type="range" min="0" max="'+Math.max(0,state.events.length-1)+'" value="'+Math.max(0,state.events.indexOf(event))+'" '+(state.events.length?'':'disabled')+'><output class="mono small" id="event-time">'+esc(event?time(event.timestamp):state.replayExpired?'Expired':'—')+'</output>'+action('live','Latest','','id="return-live" '+(state.replayId?'':'hidden'))+'</div><div class="timeline" id="timeline">'+timelineMarkup()+'</div>', '<span id="journal-state">'+chip(state.replayId?(state.replayExpired?'Replay expired':'Replay'):state.live?'Recorded activity':'Activity unavailable',state.replayId?'amber':'cyan')+'</span>')+'</div>';
 }
 function updateOverviewLive(){
@@ -144,7 +146,7 @@ function updateOverviewLive(){
   const strip=$('main').querySelector('.strip');if(strip)strip.outerHTML=telemetryStrip();
   if(state.inspector==='event'&&!$('inspector').matches(':focus-within'))renderInspector();
   const pause=$('pause-motion');pause.textContent=state.motionPaused?'Resume motion':'Pause motion';pause.disabled=reduced.matches;
-  updateSignalMonitor();updateExchanges();drawGraph();updateAgentDock();
+  updateGrowth();updateSignalMonitor();updateExchanges();drawGraph();updateAgentDock();
 }
 ${BRAIN_HUB_CONTEXT}
 ${BRAIN_HUB_AGENT_DOCK}
@@ -153,6 +155,8 @@ ${BRAIN_HUB_USAGE}
 ${BRAIN_HUB_SESSIONS}
 ${BRAIN_HUB_FILES}
 ${BRAIN_HUB_SIGNALS}
+${BRAIN_HUB_GROWTH}
+${BRAIN_HUB_DIRECTORY}
 ${BRAIN_HUB_CONTROLS}
 ${BRAIN_HUB_MANAGED_SKILLS}
 ${BRAIN_HUB_CONNECTIONS}
@@ -172,5 +176,5 @@ function setupPage(){
   return heading('Workspace setup','Manage host connections, project access, and features.',action('refresh','Refresh checks'))+
     workspaceConnections()+projectControls()+managedSkillControls()+settings;
 }
-const views={overview:overviewPage,files:filesPage,sessions:sessionsPage,context:contextPage,models:modelsPage,usage:usagePage,setup:setupPage,knowledge:knowledgePage,room:roomPage,learning:learningPage};
+const views={overview:overviewPage,workspaces:workspacesPage,files:filesPage,sessions:sessionsPage,context:contextPage,models:modelsPage,usage:usagePage,setup:setupPage,knowledge:knowledgePage,room:roomPage,learning:learningPage};
 ` + BRAIN_HUB_PROJECT_VIEWS + BRAIN_HUB_ACTIONS;

@@ -69,6 +69,18 @@ function updateExchanges(){
   container.innerHTML=markup;container.dataset.markup=markup;
   if(active)[...container.querySelectorAll('[data-event]')].find(row=>row.dataset.event===active)?.focus({preventScroll:true});
 }
+function returnedContextMarkup(event) {
+  if(event?.kind!=='tool-end'||event.source!=='measured'||event.transport!=='mcp'||event.outcome!=='success'||
+      !['project_brief','context_pack'].includes(event.tool))return '';
+  if(!Array.isArray(event.contextMemoryIds))return '<p class="small muted">This receipt has no per-memory selection details.</p>';
+  if(!event.contextMemoryIds.length)return '<p class="small muted">The response returned zero selected memories.</p>';
+  const nodes=new Map(arr(state.graph?.nodes).filter(node=>node.kind==='memory'&&node.project===event.projectId).map(node=>[node.memoryId,node]));
+  return '<div><h4>Memories returned ('+event.contextMemoryIds.length+')</h4><ul class="clean">'+event.contextMemoryIds.map(id=>{
+    const node=nodes.get(id);
+    return node?'<li><button class="signal-link" type="button" data-node="'+esc(node.id)+'">'+esc(node.label||id)+'</button></li>':
+      '<li class="small muted"><code>'+esc(id)+'</code> · Outside the loaded graph</li>';
+  }).join('')+'</ul></div>';
+}
 function pairedExchangeMarkup(event){
   if(!exchangeKey(event))return '';
   const other=observedExchanges().pairs.get(event.id);
@@ -76,6 +88,6 @@ function pairedExchangeMarkup(event){
   return '<dl class="facts">'+fact('Boundary',exchangeDirection(event))+fact('Observation',exchangeLabel(event))+fact('Project',exchangeProject(event))+(Number.isSafeInteger(event.argumentBytes)?fact('Request argument bytes',fmt(event.argumentBytes)):'')+(Number.isSafeInteger(event.resultTextBytes)?fact('Result text bytes',fmt(event.resultTextBytes)):'')+'</dl>'+
     (other?'<button class="btn quiet" type="button" data-event="'+esc(other.id)+'">'+(isRequest?'Inspect paired result':'Inspect paired request')+'</button>':
     '<p class="small muted">'+(isRequest?'A matching result is absent from loaded records.':'A matching request is absent from loaded records.')+'</p>')+
-    '<p class="small muted">The journal records the tool boundary. Model consumption is unobserved.</p>';
+    returnedContextMarkup(event)+'<p class="small muted">The journal records the tool boundary. Model consumption is unobserved.</p>';
 }
 `;

@@ -10,14 +10,14 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)');
 const local = document.documentElement.dataset.projectLocal === 'true';
 const projectFeatureLimits={crossProjectContext:'Project memory stays scoped to this project.',automaticBriefing:'Automatic briefing requires a legacy analysis session.'};
 const featureLimit = id => local ? projectFeatureLimits[id] : id==='projectFileActivity'?'Open a project workspace to observe project files.':undefined;
-const nav = {overview:'Brain overview',...(local?{files:'Files'}:{}),sessions:'Sessions',knowledge:'Knowledge',room:'Collaboration',context:'Context',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
+const nav = {overview:'Brain overview',...(local?{workspaces:'Workspaces',files:'Files'}:{}),sessions:'Sessions',knowledge:'Knowledge',room:'Collaboration',context:'Context',models:'Models',usage:'Usage',learning:'Learning',setup:'Setup'};
 const labels = {codex:'Codex','claude-code':'Claude Code',opencode:'OpenCode','deepseek-harness':'DeepSeek Harness',vscode:'VS Code / Copilot',cline:'Cline','kilo-code':'Kilo Code',openclaw:'OpenClaw',user:'Operator'};
 const hostName = value => Object.hasOwn(labels,value) ? labels[value] : value ?? 'Unknown host';
 const state = {view:'overview',project:'',overview:null,server:null,connection:'connecting',errors:{},graph:null,features:null,integrations:null,
   nativeConnection:null,nativeThreads:null,nativeThread:null,nativeArchived:false,nativeListCursor:null,nativeThreadCursor:null,sessions:null,session:null,sessionBefore:null,sessionCheckpoint:null,usage:null,sources:null,source:null,evidence:null,teachDraft:'',profile:null,feedback:null,hub:null,documents:null,docPage:1,room:null,context:null,contextInput:null,comparison:null,skill:null,skillInput:null,
   picked:null,memory:null,focus:false,inspector:'record',graphMode:'graph',listing:false,events:[],cursor:undefined,journalId:undefined,
   live:false,recording:false,journalGap:false,replayId:null,replayExpired:false,motionPaused:false,motionStarted:0,pulseIds:[],pending:false,message:'',messageError:false,
-  dataEpoch:0,viewEpoch:0,graphEpoch:0,graphFilter:'all',search:null,lessonFrom:null,policy:null,policySelection:null,managedSkills:null,managedSkillPlan:null,presence:null,connections:null};
+  dataEpoch:0,viewEpoch:0,graphEpoch:0,graphFilter:'all',search:null,lessonFrom:null,policy:null,policySelection:null,managedSkills:null,managedSkillPlan:null,presence:null,connections:null,growth:null,directory:null};
 let timer, polling=false, pollAgain=false, failures=0, polls=0;
 let controller;
 const list = (content,attributes='',classes='') => '<ul class="list '+classes+'" '+attributes+'>'+content+'</ul>';
@@ -60,7 +60,7 @@ async function api(route,options={}){
   const timeout=AbortSignal.timeout(timeoutMs);
   const signal=request.signal ? AbortSignal.any([request.signal,timeout]) : timeout;
   const pinned=local&&(state.server?.project?.id??state.overview?.projectKit?.projectId);
-  const headers={Accept:'application/json',...request.headers,...(pinned&&request.method==='POST'?{'X-Shadow-Brain-Project':pinned}:{})};
+  const headers={Accept:'application/json',...request.headers,...(pinned&&(request.method==='POST'||route.split('?')[0]==='directory')?{'X-Shadow-Brain-Project':pinned}:{})};
   const response=await fetch('/api/workspace/'+route,{...request,signal,cache:'no-store',headers});
   const data=await response.json().catch(()=>null);
   if(!response.ok||!data){
@@ -109,7 +109,7 @@ function resetScope(){
   state.replayId=null;state.replayExpired=false;state.journalGap=false;state.pulseIds=[];state.motionStarted=0;
   state.policy=null;state.policySelection=null;state.managedSkills=null;state.managedSkillPlan=null;
   if(typeof observedPulses!=='undefined'){observedPulses.clear();dockTool=null;dockSession=null;dockPinned=false;clearTimeout(dockPresenceTimer);}
-  state.presence=null;state.connections=null;
+  state.presence=null;state.connections=null;state.growth=null;growthDay=null;state.directory=null;portfolio.selected=null;portfolio.epoch++;stopDirectoryWatch();
   clearTimeout(nativeTimer);state.nativeConnection=null;state.nativeThreads=null;state.nativeThread=null;state.nativeListCursor=null;state.nativeThreadCursor=null;state.nativeArchived=false;state.sessions=null;state.session=null;state.sessionBefore=null;state.sessionCheckpoint=null;state.usage=null;state.sources=null;state.source=null;state.evidence=null;state.teachDraft='';
   state.graphEpoch++;state.graphFilter='all';state.listing=false;graphCamera=defaultCamera();
 }
@@ -179,15 +179,19 @@ async function refresh(manual=false,areas=null){
     if(summaryOk){updateOverview(summary.value);delete state.errors.overview;}
     else if(reachable)state.errors.overview=summary.reason?.message??'The workspace returned an invalid overview.';
     renderChrome();
-    if(!reachable){failures++;state.pulseIds=[];drawGraph();updateAgentDock();if(state.view==='setup'||!$('title'))render(true);return;}
+    if(!reachable){failures++;state.pulseIds=[];drawGraph();updateAgentDock();if(['setup','workspaces'].includes(state.view)||!$('title'))render(true);return;}
     failures=0;
     polls++;
-    const epoch=state.dataEpoch,graphEpoch=state.graphEpoch;
+    const epoch=state.dataEpoch,graphEpoch=state.graphEpoch,directoryEpoch=portfolio.epoch;
     const params=new URLSearchParams(projectQuery({limit:'200'}).slice(1));
     if(state.cursor!==undefined)params.set('cursor',state.cursor);
     if(state.journalId)params.set('journalId',state.journalId);
     const wanted=area=>!areas||areas.has(area);
     const jobs=[];
+    if(local&&scope==='overview'&&!state.directory&&state.server?.project?.id)jobs.push(['directory',api('directory',options)]);
+    if(local&&scope==='overview'&&!portfolio.timer)directoryPoll();
+    const lastGrowthDay=state.growth?.memory?.days?.at(-1)?.date;
+    if(local&&scope==='overview'&&(manual||!state.growth||wanted('graph')||wanted('hub')||wanted('policy')||lastGrowthDay!==new Date().toISOString().slice(0,10)))jobs.push(['growth',api('growth',options)]);
     if(local&&scope==='setup'&&!state.pending&&(!areas||wanted('policy')||wanted('presence')||wanted('connections')))jobs.push(['connections',api('connections',options)]);
     if(local&&wanted('presence')&&dockVisible(scope))jobs.push(['presence',api('presence',options)]);
     if(local&&(wanted('policy')||scope==='setup'&&wanted('sessions'))&&!state.pending&&
@@ -215,6 +219,8 @@ async function refresh(manual=false,areas=null){
       if(result.status==='rejected'){needsRender ||= state.errors[name]!==result.reason.message;state.errors[name]=result.reason.message;return;}
       needsRender ||= !!state.errors[name];
       delete state.errors[name];
+      if(name==='directory'){if(state.view===scope&&directoryEpoch===portfolio.epoch&&installDirectory(result.value))updateWorkspaceNav();return;}
+      if(name==='growth'){state.growth=result.value;return;}
       if(name==='policy'){const changed=installPolicy(result.value);needsRender ||= scope!=='overview'&&changed;return;}
       if(name==='presence'){installDockPresence(result.value);scheduleDockExpiry();return;}
       if(name==='session'&&state.session?.session.id!==result.value.session.id)return;
@@ -259,9 +265,12 @@ async function refresh(manual=false,areas=null){
 }
 async function loadView(){
   const epoch=++state.viewEpoch;
-  const current=state.view;
+  const current=state.view,directoryEpoch=portfolio.epoch;
+  if(current!=='workspaces')stopDirectoryWatch();
+  directoryPoll();
   if(current==='files'&&local)void openProjectFiles();
   const jobs=[];
+  if(local&&(current==='workspaces'||current==='overview'&&!state.directory))jobs.push(['directory',directoryRoute(current==='workspaces'?portfolio.selected:null)]);
   if(current==='setup')jobs.push(['integrations','integrations']);
   if(local&&current==='setup')jobs.push(['managedSkills','managed-skills'],['connections','connections']);
   if(local&&['setup','sessions','context'].includes(current))jobs.push(['policy','project-policy']);
@@ -272,6 +281,7 @@ async function loadView(){
   }
   if(local&&current==='sessions')jobs.push(['sessions','sessions']);
   if(local&&current==='overview'&&!state.sessions)jobs.push(['sessions','sessions']);
+  if(local&&current==='overview'&&!state.growth)jobs.push(['growth','growth']);
   if(local&&current==='overview'&&!state.usage)jobs.push(['usage','usage']);
   if(local&&current==='overview'&&!state.policy)jobs.push(['policy','project-policy']);
   if(local&&dockVisible(current))jobs.push(['presence','presence']);
@@ -282,15 +292,18 @@ async function loadView(){
   if(epoch!==state.viewEpoch||current!==state.view)return;
   results.forEach((result,index)=>{
     const name=jobs[index][0];
+    if(name==='directory'&&directoryEpoch!==portfolio.epoch)return;
     if(result.status==='fulfilled'){
       if(name==='policy')installPolicy(result.value);
       else if(name==='presence')installDockPresence(result.value);
+      else if(name==='directory')installDirectory(result.value);
       else state[name]=result.value;
       delete state.errors[name];
     }
     else state.errors[name]=result.reason.message;
   });
   if(jobs.length)render(true);
+  if(local&&current==='workspaces'&&portfolio.nativeWatch)void checkDirectoryIndexes();
   scheduleDockExpiry();
   if(local&&current==='sessions')void refreshNativeChats();
   if(local&&current==='sessions')void readLiveFiles();
@@ -303,6 +316,7 @@ function openView(next){
   render();window.scrollTo(0,0);$('title')?.focus({preventScroll:true});void loadView();
 }
 function render(restore=false){
+  const workspaceFocus=$('workspace-portfolio')?.contains(document.activeElement)?document.activeElement?.id:null;
   const openDetails=restore?[...$('main').querySelectorAll('details[data-keep-open][id][open]')].map(node=>node.id):[];
   const focusedDisclosure=restore?document.activeElement?.matches('details[data-keep-open][id] > summary')&&document.activeElement.parentElement.id:null;
   const hostFocus=restore&&document.activeElement?.closest('#host-connections')?document.activeElement.id:null;
@@ -323,6 +337,7 @@ function render(restore=false){
   $('main').innerHTML=viewBody+'<p class="status small" id="view-status" role="status"></p>';
   for(const id of openDetails)$(id)?.setAttribute('open','');
   if(focusedDisclosure)$(focusedDisclosure)?.querySelector('summary')?.focus({preventScroll:true});
+  if(workspaceFocus)$(workspaceFocus)?.focus({preventScroll:true});
   if(hostFocus)$(hostFocus)?.focus({preventScroll:true});
   updateAgentDock();
   if(topologyExpanded&&$('topology-more'))$('topology-more').open=true;
@@ -385,12 +400,17 @@ async function mutation(operation,source,success='Saved.'){
   if(state.pending)return;
   state.pending=true;
   const submissionView=state.view;
+  const directoryFocus=submissionView==='workspaces'&&document.activeElement===source?source.id:null;
   if(source)source.disabled=true;
   renderChrome();
   status('Working…');
   try{
     const message=await operation();
     state.pending=false;status(typeof message==='string'?message:success);render(state.view!==submissionView);
+    if(directoryFocus&&state.view==='workspaces'&&document.activeElement===document.body){
+      const button=$(directoryFocus),disclosure=button?.closest('details:not([open])');
+      (disclosure?.querySelector('summary')??button??$('workspace-card-'+selectedDirectory()?.projectId)??$('title'))?.focus({preventScroll:true});
+    }
     if(source?.dataset.feature)[...$('main').querySelectorAll('[data-feature]')].find(node=>node.dataset.feature===source.dataset.feature)?.focus({preventScroll:true});
     if(source?.dataset.policyTool||source?.dataset.policyChat)[...$('main').querySelectorAll('[data-policy-tool],[data-policy-chat]')].find(node=>
       source.dataset.policyTool?node.dataset.policyTool===source.dataset.policyTool:node.dataset.policyChat===source.dataset.policyChat)?.focus({preventScroll:true});
@@ -422,6 +442,7 @@ function setReplay(index){
   updateOverviewLive();renderInspector();drawGraph();
 }
 function start(){
+  if(local&&new URLSearchParams(window.location.search).get('view')==='workspaces')state.view='workspaces';
   render();
   $('reload').addEventListener('click',()=>void refresh(true));
   $('project').addEventListener('change',event=>{
@@ -433,7 +454,15 @@ function start(){
   });
   $('main').addEventListener('focusin',event=>previewDockTool(event.target));
   $('main').addEventListener('pointerover',event=>{if(event.pointerType==='mouse')previewDockTool(event.target);});
+  for(const type of ['focusout','pointerout'])$('main').addEventListener(type,event=>{
+    const pin=event.target.closest?.('.topology-memory-pin');
+    if(pin&&!pin.contains(event.relatedTarget))pin.classList.remove('topology-tip-dismissed');
+  });
   $('main').addEventListener('keydown',event=>{
+    if(event.key==='Escape'){
+      const pin=$('tool-dock')?.querySelector('.topology-memory-pin:not(.topology-tip-dismissed):has(.topology-memory-point:is(:hover,:focus),.topology-memory-tip:hover)');
+      if(pin){event.preventDefault();pin.classList.add('topology-tip-dismissed');return;}
+    }
     if(event.key==='Escape'&&dockTool&&event.target.closest('#tool-dock')){
       const close=$('tool-dock')?.querySelector('[data-dock-close]');
       if(close){event.preventDefault();handleAgentDock(close);}
@@ -441,7 +470,8 @@ function start(){
   });
   document.addEventListener('visibilitychange',()=>{
     clearTimeout(timer);state.pulseIds=[];drawGraph();updateAgentDock();scheduleDockExpiry();
-    if(document.hidden){controller?.abort();stopProjectStream();}else {state.suppressLivePulse=!!liveStream.cursor;void refresh(true);}
+    if(document.hidden){controller?.abort();stopProjectStream();cancelDirectoryIndexChecks();directoryPoll();}
+    else {state.suppressLivePulse=!!liveStream.cursor;void refresh(true);}
   });
   reduced.addEventListener('change',()=>{state.pulseIds=[];updateOverviewLive();updateAgentDock();});
   window.addEventListener('online',()=>void refresh(true));

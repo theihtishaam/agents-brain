@@ -3,6 +3,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, expect, it } from 'vitest';
+import { ActivityJournal } from '../../src/brain/activity-journal.js';
 import { GlobalBrain } from '../../src/brain/global-brain.js';
 import { MCPServer } from '../../src/brain/mcp-server.js';
 import { FeatureSettingsStore } from '../../src/brain/feature-settings.js';
@@ -135,6 +136,11 @@ it('enforces sharing, lineage, and context ceilings across a warm MCP client and
   expect(JSON.stringify(pack)).not.toMatch(/HiddenPolicy/u);
   const brief = (await call('project_brief', { query: 'policyneedle', tokenBudget: 12000 })).result;
   expect(brief?.content).toEqual([{ type: 'text', text: pack.markdown }]);
+  const receipts = new ActivityJournal({ filePath: store.journalPath }).read({ projectId: id }).events
+    .filter(event => event.kind === 'tool-end' && ['project_brief', 'context_pack'].includes(event.tool ?? ''));
+  expect(receipts.slice(-2).map(event => [event.tool, event.contextMemoryIds])).toEqual([
+    ['context_pack', [allowed]], ['project_brief', [allowed]],
+  ]);
   const prompt = await rpc('prompts/get', { name: 'shadow-task', arguments: { projectId: id, request: 'policyneedle' } });
   expect(result(prompt)).toContain('330 estimated tokens, limit 1 entries');
   expect(result(prompt)).not.toMatch(/HiddenPolicy/u);

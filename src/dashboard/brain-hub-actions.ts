@@ -17,6 +17,17 @@ function handleClick(event){
   const button=event.target.closest('button');
   if(!button||button.disabled)return;
   const data=button.dataset;
+  if(data.openWorkspace){void selectDirectory(data.openWorkspace);return;}
+  if(data.directoryForget){void mutation(async()=>{await directoryWrite({kind:'forget',projectId:data.directoryForget});portfolio.selected=null;},button,'Workspace listing stopped.');return;}
+  if(data.directoryWatch){
+    if(portfolio.nativeWatch)stopDirectoryWatch();
+    else {portfolio.nativeWatch=true;portfolio.nextIndexCheck=0;void checkDirectoryIndexes();}
+    render(true);return;
+  }
+  if(data.directoryNative){void mutation(async()=>{
+    await checkDirectoryIndex(data.directoryNative);
+  },button,'Codex index checked.');return;}
+  if(data.growthDay){growthDay=growthDay===data.growthDay?null:data.growthDay;updateGrowth();return;}
   if(data.filePath!==undefined){void openProjectFiles(data.filePath,Number(data.fileOffset??0));return;}
   if(data.fileSelect){selectProjectFile(data.fileSelect);return;}
   if(data.fileContext){openFileContext(data.fileContext);return;}
@@ -29,7 +40,14 @@ function handleClick(event){
     if(!state.pending&&data.project!==state.project){state.project=data.project;resetScope();render();void refresh(true);}
     return;
   }
-  if(data.node){void chooseMemory(data.node);return;}
+  if(data.node){
+    void chooseMemory(data.node).then(()=>{
+      if(!Object.hasOwn(data,'topologyMemory')||state.view!=='overview'||state.picked!==data.node)return;
+      const inspector=$('inspector');
+      inspector?.scrollIntoView({block:'nearest'});inspector?.focus({preventScroll:true});
+    });
+    return;
+  }
   if(data.graphMemory){void focusGraphMemory(data.graphMemory,data.graphProject);return;}
   if(data.graphFilter){filterGraph(data.graphFilter);return;}
   if(data.inspect){state.inspector=data.inspect;renderInspector();$('inspector').querySelector('[data-inspect="'+data.inspect+'"]')?.focus({preventScroll:true});return;}
@@ -132,6 +150,7 @@ function handleClick(event){
     case 'refresh-room':void mutation(async()=>{await refreshHub();if(state.room)await loadRoom(state.room.room.id);},button,'Room refreshed.');break;
     case 'graph':case 'trace':
       state.graphMode=data.action;state.listing=false;state.pulseIds=[];render();$('main').querySelector('[data-action="'+data.action+'"]')?.focus();break;
+    case 'topology-find-memory':state.graphMode='graph';state.listing=true;render(true);$('graph-search')?.focus();break;
     case 'node-list':{
       state.listing=!state.listing;button.setAttribute('aria-expanded',String(state.listing));
       const target=$('node-list');target.hidden=!state.listing;syncGraphControls();drawGraph();if(state.listing)$('graph-search')?.focus();break;
@@ -167,6 +186,10 @@ function handleSubmit(event){
   if(!kind)return;
   event.preventDefault();
   const form=new FormData(target,event.submitter),button=event.submitter;
+  if(kind==='directory-add'){
+    const name=field(form,'name');
+    void mutation(async()=>{await directoryWrite({kind:'add',root:field(form,'root'),...(name?{projectName:name}:{})});target.reset();},button,'Workspace added to the local directory.');return;
+  }
   if(kind==='usage-filter'){applyUsageFilters(form);return;}
   const tasks={
     'policy-context':()=>saveProjectPolicy({kind:'set-context-limits',context:{maxTokens:Number(form.get('maxTokens')),maxEntries:Number(form.get('maxEntries'))}}),

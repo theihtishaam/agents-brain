@@ -90,6 +90,20 @@ describe('durable local activity journal', () => {
     expect(new ActivityJournal({ filePath }).read().journalId).toBe(reopened.journalId);
   });
 
+  it('persists exact context receipts, distinguishing legacy, empty and unreported selections', async () => {
+    const input = { ...tool, kind: 'tool-end', projectId: 'alpha', outcome: 'success', durationMs: 1 };
+    await journal.append(input);
+    await journal.append({ ...input, contextMemoryIds: [] });
+    await journal.append({ ...input, tool: 'project_brief', contextMemoryIds: ['a', 'b'] });
+    const events = new ActivityJournal({ filePath }).read().events;
+    expect(events.map(item => item.contextMemoryIds)).toEqual([undefined, [], ['a', 'b']]);
+    for (const fields of [{ kind: 'tool-start' }, { outcome: 'error' }, { source: 'reported', transport: 'host' },
+      { projectId: undefined }, { tool: 'unrelated' }, { contextMemoryIds: ['a', 'a'] }, { contextMemoryIds: ['raw/note'] },
+      { contextMemoryIds: Array.from({ length: 31 }, (_, index) => String(index)) }]) {
+      await expect(journal.append({ ...input, contextMemoryIds: ['a'], ...fields })).rejects.toMatchObject({ code: 'ACTIVITY_JOURNAL_INVALID_EVENT' });
+    }
+  });
+
   it('rejects unbounded, misclassified, or extra metadata and leaves no journal artifacts', async () => {
     const invalid = [
       { ...session, arguments: { query: 'fixture input' } },
