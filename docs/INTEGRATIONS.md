@@ -7,7 +7,7 @@ Agent Shadow Brain provides six reusable workflow skills, project-specific skill
 Run these commands from the project root:
 
 ```bash
-npm install -g @theihtisham/agent-shadow-brain@7.22.0
+npm install -g @theihtisham/agent-shadow-brain@7.25.0
 shadow-brain project workspace .
 shadow-brain project config . --target codex
 ```

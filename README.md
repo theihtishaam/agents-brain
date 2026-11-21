@@ -21,7 +21,7 @@
 
 ## New in 7.25.0
 
-Watch a request travel from a connected tool into the project brain and the result travel back. Select a tool to inspect its recorded chat, model and latest action. The recording above comes from an isolated workspace with four scripted MCP clients.
+Watch a request travel from a connected tool into the project brain and the result travel back. Select a tool to inspect its recorded chat, model and latest action. The recording above comes from an isolated workspace with four scripted MCP clients. The cortex highlights retrieval, knowledge writes and session work. Select a column in **Payload traffic** to inspect measured request and result sizes, or select an observed file change to look up its project context.
 
 Any participating agent can call **project_brief** with its current question to retrieve a compact, cited briefing from shared project memory. Use **Files** to look up what the team already knows about a path. **Usage** lets you filter reported token counts by host, model, outcome and time. [7.25.0 visual guide](docs/VISUAL_GUIDE_v7.25.0.md) · [Release notes](docs/launch/RELEASE_NOTES_v7.25.0.md) · [Capabilities and limits](docs/FEATURES_AND_LIMITS.md)
 
