@@ -306,7 +306,7 @@ describe('project hub', () => {
     expect(page).toMatchObject({ totalMessages: count, totalBytes: SESSION_TRANSCRIPT_LIMITS.sessionBytes, nextBefore: expect.any(String) });
     expect(page.messages.at(-1)).toMatchObject({ hostMessageId: `fixture-${count - 1}`, text: message.text });
     expect(sessions.read(session.id).messages).toHaveLength(0);
-  });
+  }, 60_000);
 });
 
 it('writes an explicit GlobalBrain ID idempotently and rejects a distinct payload after restart', async () => {

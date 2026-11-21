@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 function fixture(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sb-hub-runtime-'));
+  const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'sb-hub-runtime-')));
   roots.push(root);
   fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'synthetic-hub-runtime', private: true }));
   return root;

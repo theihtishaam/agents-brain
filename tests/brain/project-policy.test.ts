@@ -220,10 +220,10 @@ it('applies host and workspace controls to connected clients on their next reque
   await change({ action: 'participation', enabled: true });
   expect((await kilo()).error).toBeUndefined();
   expect((await cline()).error).toBeUndefined();
-  const configured = await change({ action: 'connect', host: 'opencode' });
-  expect(configured.hosts).toContainEqual(expect.objectContaining({ id: 'opencode', configuration: 'managed' }));
-  const configPath = path.join(root, 'opencode.json');
+  const configured = await change({ action: 'connect', host: 'kilo-code' });
+  expect(configured.hosts).toContainEqual(expect.objectContaining({ id: 'kilo-code', configuration: 'managed' }));
+  const configPath = path.join(root, 'kilo.json');
   expect(fs.readFileSync(configPath, 'utf8')).toContain('--client-id');
-  await change({ action: 'disconnect', host: 'opencode' });
+  await change({ action: 'disconnect', host: 'kilo-code' });
   expect(fs.existsSync(configPath)).toBe(false);
 });
